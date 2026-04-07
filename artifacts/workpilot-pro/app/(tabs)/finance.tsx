@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/BottomSheet";
@@ -55,22 +56,42 @@ export default function FinanceScreen() {
   const [itemPrice, setItemPrice] = useState("");
   const [lineItems, setLineItems] = useState<InvoiceItem[]>([]);
   const [templateName, setTemplateName] = useState("");
+  const [formError, setFormError] = useState("");
 
   const addLineItem = () => {
     if (!itemDesc.trim() || !itemPrice) return;
     setLineItems((prev) => [...prev, { id: Date.now().toString(), description: itemDesc.trim(), quantity: parseFloat(itemQty) || 1, unitPrice: parseFloat(itemPrice) || 0 }]);
     setItemDesc(""); setItemQty("1"); setItemPrice("");
+    setFormError("");
+  };
+
+  const openNew = () => {
+    setSelectedClientId(clients[0]?.id || "");
+    setTitle(""); setNotes(""); setLineItems([]);
+    setItemDesc(""); setItemQty("1"); setItemPrice("");
+    setTaxPct(settings.defaultTaxPercent.toString());
+    setFormError("");
+    setShowNew(true);
   };
 
   const handleCreate = () => {
-    if (!selectedClientId) { Alert.alert("Select a client"); return; }
-    if (lineItems.length === 0) { Alert.alert("Add at least one line item"); return; }
+    // Auto-add any pending line item the user may have typed but not committed
+    let finalItems = lineItems;
+    if (itemDesc.trim() && itemPrice) {
+      const pending = { id: Date.now().toString(), description: itemDesc.trim(), quantity: parseFloat(itemQty) || 1, unitPrice: parseFloat(itemPrice) || 0 };
+      finalItems = [...lineItems, pending];
+      setLineItems(finalItems);
+      setItemDesc(""); setItemQty("1"); setItemPrice("");
+    }
+    if (!selectedClientId) { setFormError("Please select a client above."); return; }
+    if (finalItems.length === 0) { setFormError("Add at least one line item with a description and price."); return; }
+    setFormError("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 30);
     if (tab === "invoices") {
-      addInvoice({ clientId: selectedClientId, title: title || "Invoice", items: lineItems, notes, taxPercent: parseFloat(taxPct) || 0, status: "draft", dueDate: dueDate.toISOString(), paidAt: null, quoteId: null });
+      addInvoice({ clientId: selectedClientId, title: title || "Invoice", items: finalItems, notes, taxPercent: parseFloat(taxPct) || 0, status: "draft", dueDate: dueDate.toISOString(), paidAt: null, quoteId: null });
     } else {
-      addQuote({ clientId: selectedClientId, title: title || "Quote", items: lineItems, notes, taxPercent: parseFloat(taxPct) || 0, status: "draft", validUntil: dueDate.toISOString() });
+      addQuote({ clientId: selectedClientId, title: title || "Quote", items: finalItems, notes, taxPercent: parseFloat(taxPct) || 0, status: "draft", validUntil: dueDate.toISOString() });
     }
     setShowNew(false); setTitle(""); setNotes(""); setLineItems([]);
   };
@@ -152,7 +173,7 @@ export default function FinanceScreen() {
           )}
           <TouchableOpacity
             style={[styles.addBtn, { backgroundColor: colors.primary }]}
-            onPress={() => setShowNew(true)}
+            onPress={openNew}
             testID="new-finance-btn"
           >
             <Ionicons name="add" size={22} color="#fff" />
@@ -236,7 +257,7 @@ export default function FinanceScreen() {
             title={tab === "invoices" ? "No invoices yet" : "No quotes yet"}
             description={tab === "invoices" ? "Create your first invoice to start getting paid." : "Create quotes to send to clients before billing."}
             actionLabel={`New ${tab === "invoices" ? "Invoice" : "Quote"}`}
-            onAction={() => setShowNew(true)}
+            onAction={openNew}
           />
         ) : (
           <FlatList
@@ -345,6 +366,11 @@ export default function FinanceScreen() {
             <Text style={{ color: colors.primary, fontFamily: "Inter_500Medium", fontSize: 13 }}>Save as Template</Text>
           </TouchableOpacity>
         )}
+        {formError ? (
+          <View style={{ backgroundColor: "#fee2e2", borderRadius: 8, padding: 10, marginBottom: 12 }}>
+            <Text style={{ color: "#b91c1c", fontFamily: "Inter_500Medium", fontSize: 13 }}>{formError}</Text>
+          </View>
+        ) : null}
         <TouchableOpacity style={[styles.createBtn, { backgroundColor: colors.primary }]} onPress={handleCreate} testID="create-doc-btn">
           <Text style={styles.createBtnText}>Create {tab === "invoices" ? "Invoice" : "Quote"}</Text>
         </TouchableOpacity>
