@@ -3,7 +3,6 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   Image,
   Modal,
   Platform,
@@ -14,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -28,6 +28,8 @@ export default function QuoteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { clients, quotes, updateQuote, deleteQuote, convertQuoteToInvoice, settings, companyProfile, startTimer, activeTimer } = useApp();
   const [showTimerPrompt, setShowTimerPrompt] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showConvertConfirm, setShowConvertConfirm] = useState(false);
 
   const quote = quotes.find((q) => q.id === id);
   const client = clients.find((c) => c.id === quote?.clientId);
@@ -47,12 +49,7 @@ export default function QuoteDetailScreen() {
     );
   }
 
-  const handleDelete = () => {
-    Alert.alert("Delete Quote", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => { deleteQuote(id); router.back(); } },
-    ]);
-  };
+  const handleDelete = () => setShowDeleteConfirm(true);
 
   const handleAccept = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -74,17 +71,13 @@ export default function QuoteDetailScreen() {
     router.replace("/(tabs)/work");
   };
 
-  const handleConvert = () => {
-    Alert.alert("Convert to Invoice", "Create a new invoice from this quote?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Convert", onPress: () => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          const invoiceId = convertQuoteToInvoice(id);
-          router.replace({ pathname: "/invoice/[id]", params: { id: invoiceId } });
-        }
-      },
-    ]);
+  const handleConvert = () => setShowConvertConfirm(true);
+
+  const doConvert = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const invoiceId = convertQuoteToInvoice(id);
+    setShowConvertConfirm(false);
+    router.replace({ pathname: "/invoice/[id]", params: { id: invoiceId } });
   };
 
   const companyName = companyProfile.name || settings.name || "Your Company";
@@ -240,6 +233,24 @@ export default function QuoteDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      <ConfirmDialog
+        visible={showDeleteConfirm}
+        title="Delete Quote"
+        message="This cannot be undone. The quote will be permanently removed."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => { setShowDeleteConfirm(false); deleteQuote(id); router.back(); }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+      <ConfirmDialog
+        visible={showConvertConfirm}
+        title="Convert to Invoice"
+        message="Create a new invoice from this quote? The quote will be marked as accepted."
+        confirmLabel="Convert"
+        onConfirm={doConvert}
+        onCancel={() => setShowConvertConfirm(false)}
+      />
 
       {/* Timer prompt modal */}
       <Modal transparent visible={showTimerPrompt} animationType="fade" onRequestClose={() => setShowTimerPrompt(false)}>

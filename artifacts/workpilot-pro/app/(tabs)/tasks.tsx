@@ -3,7 +3,6 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -16,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/BottomSheet";
 import { CalendarPicker } from "@/components/CalendarPicker";
 import { ClientBadge } from "@/components/ClientBadge";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { FormField } from "@/components/FormField";
 import { useApp } from "@/context/AppContext";
@@ -201,6 +201,7 @@ export default function TasksScreen() {
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [estHours, setEstHours] = useState("");
   const [hourlyRate, setHourlyRate] = useState("");
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const resetForm = () => {
     setTitle(""); setDesc(""); setPriority("medium"); setStatus("todo");
@@ -255,10 +256,8 @@ export default function TasksScreen() {
   };
 
   const handleDelete = (id: string) => {
-    Alert.alert("Delete Task", "Remove this task?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteTask(id) },
-    ]);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPendingDeleteId(id);
   };
 
   const filtered = useMemo(() =>
@@ -432,6 +431,16 @@ export default function TasksScreen() {
           <Text style={styles.saveBtnText}>{editingTask ? "Save Changes" : "Add Task"}</Text>
         </TouchableOpacity>
       </BottomSheet>
+
+      <ConfirmDialog
+        visible={!!pendingDeleteId}
+        title="Delete Task"
+        message="Remove this task? This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => { if (pendingDeleteId) deleteTask(pendingDeleteId); setPendingDeleteId(null); }}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </View>
   );
 }

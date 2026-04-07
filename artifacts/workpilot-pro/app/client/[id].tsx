@@ -3,7 +3,6 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   FlatList,
   Platform,
   ScrollView,
@@ -15,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ClientBadge } from "@/components/ClientBadge";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FormField } from "@/components/FormField";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useApp } from "@/context/AppContext";
@@ -61,6 +61,10 @@ export default function ClientDetailScreen() {
   const [editEmail, setEditEmail] = useState(client?.email || "");
   const [editPhone, setEditPhone] = useState(client?.phone || "");
   const [editRate, setEditRate] = useState(client?.hourlyRate?.toString() || "");
+  const [showDeleteClientConfirm, setShowDeleteClientConfirm] = useState(false);
+  const [pendingDeleteNoteId, setPendingDeleteNoteId] = useState<string | null>(null);
+  const [pendingDeleteMeetingId, setPendingDeleteMeetingId] = useState<string | null>(null);
+  const [pendingDeleteExpenseId, setPendingDeleteExpenseId] = useState<string | null>(null);
 
   const clientInvoices = useMemo(() => invoices.filter((inv) => inv.clientId === id), [invoices, id]);
   const clientQuotes = useMemo(() => quotes.filter((q) => q.clientId === id), [quotes, id]);
@@ -81,12 +85,7 @@ export default function ClientDetailScreen() {
     return <View style={[styles.container, { backgroundColor: colors.background }]}><Text style={{ color: colors.foreground, textAlign: "center", marginTop: 100 }}>Client not found</Text></View>;
   }
 
-  const handleDelete = () => {
-    Alert.alert("Delete Client", `Remove ${client.name} and all associated data?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => { deleteClient(id); router.back(); } },
-    ]);
-  };
+  const handleDelete = () => setShowDeleteClientConfirm(true);
 
   const handleSaveClient = () => {
     updateClient(id, { name: editName, company: editCompany, email: editEmail, phone: editPhone, hourlyRate: parseFloat(editRate) || client.hourlyRate });
@@ -244,7 +243,7 @@ export default function ClientDetailScreen() {
               <View key={note.id} style={[styles.noteCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={styles.noteTop}>
                   <Text style={[styles.noteDate, { color: colors.mutedForeground }]}>{formatDate(note.createdAt)}</Text>
-                  <TouchableOpacity onPress={() => Alert.alert("Delete Note", "Remove this note?", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => deleteClientNote(note.id) }])}>
+                  <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setPendingDeleteNoteId(note.id); }}>
                     <Ionicons name="trash-outline" size={14} color={colors.mutedForeground} />
                   </TouchableOpacity>
                 </View>
@@ -266,7 +265,7 @@ export default function ClientDetailScreen() {
               <View key={m.id} style={[styles.noteCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={styles.noteTop}>
                   <Text style={[styles.noteDate, { color: colors.mutedForeground }]}>{formatDate(m.date)} · {m.durationMinutes}min</Text>
-                  <TouchableOpacity onPress={() => Alert.alert("Delete Meeting", "Remove this meeting?", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => deleteMeeting(m.id) }])}>
+                  <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setPendingDeleteMeetingId(m.id); }}>
                     <Ionicons name="trash-outline" size={14} color={colors.mutedForeground} />
                   </TouchableOpacity>
                 </View>
@@ -300,7 +299,7 @@ export default function ClientDetailScreen() {
                     </View>
                     <Text style={[styles.noteDate, { color: colors.mutedForeground }]}>{formatDate(exp.date)}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => Alert.alert("Delete Expense", "Remove this expense?", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => deleteExpense(exp.id) }])}>
+                  <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setPendingDeleteExpenseId(exp.id); }}>
                     <Ionicons name="trash-outline" size={14} color={colors.mutedForeground} />
                   </TouchableOpacity>
                 </View>
@@ -364,6 +363,43 @@ export default function ClientDetailScreen() {
           <Text style={styles.saveBtnText}>Add Expense</Text>
         </TouchableOpacity>
       </BottomSheet>
+
+      <ConfirmDialog
+        visible={showDeleteClientConfirm}
+        title="Delete Client"
+        message={`Remove ${client.name} and all associated data? This cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => { setShowDeleteClientConfirm(false); deleteClient(id); router.back(); }}
+        onCancel={() => setShowDeleteClientConfirm(false)}
+      />
+      <ConfirmDialog
+        visible={!!pendingDeleteNoteId}
+        title="Delete Note"
+        message="Remove this note? This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => { if (pendingDeleteNoteId) deleteClientNote(pendingDeleteNoteId); setPendingDeleteNoteId(null); }}
+        onCancel={() => setPendingDeleteNoteId(null)}
+      />
+      <ConfirmDialog
+        visible={!!pendingDeleteMeetingId}
+        title="Delete Meeting"
+        message="Remove this meeting log? This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => { if (pendingDeleteMeetingId) deleteMeeting(pendingDeleteMeetingId); setPendingDeleteMeetingId(null); }}
+        onCancel={() => setPendingDeleteMeetingId(null)}
+      />
+      <ConfirmDialog
+        visible={!!pendingDeleteExpenseId}
+        title="Delete Expense"
+        message="Remove this expense? This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => { if (pendingDeleteExpenseId) deleteExpense(pendingDeleteExpenseId); setPendingDeleteExpenseId(null); }}
+        onCancel={() => setPendingDeleteExpenseId(null)}
+      />
     </View>
   );
 }

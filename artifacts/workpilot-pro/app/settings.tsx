@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FormField } from "@/components/FormField";
 import { useApp } from "@/context/AppContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -29,6 +30,7 @@ export default function SettingsScreen() {
   const { settings, companyProfile, updateSettings, updateCompanyProfile } = useApp();
   const { themeName, setTheme } = useTheme();
   const [section, setSection] = useState<Section>("profile");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const botPadding = Platform.OS === "web" ? 34 : insets.bottom;
@@ -198,10 +200,7 @@ export default function SettingsScreen() {
             <FormField label="Monthly Income Goal" prefix={settings.currency} placeholder="50000" value={settings.profitGoal.toString()} onChangeText={(v) => updateSettings({ profitGoal: parseFloat(v) || 0 })} keyboardType="decimal-pad" />
             <TouchableOpacity
               style={[styles.dangerBtn, { borderColor: "#ef4444" }]}
-              onPress={() => Alert.alert("Clear All Data", "This will permanently delete all your clients, invoices, quotes, and time entries.", [
-                { text: "Cancel", style: "cancel" },
-                { text: "Delete Everything", style: "destructive", onPress: () => {} },
-              ])}
+              onPress={() => setShowClearConfirm(true)}
             >
               <Ionicons name="trash-outline" size={18} color="#ef4444" />
               <Text style={styles.dangerBtnText}>Clear All Data</Text>
@@ -209,6 +208,15 @@ export default function SettingsScreen() {
           </>
         )}
       </ScrollView>
+      <ConfirmDialog
+        visible={showClearConfirm}
+        title="Clear All Data"
+        message="This will permanently delete all your clients, invoices, quotes, and time entries. This cannot be undone."
+        confirmLabel="Delete Everything"
+        destructive
+        onConfirm={() => { setShowClearConfirm(false); }}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </View>
   );
 }

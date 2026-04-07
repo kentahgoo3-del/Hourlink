@@ -3,7 +3,6 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   FlatList,
   Modal,
   Platform,
@@ -15,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ClientBadge } from "@/components/ClientBadge";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { FormField } from "@/components/FormField";
 import { TimerWidget } from "@/components/TimerWidget";
@@ -105,6 +105,7 @@ export default function WorkScreen() {
   const [selectedClientId, setSelectedClientId] = useState(clients[0]?.id || "");
   const [billable, setBillable] = useState(true);
   const [filter, setFilter] = useState<"all" | "billable" | "unbilled">("all");
+  const [pendingDeleteEntryId, setPendingDeleteEntryId] = useState<string | null>(null);
 
   const filteredEntries = useMemo(() =>
     timeEntries.filter((e) => e.endTime).filter((e) => {
@@ -252,10 +253,7 @@ export default function WorkScreen() {
                 <TimeEntryCard
                   key={entry.id}
                   entry={entry}
-                  onDelete={() => Alert.alert("Delete Entry", "Remove this time entry?", [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Delete", style: "destructive", onPress: () => deleteTimeEntry(entry.id) },
-                  ])}
+                  onDelete={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setPendingDeleteEntryId(entry.id); }}
                 />
               ))}
             </View>
@@ -352,6 +350,16 @@ export default function WorkScreen() {
           <Text style={styles.startBtnText}>Start Timer</Text>
         </TouchableOpacity>
       </BottomSheet>
+
+      <ConfirmDialog
+        visible={!!pendingDeleteEntryId}
+        title="Delete Entry"
+        message="Remove this time entry? This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => { if (pendingDeleteEntryId) deleteTimeEntry(pendingDeleteEntryId); setPendingDeleteEntryId(null); }}
+        onCancel={() => setPendingDeleteEntryId(null)}
+      />
     </View>
   );
 }

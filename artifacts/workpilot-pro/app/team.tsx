@@ -15,6 +15,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/BottomSheet";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FormField } from "@/components/FormField";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -55,6 +56,7 @@ export default function TeamScreen() {
   const [delegateTitle, setDelegateTitle] = useState("");
   const [delegateDesc, setDelegateDesc] = useState("");
   const [delegatePriority, setDelegatePriority] = useState<"low" | "medium" | "high">("medium");
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   // Load persisted workspace
   useEffect(() => {
@@ -161,16 +163,12 @@ export default function TeamScreen() {
     }
   };
 
-  const handleLeave = () => {
-    Alert.alert("Leave Workspace", "You will no longer be connected to this workspace.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Leave", style: "destructive", onPress: async () => {
-          await AsyncStorage.multiRemove(["teamWorkspaceCode", "teamIsOwner"]);
-          setWorkspace(null); setWorkspaceCode(""); setIsOwner(false); setPendingTasks([]);
-        }
-      },
-    ]);
+  const handleLeave = () => setShowLeaveConfirm(true);
+
+  const doLeave = async () => {
+    await AsyncStorage.multiRemove(["teamWorkspaceCode", "teamIsOwner"]);
+    setWorkspace(null); setWorkspaceCode(""); setIsOwner(false); setPendingTasks([]);
+    setShowLeaveConfirm(false);
   };
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
@@ -382,6 +380,15 @@ export default function TeamScreen() {
           </>}
         </TouchableOpacity>
       </BottomSheet>
+      <ConfirmDialog
+        visible={showLeaveConfirm}
+        title="Leave Workspace"
+        message="You will no longer be connected to this workspace. All shared tasks will stop syncing."
+        confirmLabel="Leave"
+        destructive
+        onConfirm={doLeave}
+        onCancel={() => setShowLeaveConfirm(false)}
+      />
     </ScrollView>
   );
 }

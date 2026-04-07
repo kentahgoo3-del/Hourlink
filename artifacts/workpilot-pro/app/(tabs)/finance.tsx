@@ -3,7 +3,6 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   FlatList,
   Platform,
   StyleSheet,
@@ -16,6 +15,7 @@ import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ClientBadge } from "@/components/ClientBadge";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { FormField } from "@/components/FormField";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -75,6 +75,7 @@ export default function FinanceScreen() {
   const [lineItems, setLineItems] = useState<InvoiceItem[]>([]);
   const [templateName, setTemplateName] = useState("");
   const [formError, setFormError] = useState("");
+  const [pendingDeleteItem, setPendingDeleteItem] = useState<{ id: string; isInvoice: boolean } | null>(null);
 
   const addLineItem = () => {
     if (!itemDesc.trim() || !itemPrice) return;
@@ -174,10 +175,7 @@ export default function FinanceScreen() {
       )}
       <TouchableOpacity
         style={[styles.swipeBtn, { backgroundColor: "#ef4444" }]}
-        onPress={() => Alert.alert("Delete", `Delete this ${isInvoice ? "invoice" : "quote"}?`, [
-          { text: "Cancel", style: "cancel" },
-          { text: "Delete", style: "destructive", onPress: () => isInvoice ? deleteInvoice(item.id) : deleteQuote(item.id) },
-        ])}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setPendingDeleteItem({ id: item.id, isInvoice }); }}
       >
         <Ionicons name="trash" size={18} color="#fff" />
         <Text style={styles.swipeBtnText}>Delete</Text>
@@ -419,6 +417,21 @@ export default function FinanceScreen() {
           <Text style={styles.createBtnText}>Save Template</Text>
         </TouchableOpacity>
       </BottomSheet>
+
+      <ConfirmDialog
+        visible={!!pendingDeleteItem}
+        title={`Delete ${pendingDeleteItem?.isInvoice ? "Invoice" : "Quote"}`}
+        message="This cannot be undone. The document will be permanently removed."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (!pendingDeleteItem) return;
+          if (pendingDeleteItem.isInvoice) deleteInvoice(pendingDeleteItem.id);
+          else deleteQuote(pendingDeleteItem.id);
+          setPendingDeleteItem(null);
+        }}
+        onCancel={() => setPendingDeleteItem(null)}
+      />
     </View>
   );
 }

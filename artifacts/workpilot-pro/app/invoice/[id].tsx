@@ -3,7 +3,6 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   Image,
   Platform,
   ScrollView,
@@ -14,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/BottomSheet";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FormField } from "@/components/FormField";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useApp } from "@/context/AppContext";
@@ -35,6 +35,7 @@ export default function InvoiceDetailScreen() {
   const [showEdit, setShowEdit] = useState(false);
   const [editNotes, setEditNotes] = useState(invoice?.notes || "");
   const [editDue, setEditDue] = useState(invoice?.dueDate ? formatDate(invoice.dueDate) : "");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const subtotal = useMemo(() => invoice?.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0) ?? 0, [invoice]);
   const tax = subtotal * ((invoice?.taxPercent ?? 0) / 100);
@@ -51,12 +52,7 @@ export default function InvoiceDetailScreen() {
     );
   }
 
-  const handleDelete = () => {
-    Alert.alert("Delete Invoice", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => { deleteInvoice(id); router.back(); } },
-    ]);
-  };
+  const handleDelete = () => setShowDeleteConfirm(true);
 
   const companyName = companyProfile.name || settings.name || "Your Company";
   const hasCompanyInfo = !!(companyProfile.name || companyProfile.addressLine1 || companyProfile.phone);
@@ -241,6 +237,15 @@ export default function InvoiceDetailScreen() {
           <Text style={styles.actionBtnText}>Save Changes</Text>
         </TouchableOpacity>
       </BottomSheet>
+      <ConfirmDialog
+        visible={showDeleteConfirm}
+        title="Delete Invoice"
+        message="This cannot be undone. The invoice will be permanently removed."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => { setShowDeleteConfirm(false); deleteInvoice(id); router.back(); }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </View>
   );
 }
