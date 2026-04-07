@@ -25,3 +25,29 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+
+## Artifacts
+
+### WorkPilot Pro (mobile)
+- **Slug**: workpilot-pro
+- **Kind**: expo (React Native / Expo)
+- **Preview path**: /
+- **Description**: A full-featured time tracking + business management mobile app
+- **Features**:
+  - Time tracking with live timer (start/stop)
+  - Client management with per-client revenue tracking
+  - Quotes creation and management
+  - Invoices with full lifecycle (draft → sent → paid)
+  - Quote-to-invoice conversion
+  - Financial dashboard with KPI cards
+  - Reports with period filtering (week/month/quarter/year)
+  - Settings with currency and billing defaults
+- **Storage**: AsyncStorage (all data persisted locally)
+- **Key files**:
+  - `context/AppContext.tsx` — global state, all data operations
+  - `app/(tabs)/` — 5 main tabs: Home, Work, Clients, Finance, Reports
+  - `app/client/[id].tsx` — client detail with invoices/quotes
+  - `app/invoice/[id].tsx` — invoice detail with status workflow
+  - `app/quote/[id].tsx` — quote detail with status workflow
+  - `app/settings.tsx` — user settings
+  - `constants/colors.ts` — design tokens (blue/slate theme)
