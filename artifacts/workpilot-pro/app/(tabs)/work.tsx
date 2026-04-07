@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ClientBadge } from "@/components/ClientBadge";
+import { ClientDropdown } from "@/components/ClientDropdown";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { FormField } from "@/components/FormField";
@@ -325,20 +326,13 @@ export default function WorkScreen() {
 
       <BottomSheet visible={showStart} onClose={() => setShowStart(false)} title="Start Timer">
         <FormField label="What are you working on?" placeholder="e.g., Website redesign, Client meeting" value={desc} onChangeText={setDesc} />
-        <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Client</Text>
-        <View style={styles.clientList}>
-          {clients.map((c) => (
-            <TouchableOpacity
-              key={c.id}
-              style={[styles.clientChip, { backgroundColor: selectedClientId === c.id ? c.color + "22" : colors.muted, borderColor: selectedClientId === c.id ? c.color : "transparent", borderWidth: 1 }]}
-              onPress={() => setSelectedClientId(c.id)}
-            >
-              <ClientBadge name={c.name} color={c.color} size="sm" />
-              <Text style={[styles.chipLabel, { color: colors.foreground }]}>{c.name}</Text>
-            </TouchableOpacity>
-          ))}
-          {clients.length === 0 && <Text style={[styles.noClient, { color: colors.mutedForeground }]}>No clients yet</Text>}
-        </View>
+        <ClientDropdown
+          clients={clients}
+          value={selectedClientId}
+          onChange={setSelectedClientId}
+          label="Client"
+          placeholder="Select a client"
+        />
         <View style={styles.billableRow}>
           <Text style={[styles.billableLabel, { color: colors.foreground }]}>Billable</Text>
           <TouchableOpacity style={[styles.toggle, { backgroundColor: billable ? colors.primary : colors.muted }]} onPress={() => setBillable((v) => !v)}>
@@ -389,10 +383,6 @@ const styles = StyleSheet.create({
   tagBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   tagText: { fontSize: 11, fontFamily: "Inter_400Regular" },
   fieldLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 8, letterSpacing: 0.3 },
-  clientList: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 },
-  clientChip: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
-  chipLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  noClient: { fontSize: 13, fontFamily: "Inter_400Regular" },
   billableRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24 },
   billableLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
   toggle: { width: 48, height: 28, borderRadius: 14, justifyContent: "center", paddingHorizontal: 4 },

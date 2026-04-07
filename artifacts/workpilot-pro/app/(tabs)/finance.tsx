@@ -15,6 +15,7 @@ import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ClientBadge } from "@/components/ClientBadge";
+import { ClientDropdown } from "@/components/ClientDropdown";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { FormField } from "@/components/FormField";
@@ -357,19 +358,13 @@ export default function FinanceScreen() {
           </View>
         )}
 
-        <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>Client</Text>
-        <View style={styles.clientChips}>
-          {clients.map((c) => (
-            <TouchableOpacity
-              key={c.id}
-              style={[styles.chip, { backgroundColor: selectedClientId === c.id ? c.color + "22" : colors.muted, borderColor: selectedClientId === c.id ? c.color : "transparent", borderWidth: 1 }]}
-              onPress={() => setSelectedClientId(c.id)}
-            >
-              <ClientBadge name={c.name} color={c.color} size="sm" />
-              <Text style={[styles.chipLabel, { color: colors.foreground }]}>{c.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <ClientDropdown
+          clients={clients}
+          value={selectedClientId}
+          onChange={setSelectedClientId}
+          label="Client"
+          placeholder="Select a client"
+        />
         <FormField label="Title" placeholder="e.g., Website Redesign" value={title} onChangeText={setTitle} />
         <FormField label="Tax %" placeholder="15" value={taxPct} onChangeText={setTaxPct} keyboardType="decimal-pad" />
         <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>Line Items</Text>
@@ -464,9 +459,6 @@ const styles = StyleSheet.create({
   swipeBtn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, alignItems: "center", justifyContent: "center", gap: 4, minWidth: 60 },
   swipeBtnText: { color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold" },
   sheetLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 10, letterSpacing: 0.3 },
-  clientChips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
-  chipLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
   templateRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16, alignItems: "center" },
   templateChip: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1 },
   lineRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 8 },

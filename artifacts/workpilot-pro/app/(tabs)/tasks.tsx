@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/BottomSheet";
 import { CalendarPicker } from "@/components/CalendarPicker";
 import { ClientBadge } from "@/components/ClientBadge";
+import { ClientDropdown } from "@/components/ClientDropdown";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { FormField } from "@/components/FormField";
@@ -391,27 +392,14 @@ export default function TasksScreen() {
           })}
         </View>
 
-        <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>Client (optional)</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-          <View style={styles.clientRow}>
-            <TouchableOpacity
-              style={[styles.clientChip, { backgroundColor: !clientId ? colors.primary : colors.muted }]}
-              onPress={() => setClientId("")}
-            >
-              <Text style={[styles.clientChipLabel, { color: !clientId ? "#fff" : colors.foreground }]}>None</Text>
-            </TouchableOpacity>
-            {clients.map((c) => (
-              <TouchableOpacity
-                key={c.id}
-                style={[styles.clientChip, { backgroundColor: clientId === c.id ? c.color + "22" : colors.muted, borderColor: clientId === c.id ? c.color : "transparent", borderWidth: 1 }]}
-                onPress={() => setClientId(c.id)}
-              >
-                <ClientBadge name={c.name} color={c.color} size="sm" />
-                <Text style={[styles.clientChipLabel, { color: colors.foreground }]}>{c.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
+        <ClientDropdown
+          clients={clients}
+          value={clientId}
+          onChange={setClientId}
+          label="Client (optional)"
+          allowNone
+          noneLabel="No client"
+        />
 
         <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>
           Due Date{dueDate ? ` — ${new Date(dueDate).toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}` : ""}
@@ -485,9 +473,6 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
   statusChip: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: 10, paddingVertical: 10 },
   statusChipLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  clientRow: { flexDirection: "row", gap: 8 },
-  clientChip: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
-  clientChipLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
   twoCol: { flexDirection: "row", gap: 12 },
   saveBtn: { borderRadius: 14, paddingVertical: 16, alignItems: "center" },
   saveBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
