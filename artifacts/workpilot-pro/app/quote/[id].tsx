@@ -63,12 +63,13 @@ export default function QuoteDetailScreen() {
   const handleStartTimerNow = () => {
     setShowTimerPrompt(false);
     if (activeTimer) return;
-    const rate = client?.hourlyRate ?? settings.defaultRate ?? 0;
+    const hourlyRate = client?.hourlyRate ?? settings.defaultHourlyRate ?? 0;
     startTimer({
       description: quote!.title,
       clientId: quote!.clientId || null,
       taskId: null,
-      rate,
+      hourlyRate,
+      billable: true,
     });
     router.replace("/(tabs)/work");
   };
