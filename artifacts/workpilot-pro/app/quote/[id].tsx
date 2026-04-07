@@ -5,6 +5,7 @@ import React, { useMemo, useState } from "react";
 import {
   Alert,
   Image,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -25,7 +26,8 @@ export default function QuoteDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { clients, quotes, updateQuote, deleteQuote, convertQuoteToInvoice, settings, companyProfile } = useApp();
+  const { clients, quotes, updateQuote, deleteQuote, convertQuoteToInvoice, settings, companyProfile, startTimer, activeTimer } = useApp();
+  const [showTimerPrompt, setShowTimerPrompt] = useState(false);
 
   const quote = quotes.find((q) => q.id === id);
   const client = clients.find((c) => c.id === quote?.clientId);
@@ -50,6 +52,25 @@ export default function QuoteDetailScreen() {
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => { deleteQuote(id); router.back(); } },
     ]);
+  };
+
+  const handleAccept = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    updateQuote(id, { status: "accepted" });
+    setShowTimerPrompt(true);
+  };
+
+  const handleStartTimerNow = () => {
+    setShowTimerPrompt(false);
+    if (activeTimer) return;
+    const rate = client?.hourlyRate ?? settings.defaultRate ?? 0;
+    startTimer({
+      description: quote!.title,
+      clientId: quote!.clientId || null,
+      taskId: null,
+      rate,
+    });
+    router.replace("/(tabs)/work");
   };
 
   const handleConvert = () => {
@@ -191,7 +212,7 @@ export default function QuoteDetailScreen() {
             <View style={styles.sentActions}>
               <TouchableOpacity
                 style={[styles.actionBtn, { flex: 1, backgroundColor: "#10b981" }]}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); updateQuote(id, { status: "accepted" }); }}
+                onPress={handleAccept}
                 testID="accept-quote"
               >
                 <Ionicons name="checkmark" size={18} color="#fff" />
@@ -218,6 +239,35 @@ export default function QuoteDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Timer prompt modal */}
+      <Modal transparent visible={showTimerPrompt} animationType="fade" onRequestClose={() => setShowTimerPrompt(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.modalIconWrap, { backgroundColor: "#10b98120" }]}>
+              <Ionicons name="checkmark-circle" size={36} color="#10b981" />
+            </View>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Quote Accepted!</Text>
+            <Text style={[styles.modalBody, { color: colors.mutedForeground }]}>
+              Ready to start work on{"\n"}
+              <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>{quote.title}</Text>?
+            </Text>
+            <TouchableOpacity
+              style={[styles.modalPrimaryBtn, { backgroundColor: "#10b981" }]}
+              onPress={handleStartTimerNow}
+            >
+              <Ionicons name="timer-outline" size={18} color="#fff" />
+              <Text style={styles.modalPrimaryBtnText}>Start Timer Now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalSecondaryBtn, { borderColor: colors.border }]}
+              onPress={() => setShowTimerPrompt(false)}
+            >
+              <Text style={[styles.modalSecondaryBtnText, { color: colors.mutedForeground }]}>Later</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -225,6 +275,15 @@ export default function QuoteDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   notFound: { textAlign: "center", marginTop: 100, fontSize: 16 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 32 },
+  modalCard: { width: "100%", borderRadius: 20, borderWidth: 1, padding: 28, alignItems: "center", gap: 10 },
+  modalIconWrap: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
+  modalBody: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22, marginBottom: 8 },
+  modalPrimaryBtn: { flexDirection: "row", alignItems: "center", gap: 8, width: "100%", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 20, justifyContent: "center" },
+  modalPrimaryBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  modalSecondaryBtn: { width: "100%", borderRadius: 14, borderWidth: 1, paddingVertical: 12, alignItems: "center" },
+  modalSecondaryBtnText: { fontSize: 14, fontFamily: "Inter_500Medium" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerNum: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
