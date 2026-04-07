@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { router } from "expo-router";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
+  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -28,8 +30,7 @@ function formatDuration(seconds: number) {
 }
 
 function formatTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDate(iso: string) {
@@ -42,15 +43,11 @@ function formatDate(iso: string) {
   return d.toLocaleDateString("en-ZA", { weekday: "short", month: "short", day: "numeric" });
 }
 
-type EntryWithElapsed = TimeEntry & { elapsed?: number };
-
-function TimeEntryCard({ entry, onDelete }: { entry: EntryWithElapsed; onDelete: () => void }) {
+function TimeEntryCard({ entry, onDelete }: { entry: TimeEntry; onDelete: () => void }) {
   const colors = useColors();
   const { clients, settings } = useApp();
   const client = clients.find((c) => c.id === entry.clientId);
-  const earned = entry.endTime
-    ? ((entry.durationSeconds / 3600) * entry.hourlyRate).toFixed(0)
-    : null;
+  const earned = entry.endTime ? ((entry.durationSeconds / 3600) * entry.hourlyRate).toFixed(0) : null;
 
   return (
     <View style={[styles.entryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -73,18 +70,19 @@ function TimeEntryCard({ entry, onDelete }: { entry: EntryWithElapsed; onDelete:
       </View>
       <View style={styles.entryBottom}>
         <View style={[styles.durBadge, { backgroundColor: colors.muted }]}>
-          <Text style={[styles.durText, { color: colors.foreground }]}>
-            {formatDuration(entry.durationSeconds)}
-          </Text>
+          <Text style={[styles.durText, { color: colors.foreground }]}>{formatDuration(entry.durationSeconds)}</Text>
         </View>
         {earned !== null && (
-          <Text style={[styles.earnedText, { color: colors.success }]}>
-            {settings.currency}{earned}
-          </Text>
+          <Text style={[styles.earnedText, { color: "#10b981" }]}>{settings.currency}{earned}</Text>
         )}
         {!entry.billable && (
           <View style={[styles.tagBadge, { backgroundColor: colors.muted }]}>
             <Text style={[styles.tagText, { color: colors.mutedForeground }]}>Non-billable</Text>
+          </View>
+        )}
+        {entry.invoiceId && (
+          <View style={[styles.tagBadge, { backgroundColor: "#10b98118" }]}>
+            <Text style={[styles.tagText, { color: "#10b981" }]}>Invoiced</Text>
           </View>
         )}
       </View>
@@ -97,24 +95,23 @@ export default function WorkScreen() {
   const insets = useSafeAreaInsets();
   const {
     clients, timeEntries, activeTimer,
-    startTimer, deleteTimeEntry, settings,
+    startTimer, stopTimer, deleteTimeEntry, addInvoice, updateTimeEntry, settings, companyProfile,
   } = useApp();
 
   const [showStart, setShowStart] = useState(false);
+  const [showQuickInvoice, setShowQuickInvoice] = useState(false);
+  const [stoppedEntry, setStoppedEntry] = useState<TimeEntry | null>(null);
   const [desc, setDesc] = useState("");
-  const [selectedClientId, setSelectedClientId] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState(clients[0]?.id || "");
   const [billable, setBillable] = useState(true);
   const [filter, setFilter] = useState<"all" | "billable" | "unbilled">("all");
 
-  const filteredEntries = useMemo(() => {
-    return timeEntries
-      .filter((e) => e.endTime)
-      .filter((e) => {
-        if (filter === "billable") return e.billable;
-        if (filter === "unbilled") return e.billable && !e.invoiceId;
-        return true;
-      });
-  }, [timeEntries, filter]);
+  const filteredEntries = useMemo(() =>
+    timeEntries.filter((e) => e.endTime).filter((e) => {
+      if (filter === "billable") return e.billable;
+      if (filter === "unbilled") return e.billable && !e.invoiceId;
+      return true;
+    }), [timeEntries, filter]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, TimeEntry[]>();
@@ -126,6 +123,43 @@ export default function WorkScreen() {
     return Array.from(map.entries()).map(([date, entries]) => ({ date, entries }));
   }, [filteredEntries]);
 
+  const handleStop = () => {
+    if (activeTimer && activeTimer.billable) {
+      const now = Date.now();
+      const durationSeconds = Math.floor((now - new Date(activeTimer.startTime).getTime()) / 1000);
+      if (durationSeconds > 60) {
+        setStoppedEntry({ ...activeTimer, endTime: new Date().toISOString(), durationSeconds });
+        setShowQuickInvoice(true);
+      }
+    }
+    stopTimer();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
+  const handleQuickInvoice = () => {
+    if (!stoppedEntry) return;
+    const client = clients.find((c) => c.id === stoppedEntry.clientId);
+    const hours = stoppedEntry.durationSeconds / 3600;
+    const amount = hours * stoppedEntry.hourlyRate;
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30);
+    const invoiceId = addInvoice({
+      clientId: stoppedEntry.clientId,
+      title: stoppedEntry.description || "Time tracking invoice",
+      items: [{ id: Date.now().toString(), description: stoppedEntry.description || "Professional services", quantity: parseFloat(hours.toFixed(2)), unitPrice: stoppedEntry.hourlyRate }],
+      notes: companyProfile.paymentTerms || "",
+      taxPercent: settings.defaultTaxPercent,
+      status: "draft",
+      dueDate: dueDate.toISOString(),
+      paidAt: null,
+      quoteId: null,
+    });
+    updateTimeEntry(stoppedEntry.id, { invoiceId });
+    setShowQuickInvoice(false);
+    setStoppedEntry(null);
+    router.push({ pathname: "/invoice/[id]", params: { id: invoiceId } });
+  };
+
   const handleStartTimer = () => {
     if (!selectedClientId) {
       Alert.alert("Select a client", "Please select a client to track time for.");
@@ -133,13 +167,7 @@ export default function WorkScreen() {
     }
     const client = clients.find((c) => c.id === selectedClientId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    startTimer({
-      clientId: selectedClientId,
-      projectId: "",
-      description: desc,
-      hourlyRate: client?.hourlyRate || settings.defaultHourlyRate,
-      billable,
-    });
+    startTimer({ clientId: selectedClientId, projectId: "", description: desc, hourlyRate: client?.hourlyRate || settings.defaultHourlyRate, billable });
     setShowStart(false);
     setDesc("");
   };
@@ -149,26 +177,23 @@ export default function WorkScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
       <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
         <Text style={[styles.screenTitle, { color: colors.foreground }]}>Time Tracking</Text>
         <TouchableOpacity
           style={[styles.addBtn, { backgroundColor: colors.primary }]}
-          onPress={() => { if (!activeTimer) setShowStart(true); }}
+          onPress={() => { if (!activeTimer) setShowStart(true); else handleStop(); }}
           testID="start-timer-btn"
         >
-          <Ionicons name="add" size={22} color="#fff" />
+          <Ionicons name={activeTimer ? "stop" : "add"} size={22} color="#fff" />
         </TouchableOpacity>
       </View>
 
-      {/* Active Timer */}
       {activeTimer && (
         <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
           <TimerWidget />
         </View>
       )}
 
-      {/* Filter Tabs */}
       <View style={[styles.filterRow, { borderBottomColor: colors.border }]}>
         {(["all", "billable", "unbilled"] as const).map((f) => (
           <TouchableOpacity
@@ -183,12 +208,11 @@ export default function WorkScreen() {
         ))}
       </View>
 
-      {/* Entries */}
       {grouped.length === 0 ? (
         <EmptyState
           icon="time-outline"
           title="No time entries"
-          description={activeTimer ? "Timer is running. Stop it to see your entry here." : "Start tracking your work time to see entries here."}
+          description={activeTimer ? "Timer is running." : "Start tracking your work time."}
           actionLabel={activeTimer ? undefined : "Start Timer"}
           onAction={activeTimer ? undefined : () => setShowStart(true)}
         />
@@ -203,19 +227,18 @@ export default function WorkScreen() {
               <View style={styles.groupHeader}>
                 <Text style={[styles.groupDate, { color: colors.mutedForeground }]}>{item.date}</Text>
                 <Text style={[styles.groupTotal, { color: colors.mutedForeground }]}>
-                  {formatDuration(item.entries.reduce((s, e) => s + e.durationSeconds, 0))}
+                  {formatDuration(item.entries.reduce((s, e) => s + e.durationSeconds, 0))} ·{" "}
+                  {settings.currency}{item.entries.filter(e => e.billable).reduce((s, e) => s + (e.durationSeconds / 3600) * e.hourlyRate, 0).toFixed(0)}
                 </Text>
               </View>
               {item.entries.map((entry) => (
                 <TimeEntryCard
                   key={entry.id}
                   entry={entry}
-                  onDelete={() => {
-                    Alert.alert("Delete Entry", "Remove this time entry?", [
-                      { text: "Cancel", style: "cancel" },
-                      { text: "Delete", style: "destructive", onPress: () => deleteTimeEntry(entry.id) },
-                    ]);
-                  }}
+                  onDelete={() => Alert.alert("Delete Entry", "Remove this time entry?", [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Delete", style: "destructive", onPress: () => deleteTimeEntry(entry.id) },
+                  ])}
                 />
               ))}
             </View>
@@ -223,51 +246,62 @@ export default function WorkScreen() {
         />
       )}
 
-      {/* Start Timer Sheet */}
+      {/* Quick Invoice Modal after stopping timer */}
+      <Modal visible={showQuickInvoice} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.quickInvCard, { backgroundColor: colors.card }]}>
+            <View style={[styles.quickInvIcon, { backgroundColor: colors.primary + "20" }]}>
+              <Ionicons name="document-text" size={28} color={colors.primary} />
+            </View>
+            <Text style={[styles.quickInvTitle, { color: colors.foreground }]}>Create Invoice Now?</Text>
+            <Text style={[styles.quickInvSub, { color: colors.mutedForeground }]}>
+              {stoppedEntry ? `${(stoppedEntry.durationSeconds / 3600).toFixed(2)}h · ${settings.currency}${((stoppedEntry.durationSeconds / 3600) * stoppedEntry.hourlyRate).toFixed(0)}` : ""}
+            </Text>
+            <Text style={[styles.quickInvDesc, { color: colors.mutedForeground }]}>
+              {stoppedEntry?.description || ""}
+            </Text>
+            <View style={styles.quickInvActions}>
+              <TouchableOpacity
+                style={[styles.quickInvBtn, { backgroundColor: colors.muted }]}
+                onPress={() => { setShowQuickInvoice(false); setStoppedEntry(null); }}
+              >
+                <Text style={[styles.quickInvBtnText, { color: colors.mutedForeground }]}>Later</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickInvBtn, { backgroundColor: colors.primary }]}
+                onPress={handleQuickInvoice}
+                testID="quick-invoice-now"
+              >
+                <Text style={[styles.quickInvBtnText, { color: "#fff" }]}>Create Invoice</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <BottomSheet visible={showStart} onClose={() => setShowStart(false)} title="Start Timer">
-        <FormField
-          label="What are you working on?"
-          placeholder="e.g., Website redesign, Client meeting"
-          value={desc}
-          onChangeText={setDesc}
-        />
+        <FormField label="What are you working on?" placeholder="e.g., Website redesign, Client meeting" value={desc} onChangeText={setDesc} />
         <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Client</Text>
         <View style={styles.clientList}>
           {clients.map((c) => (
             <TouchableOpacity
               key={c.id}
-              style={[
-                styles.clientChip,
-                {
-                  backgroundColor: selectedClientId === c.id ? c.color + "22" : colors.muted,
-                  borderColor: selectedClientId === c.id ? c.color : "transparent",
-                  borderWidth: 1,
-                },
-              ]}
+              style={[styles.clientChip, { backgroundColor: selectedClientId === c.id ? c.color + "22" : colors.muted, borderColor: selectedClientId === c.id ? c.color : "transparent", borderWidth: 1 }]}
               onPress={() => setSelectedClientId(c.id)}
             >
               <ClientBadge name={c.name} color={c.color} size="sm" />
               <Text style={[styles.chipLabel, { color: colors.foreground }]}>{c.name}</Text>
             </TouchableOpacity>
           ))}
-          {clients.length === 0 && (
-            <Text style={[styles.noClient, { color: colors.mutedForeground }]}>No clients yet</Text>
-          )}
+          {clients.length === 0 && <Text style={[styles.noClient, { color: colors.mutedForeground }]}>No clients yet</Text>}
         </View>
         <View style={styles.billableRow}>
           <Text style={[styles.billableLabel, { color: colors.foreground }]}>Billable</Text>
-          <TouchableOpacity
-            style={[styles.toggle, { backgroundColor: billable ? colors.primary : colors.muted }]}
-            onPress={() => setBillable((v) => !v)}
-          >
+          <TouchableOpacity style={[styles.toggle, { backgroundColor: billable ? colors.primary : colors.muted }]} onPress={() => setBillable((v) => !v)}>
             <View style={[styles.toggleThumb, { transform: [{ translateX: billable ? 20 : 0 }] }]} />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[styles.startBtn, { backgroundColor: colors.primary }]}
-          onPress={handleStartTimer}
-          testID="confirm-start-timer"
-        >
+        <TouchableOpacity style={[styles.startBtn, { backgroundColor: colors.primary }]} onPress={handleStartTimer} testID="confirm-start-timer">
           <Ionicons name="play" size={18} color="#fff" />
           <Text style={styles.startBtnText}>Start Timer</Text>
         </TouchableOpacity>
@@ -278,50 +312,17 @@ export default function WorkScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-  },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   screenTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
-  addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterRow: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    paddingHorizontal: 20,
-  },
-  filterTab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  filterLabel: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-  },
+  addBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  filterRow: { flexDirection: "row", borderBottomWidth: 1, paddingHorizontal: 20 },
+  filterTab: { flex: 1, paddingVertical: 12, alignItems: "center" },
+  filterLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
   group: { marginBottom: 20 },
-  groupHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
+  groupHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
   groupDate: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5 },
   groupTotal: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  entryCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 8,
-  },
+  entryCard: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 8 },
   entryTop: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 10 },
   entryLeft: { flex: 1, flexDirection: "row", gap: 10, alignItems: "center" },
   entryMeta: { flex: 1 },
@@ -344,4 +345,13 @@ const styles = StyleSheet.create({
   toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff" },
   startBtn: { borderRadius: 14, paddingVertical: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   startBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 24 },
+  quickInvCard: { borderRadius: 20, padding: 24, width: "100%", alignItems: "center", gap: 8 },
+  quickInvIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  quickInvTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
+  quickInvSub: { fontSize: 20, fontFamily: "Inter_600SemiBold" },
+  quickInvDesc: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
+  quickInvActions: { flexDirection: "row", gap: 10, marginTop: 16, width: "100%" },
+  quickInvBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
+  quickInvBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });

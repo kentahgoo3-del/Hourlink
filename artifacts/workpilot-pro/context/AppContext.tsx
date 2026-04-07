@@ -83,6 +83,59 @@ export type Invoice = {
   quoteId: string | null;
 };
 
+export type Expense = {
+  id: string;
+  clientId: string;
+  description: string;
+  amount: number;
+  category: string;
+  date: string;
+  invoiceId: string | null;
+};
+
+export type QuoteTemplate = {
+  id: string;
+  name: string;
+  items: QuoteItem[];
+  taxPercent: number;
+  notes: string;
+};
+
+export type ClientNote = {
+  id: string;
+  clientId: string;
+  text: string;
+  createdAt: string;
+};
+
+export type Meeting = {
+  id: string;
+  clientId: string;
+  title: string;
+  durationMinutes: number;
+  notes: string;
+  date: string;
+};
+
+export type CompanyProfile = {
+  name: string;
+  tagline: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  province: string;
+  country: string;
+  postalCode: string;
+  phone: string;
+  email: string;
+  website: string;
+  vatNumber: string;
+  paymentTerms: string;
+  bankName: string;
+  bankAccount: string;
+  bankBranch: string;
+};
+
 export type UserSettings = {
   name: string;
   company: string;
@@ -90,6 +143,59 @@ export type UserSettings = {
   currency: string;
   defaultHourlyRate: number;
   defaultTaxPercent: number;
+  profitGoal: number;
+  billingReminderDays: number;
+};
+
+const DEFAULT_SETTINGS: UserSettings = {
+  name: "Your Name",
+  company: "Your Company",
+  email: "you@example.com",
+  currency: "R",
+  defaultHourlyRate: 500,
+  defaultTaxPercent: 15,
+  profitGoal: 50000,
+  billingReminderDays: 7,
+};
+
+const DEFAULT_COMPANY: CompanyProfile = {
+  name: "",
+  tagline: "",
+  addressLine1: "",
+  addressLine2: "",
+  city: "",
+  province: "",
+  country: "South Africa",
+  postalCode: "",
+  phone: "",
+  email: "",
+  website: "",
+  vatNumber: "",
+  paymentTerms: "Payment due within 30 days of invoice date.",
+  bankName: "",
+  bankAccount: "",
+  bankBranch: "",
+};
+
+export const CLIENT_COLORS = [
+  "#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b",
+  "#10b981", "#ef4444", "#06b6d4", "#f97316",
+];
+
+export type BillingAlert = {
+  clientId: string;
+  clientName: string;
+  clientColor: string;
+  unbilledHours: number;
+  unbilledAmount: number;
+  daysSinceBilled: number;
+};
+
+export type CashFlowItem = {
+  label: string;
+  amount: number;
+  dueDate: string;
+  clientName: string;
 };
 
 type AppContextType = {
@@ -98,7 +204,12 @@ type AppContextType = {
   timeEntries: TimeEntry[];
   quotes: Quote[];
   invoices: Invoice[];
+  expenses: Expense[];
+  quoteTemplates: QuoteTemplate[];
+  clientNotes: ClientNote[];
+  meetings: Meeting[];
   settings: UserSettings;
+  companyProfile: CompanyProfile;
   activeTimer: TimeEntry | null;
 
   addClient: (client: Omit<Client, "id" | "createdAt">) => void;
@@ -110,7 +221,7 @@ type AppContextType = {
   deleteProject: (id: string) => void;
 
   startTimer: (entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId">) => void;
-  stopTimer: () => void;
+  stopTimer: () => TimeEntry | null;
   addTimeEntry: (entry: Omit<TimeEntry, "id">) => void;
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
   deleteTimeEntry: (id: string) => void;
@@ -118,34 +229,39 @@ type AppContextType = {
   addQuote: (quote: Omit<Quote, "id" | "createdAt" | "quoteNumber">) => void;
   updateQuote: (id: string, updates: Partial<Quote>) => void;
   deleteQuote: (id: string) => void;
-  convertQuoteToInvoice: (quoteId: string) => void;
+  convertQuoteToInvoice: (quoteId: string) => string;
 
-  addInvoice: (invoice: Omit<Invoice, "id" | "createdAt" | "invoiceNumber">) => void;
+  addInvoice: (invoice: Omit<Invoice, "id" | "createdAt" | "invoiceNumber">) => string;
   updateInvoice: (id: string, updates: Partial<Invoice>) => void;
   deleteInvoice: (id: string) => void;
   markInvoicePaid: (id: string) => void;
 
+  addExpense: (expense: Omit<Expense, "id">) => void;
+  updateExpense: (id: string, updates: Partial<Expense>) => void;
+  deleteExpense: (id: string) => void;
+
+  addQuoteTemplate: (template: Omit<QuoteTemplate, "id">) => void;
+  deleteQuoteTemplate: (id: string) => void;
+
+  addClientNote: (note: Omit<ClientNote, "id" | "createdAt">) => void;
+  deleteClientNote: (id: string) => void;
+
+  addMeeting: (meeting: Omit<Meeting, "id">) => void;
+  deleteMeeting: (id: string) => void;
+
   updateSettings: (updates: Partial<UserSettings>) => void;
+  updateCompanyProfile: (updates: Partial<CompanyProfile>) => void;
 
   getClientRevenue: (clientId: string) => number;
+  getClientProfit: (clientId: string) => number;
   getTotalRevenue: () => number;
   getUnbilledAmount: () => number;
   getOutstandingAmount: () => number;
+  getBillingAlerts: () => BillingAlert[];
+  getCashFlowForecast: () => CashFlowItem[];
+  getMonthRevenue: () => number;
+  getLastTimerSuggestion: () => { clientId: string; description: string; client: Client | undefined } | null;
 };
-
-const DEFAULT_SETTINGS: UserSettings = {
-  name: "Your Name",
-  company: "Your Company",
-  email: "you@example.com",
-  currency: "R",
-  defaultHourlyRate: 500,
-  defaultTaxPercent: 15,
-};
-
-const CLIENT_COLORS = [
-  "#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b",
-  "#10b981", "#ef4444", "#06b6d4", "#f97316",
-];
 
 const AppContext = createContext<AppContextType | null>(null);
 
@@ -155,7 +271,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [quoteTemplates, setQuoteTemplates] = useState<QuoteTemplate[]>([]);
+  const [clientNotes, setClientNotes] = useState<ClientNote[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(DEFAULT_COMPANY);
   const [activeTimer, setActiveTimer] = useState<TimeEntry | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -165,22 +286,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const loadData = async () => {
     try {
-      const [c, p, t, q, i, s, at] = await Promise.all([
-        AsyncStorage.getItem("clients"),
-        AsyncStorage.getItem("projects"),
-        AsyncStorage.getItem("timeEntries"),
-        AsyncStorage.getItem("quotes"),
-        AsyncStorage.getItem("invoices"),
-        AsyncStorage.getItem("settings"),
-        AsyncStorage.getItem("activeTimer"),
-      ]);
-      if (c) setClients(JSON.parse(c));
-      if (p) setProjects(JSON.parse(p));
-      if (t) setTimeEntries(JSON.parse(t));
-      if (q) setQuotes(JSON.parse(q));
-      if (i) setInvoices(JSON.parse(i));
-      if (s) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(s) });
-      if (at) setActiveTimer(JSON.parse(at));
+      const keys = ["clients","projects","timeEntries","quotes","invoices","expenses","quoteTemplates","clientNotes","meetings","settings","companyProfile","activeTimer"];
+      const results = await AsyncStorage.multiGet(keys);
+      const map: Record<string, string | null> = {};
+      results.forEach(([k, v]) => { map[k] = v; });
+      if (map.clients) setClients(JSON.parse(map.clients));
+      if (map.projects) setProjects(JSON.parse(map.projects));
+      if (map.timeEntries) setTimeEntries(JSON.parse(map.timeEntries));
+      if (map.quotes) setQuotes(JSON.parse(map.quotes));
+      if (map.invoices) {
+        const invs: Invoice[] = JSON.parse(map.invoices);
+        const now = new Date();
+        const checked = invs.map((inv) => {
+          if (inv.status === "sent" && new Date(inv.dueDate) < now) {
+            return { ...inv, status: "overdue" as const };
+          }
+          return inv;
+        });
+        setInvoices(checked);
+        AsyncStorage.setItem("invoices", JSON.stringify(checked));
+      }
+      if (map.expenses) setExpenses(JSON.parse(map.expenses));
+      if (map.quoteTemplates) setQuoteTemplates(JSON.parse(map.quoteTemplates));
+      if (map.clientNotes) setClientNotes(JSON.parse(map.clientNotes));
+      if (map.meetings) setMeetings(JSON.parse(map.meetings));
+      if (map.settings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(map.settings) });
+      if (map.companyProfile) setCompanyProfile({ ...DEFAULT_COMPANY, ...JSON.parse(map.companyProfile) });
+      if (map.activeTimer) setActiveTimer(JSON.parse(map.activeTimer));
     } catch (_) {}
     setLoaded(true);
   };
@@ -194,15 +326,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Clients
   const addClient = useCallback((client: Omit<Client, "id" | "createdAt">) => {
     setClients((prev) => {
-      const next = [
-        ...prev,
-        {
-          ...client,
-          id: genId(),
-          createdAt: new Date().toISOString(),
-          color: client.color || CLIENT_COLORS[prev.length % CLIENT_COLORS.length],
-        },
-      ];
+      const next = [...prev, { ...client, id: genId(), createdAt: new Date().toISOString() }];
       save("clients", next);
       return next;
     });
@@ -252,33 +376,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Timers
   const startTimer = useCallback((entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId">) => {
     const timer: TimeEntry = {
-      ...entry,
-      id: genId(),
-      startTime: new Date().toISOString(),
-      endTime: null,
-      durationSeconds: 0,
-      invoiceId: null,
+      ...entry, id: genId(), startTime: new Date().toISOString(),
+      endTime: null, durationSeconds: 0, invoiceId: null,
     };
     setActiveTimer(timer);
     save("activeTimer", timer);
   }, [save]);
 
-  const stopTimer = useCallback(() => {
+  const stopTimer = useCallback((): TimeEntry | null => {
+    let completed: TimeEntry | null = null;
     setActiveTimer((prev) => {
       if (!prev) return null;
       const endTime = new Date().toISOString();
       const durationSeconds = Math.floor(
         (new Date(endTime).getTime() - new Date(prev.startTime).getTime()) / 1000
       );
-      const completed: TimeEntry = { ...prev, endTime, durationSeconds };
+      completed = { ...prev, endTime, durationSeconds };
       setTimeEntries((entries) => {
-        const next = [completed, ...entries];
+        const next = [completed!, ...entries];
         save("timeEntries", next);
         return next;
       });
       save("activeTimer", null);
       return null;
     });
+    return completed;
   }, [save]);
 
   const addTimeEntry = useCallback((entry: Omit<TimeEntry, "id">) => {
@@ -306,14 +428,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [save]);
 
   // Quotes
-  let quoteCounter = quotes.length + 1;
   const addQuote = useCallback((quote: Omit<Quote, "id" | "createdAt" | "quoteNumber">) => {
     setQuotes((prev) => {
       const num = (prev.length + 1).toString().padStart(4, "0");
-      const next = [
-        ...prev,
-        { ...quote, id: genId(), createdAt: new Date().toISOString(), quoteNumber: `QT-${num}` },
-      ];
+      const next = [...prev, { ...quote, id: genId(), createdAt: new Date().toISOString(), quoteNumber: `QT-${num}` }];
       save("quotes", next);
       return next;
     });
@@ -335,7 +453,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [save]);
 
-  const convertQuoteToInvoice = useCallback((quoteId: string) => {
+  const convertQuoteToInvoice = useCallback((quoteId: string): string => {
+    let newInvoiceId = "";
     setQuotes((prevQuotes) => {
       const quote = prevQuotes.find((q) => q.id === quoteId);
       if (!quote) return prevQuotes;
@@ -344,47 +463,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 30);
         const invoice: Invoice = {
-          id: genId(),
-          clientId: quote.clientId,
-          invoiceNumber: `INV-${num}`,
-          title: quote.title,
+          id: genId(), clientId: quote.clientId,
+          invoiceNumber: `INV-${num}`, title: quote.title,
           items: quote.items.map((item) => ({ ...item, id: genId() })),
-          notes: quote.notes,
-          taxPercent: quote.taxPercent,
-          status: "draft",
-          createdAt: new Date().toISOString(),
-          dueDate: dueDate.toISOString(),
-          paidAt: null,
-          quoteId: quoteId,
+          notes: quote.notes, taxPercent: quote.taxPercent,
+          status: "draft", createdAt: new Date().toISOString(),
+          dueDate: dueDate.toISOString(), paidAt: null, quoteId,
         };
+        newInvoiceId = invoice.id;
         const next = [invoice, ...prevInvoices];
         save("invoices", next);
         return next;
       });
-      const updatedQuotes = prevQuotes.map((q) =>
-        q.id === quoteId ? { ...q, status: "accepted" as const } : q
-      );
-      save("quotes", updatedQuotes);
-      return updatedQuotes;
+      const updated = prevQuotes.map((q) => q.id === quoteId ? { ...q, status: "accepted" as const } : q);
+      save("quotes", updated);
+      return updated;
     });
+    return newInvoiceId;
   }, [save]);
 
   // Invoices
-  const addInvoice = useCallback((invoice: Omit<Invoice, "id" | "createdAt" | "invoiceNumber">) => {
+  const addInvoice = useCallback((invoice: Omit<Invoice, "id" | "createdAt" | "invoiceNumber">): string => {
+    let newId = "";
     setInvoices((prev) => {
       const num = (prev.length + 1).toString().padStart(4, "0");
-      const next = [
-        ...prev,
-        {
-          ...invoice,
-          id: genId(),
-          createdAt: new Date().toISOString(),
-          invoiceNumber: `INV-${num}`,
-        },
-      ];
+      newId = genId();
+      const next = [...prev, { ...invoice, id: newId, createdAt: new Date().toISOString(), invoiceNumber: `INV-${num}` }];
       save("invoices", next);
       return next;
     });
+    return newId;
   }, [save]);
 
   const updateInvoice = useCallback((id: string, updates: Partial<Invoice>) => {
@@ -413,6 +521,82 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [save]);
 
+  // Expenses
+  const addExpense = useCallback((expense: Omit<Expense, "id">) => {
+    setExpenses((prev) => {
+      const next = [{ ...expense, id: genId() }, ...prev];
+      save("expenses", next);
+      return next;
+    });
+  }, [save]);
+
+  const updateExpense = useCallback((id: string, updates: Partial<Expense>) => {
+    setExpenses((prev) => {
+      const next = prev.map((e) => (e.id === id ? { ...e, ...updates } : e));
+      save("expenses", next);
+      return next;
+    });
+  }, [save]);
+
+  const deleteExpense = useCallback((id: string) => {
+    setExpenses((prev) => {
+      const next = prev.filter((e) => e.id !== id);
+      save("expenses", next);
+      return next;
+    });
+  }, [save]);
+
+  // Quote Templates
+  const addQuoteTemplate = useCallback((template: Omit<QuoteTemplate, "id">) => {
+    setQuoteTemplates((prev) => {
+      const next = [...prev, { ...template, id: genId() }];
+      save("quoteTemplates", next);
+      return next;
+    });
+  }, [save]);
+
+  const deleteQuoteTemplate = useCallback((id: string) => {
+    setQuoteTemplates((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      save("quoteTemplates", next);
+      return next;
+    });
+  }, [save]);
+
+  // Client Notes
+  const addClientNote = useCallback((note: Omit<ClientNote, "id" | "createdAt">) => {
+    setClientNotes((prev) => {
+      const next = [{ ...note, id: genId(), createdAt: new Date().toISOString() }, ...prev];
+      save("clientNotes", next);
+      return next;
+    });
+  }, [save]);
+
+  const deleteClientNote = useCallback((id: string) => {
+    setClientNotes((prev) => {
+      const next = prev.filter((n) => n.id !== id);
+      save("clientNotes", next);
+      return next;
+    });
+  }, [save]);
+
+  // Meetings
+  const addMeeting = useCallback((meeting: Omit<Meeting, "id">) => {
+    setMeetings((prev) => {
+      const next = [{ ...meeting, id: genId() }, ...prev];
+      save("meetings", next);
+      return next;
+    });
+  }, [save]);
+
+  const deleteMeeting = useCallback((id: string) => {
+    setMeetings((prev) => {
+      const next = prev.filter((m) => m.id !== id);
+      save("meetings", next);
+      return next;
+    });
+  }, [save]);
+
   // Settings
   const updateSettings = useCallback((updates: Partial<UserSettings>) => {
     setSettings((prev) => {
@@ -422,22 +606,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [save]);
 
+  const updateCompanyProfile = useCallback((updates: Partial<CompanyProfile>) => {
+    setCompanyProfile((prev) => {
+      const next = { ...prev, ...updates };
+      save("companyProfile", next);
+      return next;
+    });
+  }, [save]);
+
   // Computed
   const getClientRevenue = useCallback((clientId: string) => {
     return invoices
       .filter((inv) => inv.clientId === clientId && inv.status === "paid")
       .reduce((sum, inv) => {
-        const subtotal = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
-        return sum + subtotal * (1 + inv.taxPercent / 100);
+        const sub = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
+        return sum + sub * (1 + inv.taxPercent / 100);
       }, 0);
   }, [invoices]);
+
+  const getClientProfit = useCallback((clientId: string) => {
+    const revenue = getClientRevenue(clientId);
+    const costs = expenses
+      .filter((e) => e.clientId === clientId)
+      .reduce((s, e) => s + e.amount, 0);
+    return revenue - costs;
+  }, [invoices, expenses, getClientRevenue]);
 
   const getTotalRevenue = useCallback(() => {
     return invoices
       .filter((inv) => inv.status === "paid")
       .reduce((sum, inv) => {
-        const subtotal = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
-        return sum + subtotal * (1 + inv.taxPercent / 100);
+        const sub = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
+        return sum + sub * (1 + inv.taxPercent / 100);
+      }, 0);
+  }, [invoices]);
+
+  const getMonthRevenue = useCallback(() => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return invoices
+      .filter((inv) => inv.status === "paid" && new Date(inv.paidAt || inv.createdAt) >= start)
+      .reduce((sum, inv) => {
+        const sub = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
+        return sum + sub * (1 + inv.taxPercent / 100);
       }, 0);
   }, [invoices]);
 
@@ -451,49 +662,75 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return invoices
       .filter((inv) => inv.status === "sent" || inv.status === "overdue")
       .reduce((sum, inv) => {
-        const subtotal = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
-        return sum + subtotal * (1 + inv.taxPercent / 100);
+        const sub = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
+        return sum + sub * (1 + inv.taxPercent / 100);
       }, 0);
   }, [invoices]);
+
+  const getBillingAlerts = useCallback((): BillingAlert[] => {
+    const now = Date.now();
+    const alerts: BillingAlert[] = [];
+    for (const client of clients) {
+      const unbilled = timeEntries.filter((e) => e.clientId === client.id && e.billable && !e.invoiceId && e.endTime);
+      if (unbilled.length === 0) continue;
+      const oldest = unbilled.reduce((oldest, e) => {
+        const t = new Date(e.startTime).getTime();
+        return t < oldest ? t : oldest;
+      }, now);
+      const daysSince = Math.floor((now - oldest) / (1000 * 60 * 60 * 24));
+      if (daysSince >= (settings.billingReminderDays || 7)) {
+        const unbilledHours = unbilled.reduce((s, e) => s + e.durationSeconds / 3600, 0);
+        const unbilledAmount = unbilled.reduce((s, e) => s + (e.durationSeconds / 3600) * e.hourlyRate, 0);
+        alerts.push({ clientId: client.id, clientName: client.name, clientColor: client.color, unbilledHours, unbilledAmount, daysSinceBilled: daysSince });
+      }
+    }
+    return alerts.sort((a, b) => b.daysSinceBilled - a.daysSinceBilled);
+  }, [clients, timeEntries, settings.billingReminderDays]);
+
+  const getCashFlowForecast = useCallback((): CashFlowItem[] => {
+    return invoices
+      .filter((inv) => inv.status === "sent" || inv.status === "overdue")
+      .map((inv) => {
+        const client = clients.find((c) => c.id === inv.clientId);
+        const sub = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
+        return {
+          label: inv.invoiceNumber,
+          amount: sub * (1 + inv.taxPercent / 100),
+          dueDate: inv.dueDate,
+          clientName: client?.name || "Unknown",
+        };
+      })
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  }, [invoices, clients]);
+
+  const getLastTimerSuggestion = useCallback(() => {
+    const last = timeEntries.find((e) => e.endTime);
+    if (!last) return null;
+    const client = clients.find((c) => c.id === last.clientId);
+    return { clientId: last.clientId, description: last.description, client };
+  }, [timeEntries, clients]);
 
   if (!loaded) return null;
 
   return (
-    <AppContext.Provider
-      value={{
-        clients,
-        projects,
-        timeEntries,
-        quotes,
-        invoices,
-        settings,
-        activeTimer,
-        addClient,
-        updateClient,
-        deleteClient,
-        addProject,
-        updateProject,
-        deleteProject,
-        startTimer,
-        stopTimer,
-        addTimeEntry,
-        updateTimeEntry,
-        deleteTimeEntry,
-        addQuote,
-        updateQuote,
-        deleteQuote,
-        convertQuoteToInvoice,
-        addInvoice,
-        updateInvoice,
-        deleteInvoice,
-        markInvoicePaid,
-        updateSettings,
-        getClientRevenue,
-        getTotalRevenue,
-        getUnbilledAmount,
-        getOutstandingAmount,
-      }}
-    >
+    <AppContext.Provider value={{
+      clients, projects, timeEntries, quotes, invoices,
+      expenses, quoteTemplates, clientNotes, meetings,
+      settings, companyProfile, activeTimer,
+      addClient, updateClient, deleteClient,
+      addProject, updateProject, deleteProject,
+      startTimer, stopTimer, addTimeEntry, updateTimeEntry, deleteTimeEntry,
+      addQuote, updateQuote, deleteQuote, convertQuoteToInvoice,
+      addInvoice, updateInvoice, deleteInvoice, markInvoicePaid,
+      addExpense, updateExpense, deleteExpense,
+      addQuoteTemplate, deleteQuoteTemplate,
+      addClientNote, deleteClientNote,
+      addMeeting, deleteMeeting,
+      updateSettings, updateCompanyProfile,
+      getClientRevenue, getClientProfit, getTotalRevenue, getUnbilledAmount,
+      getOutstandingAmount, getBillingAlerts, getCashFlowForecast,
+      getMonthRevenue, getLastTimerSuggestion,
+    }}>
       {children}
     </AppContext.Provider>
   );

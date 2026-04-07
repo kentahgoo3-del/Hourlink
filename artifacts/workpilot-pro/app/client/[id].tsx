@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
+  FlatList,
   Platform,
   ScrollView,
   StyleSheet,
@@ -12,216 +13,403 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BottomSheet } from "@/components/BottomSheet";
 import { ClientBadge } from "@/components/ClientBadge";
+import { FormField } from "@/components/FormField";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
-function formatCurrency(amount: number, currency: string) {
-  return `${currency}${amount.toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+type Tab = "overview" | "notes" | "meetings" | "expenses";
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function formatHours(seconds: number) {
-  return `${(seconds / 3600).toFixed(1)}h`;
+function formatCurrency(amount: number, currency: string) {
+  return `${currency}${amount.toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 export default function ClientDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { clients, timeEntries, invoices, quotes, deleteClient, settings } = useApp();
+  const {
+    clients, invoices, quotes, timeEntries, expenses, clientNotes, meetings,
+    updateClient, deleteClient, addClientNote, deleteClientNote,
+    addMeeting, deleteMeeting, addExpense, deleteExpense,
+    getClientRevenue, getClientProfit, settings,
+  } = useApp();
 
   const client = clients.find((c) => c.id === id);
-  const clientEntries = useMemo(() => timeEntries.filter((e) => e.clientId === id && e.endTime), [timeEntries, id]);
+  const [tab, setTab] = useState<Tab>("overview");
+  const [showEditClient, setShowEditClient] = useState(false);
+  const [showAddNote, setShowAddNote] = useState(false);
+  const [showAddMeeting, setShowAddMeeting] = useState(false);
+  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [meetingTitle, setMeetingTitle] = useState("");
+  const [meetingDuration, setMeetingDuration] = useState("60");
+  const [meetingNotes, setMeetingNotes] = useState("");
+  const [expenseDesc, setExpenseDesc] = useState("");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState("General");
+
+  // Edit client fields
+  const [editName, setEditName] = useState(client?.name || "");
+  const [editCompany, setEditCompany] = useState(client?.company || "");
+  const [editEmail, setEditEmail] = useState(client?.email || "");
+  const [editPhone, setEditPhone] = useState(client?.phone || "");
+  const [editRate, setEditRate] = useState(client?.hourlyRate?.toString() || "");
+
   const clientInvoices = useMemo(() => invoices.filter((inv) => inv.clientId === id), [invoices, id]);
   const clientQuotes = useMemo(() => quotes.filter((q) => q.clientId === id), [quotes, id]);
+  const clientEntries = useMemo(() => timeEntries.filter((e) => e.clientId === id && e.endTime), [timeEntries, id]);
+  const clientNotesList = useMemo(() => clientNotes.filter((n) => n.clientId === id), [clientNotes, id]);
+  const clientMeetings = useMemo(() => meetings.filter((m) => m.clientId === id), [meetings, id]);
+  const clientExpenses = useMemo(() => expenses.filter((e) => e.clientId === id), [expenses, id]);
 
-  const totalSeconds = useMemo(() => clientEntries.reduce((s, e) => s + e.durationSeconds, 0), [clientEntries]);
-  const totalRevenue = useMemo(() =>
-    clientInvoices
-      .filter((inv) => inv.status === "paid")
-      .reduce((sum, inv) => {
-        const sub = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
-        return sum + sub * (1 + inv.taxPercent / 100);
-      }, 0),
-    [clientInvoices]
-  );
-
-  const outstanding = useMemo(() =>
-    clientInvoices
-      .filter((inv) => inv.status === "sent" || inv.status === "overdue")
-      .reduce((sum, inv) => {
-        const sub = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
-        return sum + sub * (1 + inv.taxPercent / 100);
-      }, 0),
-    [clientInvoices]
-  );
-
-  if (!client) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
-        <Text style={{ color: colors.mutedForeground }}>Client not found</Text>
-      </View>
-    );
-  }
+  const totalHours = useMemo(() => clientEntries.reduce((s, e) => s + e.durationSeconds, 0) / 3600, [clientEntries]);
+  const revenue = useMemo(() => getClientRevenue(id), [id, getClientRevenue]);
+  const profit = useMemo(() => getClientProfit(id), [id, getClientProfit]);
+  const totalExpensesAmt = useMemo(() => clientExpenses.reduce((s, e) => s + e.amount, 0), [clientExpenses]);
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const botPadding = Platform.OS === "web" ? 34 : insets.bottom;
 
+  if (!client) {
+    return <View style={[styles.container, { backgroundColor: colors.background }]}><Text style={{ color: colors.foreground, textAlign: "center", marginTop: 100 }}>Client not found</Text></View>;
+  }
+
+  const handleDelete = () => {
+    Alert.alert("Delete Client", `Remove ${client.name} and all associated data?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => { deleteClient(id); router.back(); } },
+    ]);
+  };
+
+  const handleSaveClient = () => {
+    updateClient(id, { name: editName, company: editCompany, email: editEmail, phone: editPhone, hourlyRate: parseFloat(editRate) || client.hourlyRate });
+    setShowEditClient(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleAddNote = () => {
+    if (!noteText.trim()) return;
+    addClientNote({ clientId: id, text: noteText.trim() });
+    setNoteText("");
+    setShowAddNote(false);
+  };
+
+  const handleAddMeeting = () => {
+    if (!meetingTitle.trim()) return;
+    addMeeting({ clientId: id, title: meetingTitle.trim(), durationMinutes: parseInt(meetingDuration) || 60, notes: meetingNotes, date: new Date().toISOString() });
+    setMeetingTitle(""); setMeetingDuration("60"); setMeetingNotes("");
+    setShowAddMeeting(false);
+  };
+
+  const handleAddExpense = () => {
+    if (!expenseDesc.trim() || !expenseAmount) return;
+    addExpense({ clientId: id, description: expenseDesc.trim(), amount: parseFloat(expenseAmount) || 0, category: expenseCategory, date: new Date().toISOString(), invoiceId: null });
+    setExpenseDesc(""); setExpenseAmount("");
+    setShowAddExpense(false);
+  };
+
+  const EXPENSE_CATEGORIES = ["General", "Travel", "Materials", "Software", "Equipment", "Other"];
+
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={{ paddingTop: topPadding + 16, paddingBottom: botPadding + 40 }}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+      <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => {
-            Alert.alert("Delete Client", `Delete ${client.name}? This cannot be undone.`, [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Delete", style: "destructive",
-                onPress: () => {
-                  deleteClient(client.id);
-                  router.back();
-                },
-              },
-            ]);
-          }}
-        >
-          <Ionicons name="trash-outline" size={22} color={colors.destructive} />
+        <View style={styles.headerCenter}>
+          <ClientBadge name={client.name} color={client.color} />
+          <Text style={[styles.headerName, { color: colors.foreground }]}>{client.name}</Text>
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={() => { setEditName(client.name); setEditCompany(client.company); setEditEmail(client.email); setEditPhone(client.phone); setEditRate(client.hourlyRate.toString()); setShowEditClient(true); }} style={styles.headerBtn}>
+            <Ionicons name="pencil" size={18} color={colors.foreground} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleDelete} style={styles.headerBtn}>
+            <Ionicons name="trash-outline" size={18} color="#ef4444" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Sub header info */}
+      <View style={[styles.clientMeta, { borderBottomColor: colors.border }]}>
+        {client.company ? <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{client.company}</Text> : null}
+        {client.email ? <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{client.email}</Text> : null}
+        <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{settings.currency}{client.hourlyRate}/hr</Text>
+      </View>
+
+      {/* Tab Bar */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabBar, { borderBottomColor: colors.border }]} contentContainerStyle={{ paddingHorizontal: 20 }}>
+        {(["overview", "notes", "meetings", "expenses"] as Tab[]).map((t) => (
+          <TouchableOpacity
+            key={t}
+            style={[styles.tabBtn, tab === t && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+            onPress={() => setTab(t)}
+          >
+            <Text style={[styles.tabLabel, { color: tab === t ? colors.primary : colors.mutedForeground }]}>
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: botPadding + 40 }} showsVerticalScrollIndicator={false}>
+
+        {/* OVERVIEW */}
+        {tab === "overview" && (
+          <>
+            <View style={styles.statsGrid}>
+              <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Revenue</Text>
+                <Text style={[styles.statVal, { color: "#10b981" }]}>{formatCurrency(revenue, settings.currency)}</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Net Profit</Text>
+                <Text style={[styles.statVal, { color: profit >= 0 ? "#10b981" : "#ef4444" }]}>{formatCurrency(profit, settings.currency)}</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Hours</Text>
+                <Text style={[styles.statVal, { color: colors.foreground }]}>{totalHours.toFixed(1)}h</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Expenses</Text>
+                <Text style={[styles.statVal, { color: "#f59e0b" }]}>{formatCurrency(totalExpensesAmt, settings.currency)}</Text>
+              </View>
+            </View>
+
+            {clientInvoices.length > 0 && (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Invoices</Text>
+                <View style={[styles.listCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  {clientInvoices.map((inv, idx) => {
+                    const total = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0) * (1 + inv.taxPercent / 100);
+                    return (
+                      <TouchableOpacity key={inv.id} style={[styles.listRow, idx < clientInvoices.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]} onPress={() => router.push({ pathname: "/invoice/[id]", params: { id: inv.id } })}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.listMain, { color: colors.foreground }]}>{inv.invoiceNumber}</Text>
+                          <Text style={[styles.listSub, { color: colors.mutedForeground }]}>{formatDate(inv.createdAt)}</Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end", gap: 4 }}>
+                          <Text style={[styles.listAmt, { color: colors.foreground }]}>{formatCurrency(total, settings.currency)}</Text>
+                          <StatusBadge status={inv.status} />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
+            {clientQuotes.length > 0 && (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Quotes</Text>
+                <View style={[styles.listCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  {clientQuotes.map((q, idx) => {
+                    const total = q.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0) * (1 + q.taxPercent / 100);
+                    return (
+                      <TouchableOpacity key={q.id} style={[styles.listRow, idx < clientQuotes.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]} onPress={() => router.push({ pathname: "/quote/[id]", params: { id: q.id } })}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.listMain, { color: colors.foreground }]}>{q.quoteNumber}</Text>
+                          <Text style={[styles.listSub, { color: colors.mutedForeground }]}>{formatDate(q.createdAt)}</Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end", gap: 4 }}>
+                          <Text style={[styles.listAmt, { color: colors.foreground }]}>{formatCurrency(total, settings.currency)}</Text>
+                          <StatusBadge status={q.status} />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+          </>
+        )}
+
+        {/* NOTES */}
+        {tab === "notes" && (
+          <>
+            <TouchableOpacity style={[styles.addRowBtn, { backgroundColor: colors.primary }]} onPress={() => setShowAddNote(true)} testID="add-note-btn">
+              <Ionicons name="add" size={18} color="#fff" />
+              <Text style={styles.addRowBtnText}>Add Note</Text>
+            </TouchableOpacity>
+            {clientNotesList.length === 0 && <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No notes yet. Add context about this client.</Text>}
+            {clientNotesList.map((note) => (
+              <View key={note.id} style={[styles.noteCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.noteTop}>
+                  <Text style={[styles.noteDate, { color: colors.mutedForeground }]}>{formatDate(note.createdAt)}</Text>
+                  <TouchableOpacity onPress={() => Alert.alert("Delete Note", "Remove this note?", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => deleteClientNote(note.id) }])}>
+                    <Ionicons name="trash-outline" size={14} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={[styles.noteText, { color: colors.foreground }]}>{note.text}</Text>
+              </View>
+            ))}
+          </>
+        )}
+
+        {/* MEETINGS */}
+        {tab === "meetings" && (
+          <>
+            <TouchableOpacity style={[styles.addRowBtn, { backgroundColor: colors.primary }]} onPress={() => setShowAddMeeting(true)} testID="add-meeting-btn">
+              <Ionicons name="add" size={18} color="#fff" />
+              <Text style={styles.addRowBtnText}>Log Meeting</Text>
+            </TouchableOpacity>
+            {clientMeetings.length === 0 && <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No meetings logged yet.</Text>}
+            {clientMeetings.map((m) => (
+              <View key={m.id} style={[styles.noteCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.noteTop}>
+                  <Text style={[styles.noteDate, { color: colors.mutedForeground }]}>{formatDate(m.date)} · {m.durationMinutes}min</Text>
+                  <TouchableOpacity onPress={() => Alert.alert("Delete Meeting", "Remove this meeting?", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => deleteMeeting(m.id) }])}>
+                    <Ionicons name="trash-outline" size={14} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={[styles.noteText, { color: colors.foreground }]}>{m.title}</Text>
+                {m.notes ? <Text style={[styles.noteSub, { color: colors.mutedForeground }]}>{m.notes}</Text> : null}
+              </View>
+            ))}
+          </>
+        )}
+
+        {/* EXPENSES */}
+        {tab === "expenses" && (
+          <>
+            <TouchableOpacity style={[styles.addRowBtn, { backgroundColor: colors.primary }]} onPress={() => setShowAddExpense(true)} testID="add-expense-btn">
+              <Ionicons name="add" size={18} color="#fff" />
+              <Text style={styles.addRowBtnText}>Add Expense</Text>
+            </TouchableOpacity>
+            {clientExpenses.length > 0 && (
+              <View style={[styles.expTotal, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "40" }]}>
+                <Text style={[styles.expTotalLabel, { color: colors.mutedForeground }]}>Total Expenses</Text>
+                <Text style={[styles.expTotalAmt, { color: "#ef4444" }]}>{formatCurrency(totalExpensesAmt, settings.currency)}</Text>
+              </View>
+            )}
+            {clientExpenses.length === 0 && <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No expenses logged for this client.</Text>}
+            {clientExpenses.map((exp) => (
+              <View key={exp.id} style={[styles.noteCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.noteTop}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <View style={[styles.catBadge, { backgroundColor: colors.muted }]}>
+                      <Text style={[styles.catText, { color: colors.mutedForeground }]}>{exp.category}</Text>
+                    </View>
+                    <Text style={[styles.noteDate, { color: colors.mutedForeground }]}>{formatDate(exp.date)}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => Alert.alert("Delete Expense", "Remove this expense?", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => deleteExpense(exp.id) }])}>
+                    <Ionicons name="trash-outline" size={14} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.expRow}>
+                  <Text style={[styles.noteText, { color: colors.foreground, flex: 1 }]}>{exp.description}</Text>
+                  <Text style={[styles.expAmt, { color: "#ef4444" }]}>{formatCurrency(exp.amount, settings.currency)}</Text>
+                </View>
+              </View>
+            ))}
+          </>
+        )}
+      </ScrollView>
+
+      {/* Edit Client Sheet */}
+      <BottomSheet visible={showEditClient} onClose={() => setShowEditClient(false)} title="Edit Client">
+        <FormField label="Name" value={editName} onChangeText={setEditName} placeholder="Client name" />
+        <FormField label="Company" value={editCompany} onChangeText={setEditCompany} placeholder="Company name" />
+        <FormField label="Email" value={editEmail} onChangeText={setEditEmail} placeholder="email@example.com" keyboardType="email-address" />
+        <FormField label="Phone" value={editPhone} onChangeText={setEditPhone} placeholder="+27 000 000 0000" keyboardType="phone-pad" />
+        <FormField label="Hourly Rate" prefix={settings.currency} value={editRate} onChangeText={setEditRate} placeholder="500" keyboardType="decimal-pad" />
+        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSaveClient}>
+          <Text style={styles.saveBtnText}>Save Changes</Text>
         </TouchableOpacity>
-      </View>
+      </BottomSheet>
 
-      {/* Client Profile */}
-      <View style={styles.profileSection}>
-        <ClientBadge name={client.name} color={client.color} size="md" />
-        <View>
-          <Text style={[styles.clientName, { color: colors.foreground }]}>{client.name}</Text>
-          {client.company ? <Text style={[styles.clientCompany, { color: colors.mutedForeground }]}>{client.company}</Text> : null}
-          {client.email ? <Text style={[styles.clientEmail, { color: colors.mutedForeground }]}>{client.email}</Text> : null}
-        </View>
-      </View>
+      {/* Add Note Sheet */}
+      <BottomSheet visible={showAddNote} onClose={() => setShowAddNote(false)} title="Add Note">
+        <FormField label="Note" value={noteText} onChangeText={setNoteText} placeholder="Key contacts, preferences, ongoing context..." multiline numberOfLines={5} autoFocus />
+        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleAddNote}>
+          <Text style={styles.saveBtnText}>Save Note</Text>
+        </TouchableOpacity>
+      </BottomSheet>
 
-      {/* Stats */}
-      <View style={styles.statsRow}>
-        <View style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.statValue, { color: colors.foreground }]}>{formatHours(totalSeconds)}</Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>tracked</Text>
-        </View>
-        <View style={[styles.statBox, { backgroundColor: colors.primary }]}>
-          <Text style={[styles.statValue, { color: "#fff" }]}>{formatCurrency(totalRevenue, settings.currency)}</Text>
-          <Text style={[styles.statLabel, { color: "rgba(255,255,255,0.8)" }]}>earned</Text>
-        </View>
-        <View style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.statValue, { color: colors.foreground }]}>{formatCurrency(outstanding, settings.currency)}</Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>outstanding</Text>
-        </View>
-      </View>
+      {/* Log Meeting Sheet */}
+      <BottomSheet visible={showAddMeeting} onClose={() => setShowAddMeeting(false)} title="Log Meeting">
+        <FormField label="Meeting Title" value={meetingTitle} onChangeText={setMeetingTitle} placeholder="e.g., Kickoff call, Weekly sync" autoFocus />
+        <FormField label="Duration (minutes)" value={meetingDuration} onChangeText={setMeetingDuration} placeholder="60" keyboardType="number-pad" />
+        <FormField label="Notes" value={meetingNotes} onChangeText={setMeetingNotes} placeholder="What was discussed..." multiline numberOfLines={3} />
+        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleAddMeeting}>
+          <Text style={styles.saveBtnText}>Log Meeting</Text>
+        </TouchableOpacity>
+      </BottomSheet>
 
-      {/* Rate */}
-      <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.infoRow}>
-          <Ionicons name="cash-outline" size={18} color={colors.mutedForeground} />
-          <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Hourly Rate</Text>
-          <Text style={[styles.infoValue, { color: colors.foreground }]}>{settings.currency}{client.hourlyRate}/hr</Text>
+      {/* Add Expense Sheet */}
+      <BottomSheet visible={showAddExpense} onClose={() => setShowAddExpense(false)} title="Add Expense">
+        <FormField label="Description" value={expenseDesc} onChangeText={setExpenseDesc} placeholder="e.g., Travel to client site" autoFocus />
+        <FormField label="Amount" prefix={settings.currency} value={expenseAmount} onChangeText={setExpenseAmount} placeholder="0.00" keyboardType="decimal-pad" />
+        <Text style={[styles.catLabel, { color: colors.mutedForeground }]}>Category</Text>
+        <View style={styles.catRow}>
+          {EXPENSE_CATEGORIES.map((cat) => (
+            <TouchableOpacity
+              key={cat}
+              style={[styles.catChip, { backgroundColor: expenseCategory === cat ? colors.primary : colors.muted }]}
+              onPress={() => setExpenseCategory(cat)}
+            >
+              <Text style={[styles.catChipText, { color: expenseCategory === cat ? "#fff" : colors.foreground }]}>{cat}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
-        {client.phone ? (
-          <View style={[styles.infoRow, { borderTopWidth: 1, borderTopColor: colors.border }]}>
-            <Ionicons name="call-outline" size={18} color={colors.mutedForeground} />
-            <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Phone</Text>
-            <Text style={[styles.infoValue, { color: colors.foreground }]}>{client.phone}</Text>
-          </View>
-        ) : null}
-      </View>
-
-      {/* Invoices */}
-      {clientInvoices.length > 0 && (
-        <>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Invoices</Text>
-          <View style={[styles.listCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {clientInvoices.map((inv, idx) => {
-              const total = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0) * (1 + inv.taxPercent / 100);
-              return (
-                <TouchableOpacity
-                  key={inv.id}
-                  style={[styles.docRow, idx < clientInvoices.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-                  onPress={() => router.push({ pathname: "/invoice/[id]", params: { id: inv.id } })}
-                >
-                  <View>
-                    <Text style={[styles.docNum, { color: colors.foreground }]}>{inv.invoiceNumber}</Text>
-                    <Text style={[styles.docDate, { color: colors.mutedForeground }]}>
-                      {new Date(inv.createdAt).toLocaleDateString("en-ZA")}
-                    </Text>
-                  </View>
-                  <View style={styles.docRight}>
-                    <Text style={[styles.docAmt, { color: colors.foreground }]}>{formatCurrency(total, settings.currency)}</Text>
-                    <StatusBadge status={inv.status} />
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </>
-      )}
-
-      {/* Quotes */}
-      {clientQuotes.length > 0 && (
-        <>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Quotes</Text>
-          <View style={[styles.listCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {clientQuotes.map((q, idx) => {
-              const total = q.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0) * (1 + q.taxPercent / 100);
-              return (
-                <TouchableOpacity
-                  key={q.id}
-                  style={[styles.docRow, idx < clientQuotes.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-                  onPress={() => router.push({ pathname: "/quote/[id]", params: { id: q.id } })}
-                >
-                  <View>
-                    <Text style={[styles.docNum, { color: colors.foreground }]}>{q.quoteNumber}</Text>
-                    <Text style={[styles.docDate, { color: colors.mutedForeground }]}>
-                      {new Date(q.createdAt).toLocaleDateString("en-ZA")}
-                    </Text>
-                  </View>
-                  <View style={styles.docRight}>
-                    <Text style={[styles.docAmt, { color: colors.foreground }]}>{formatCurrency(total, settings.currency)}</Text>
-                    <StatusBadge status={q.status} />
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </>
-      )}
-    </ScrollView>
+        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleAddExpense}>
+          <Text style={styles.saveBtnText}>Add Expense</Text>
+        </TouchableOpacity>
+      </BottomSheet>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 24 },
-  profileSection: { flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 20, marginBottom: 24 },
-  clientName: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  clientCompany: { fontSize: 14, fontFamily: "Inter_400Regular", marginTop: 2 },
-  clientEmail: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
-  statsRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, marginBottom: 20 },
-  statBox: { flex: 1, borderRadius: 12, padding: 14, borderWidth: 1, alignItems: "center" },
-  statValue: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  statLabel: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
-  infoCard: { marginHorizontal: 20, borderRadius: 14, borderWidth: 1, overflow: "hidden" },
-  infoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 14 },
-  infoLabel: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
-  infoValue: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", paddingHorizontal: 20, marginTop: 24, marginBottom: 12 },
-  listCard: { marginHorizontal: 20, borderRadius: 14, borderWidth: 1, overflow: "hidden" },
-  docRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14 },
-  docNum: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  docDate: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  docRight: { alignItems: "flex-end", gap: 4 },
-  docAmt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
+  backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  headerCenter: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1, justifyContent: "center" },
+  headerName: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  headerActions: { flexDirection: "row", gap: 4 },
+  headerBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  clientMeta: { flexDirection: "row", gap: 12, flexWrap: "wrap", paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: 1 },
+  metaText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  tabBar: { borderBottomWidth: 1 },
+  tabBtn: { paddingVertical: 12, paddingHorizontal: 4, marginRight: 20 },
+  tabLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 },
+  statCard: { width: "47%", borderRadius: 12, borderWidth: 1, padding: 14 },
+  statLabel: { fontSize: 11, fontFamily: "Inter_500Medium", marginBottom: 6 },
+  statVal: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  sectionTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 10 },
+  listCard: { borderRadius: 12, borderWidth: 1, overflow: "hidden", marginBottom: 16 },
+  listRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14 },
+  listMain: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  listSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  listAmt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  addRowBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, justifyContent: "center", marginBottom: 16 },
+  addRowBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 20, lineHeight: 20 },
+  noteCard: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 10 },
+  noteTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  noteDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  noteText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  noteSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 6, lineHeight: 18 },
+  expRow: { flexDirection: "row", alignItems: "center" },
+  expAmt: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  expTotal: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderRadius: 10, borderWidth: 1, padding: 14, marginBottom: 12 },
+  expTotalLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  expTotalAmt: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  catBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  catText: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  catLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 8, letterSpacing: 0.3 },
+  catRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
+  catChip: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
+  catChipText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  saveBtn: { borderRadius: 14, paddingVertical: 16, alignItems: "center" },
+  saveBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -12,225 +13,256 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ClientBadge } from "@/components/ClientBadge";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
-function formatCurrency(amount: number, currency: string) {
-  return `${currency}${amount.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
 }
 
 export default function QuoteDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { quotes, clients, updateQuote, deleteQuote, convertQuoteToInvoice, settings } = useApp();
+  const { clients, quotes, updateQuote, deleteQuote, convertQuoteToInvoice, settings, companyProfile } = useApp();
 
   const quote = quotes.find((q) => q.id === id);
   const client = clients.find((c) => c.id === quote?.clientId);
 
-  const subtotal = useMemo(() =>
-    quote?.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0) || 0,
-    [quote]
-  );
-  const taxAmount = subtotal * ((quote?.taxPercent || 0) / 100);
-  const total = subtotal + taxAmount;
-
-  if (!quote) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
-        <Text style={{ color: colors.mutedForeground }}>Quote not found</Text>
-      </View>
-    );
-  }
+  const subtotal = useMemo(() => quote?.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0) ?? 0, [quote]);
+  const tax = subtotal * ((quote?.taxPercent ?? 0) / 100);
+  const total = subtotal + tax;
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const botPadding = Platform.OS === "web" ? 34 : insets.bottom;
 
+  if (!quote) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={[styles.notFound, { color: colors.foreground }]}>Quote not found</Text>
+      </View>
+    );
+  }
+
+  const handleDelete = () => {
+    Alert.alert("Delete Quote", "This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => { deleteQuote(id); router.back(); } },
+    ]);
+  };
+
+  const handleConvert = () => {
+    Alert.alert("Convert to Invoice", "Create a new invoice from this quote?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Convert", onPress: () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          const invoiceId = convertQuoteToInvoice(id);
+          router.replace({ pathname: "/invoice/[id]", params: { id: invoiceId } });
+        }
+      },
+    ]);
+  };
+
+  const companyName = companyProfile.name || settings.name || "Your Company";
+  const hasCompanyInfo = !!(companyProfile.name || companyProfile.addressLine1 || companyProfile.phone);
+
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={{ paddingTop: topPadding + 16, paddingBottom: botPadding + 40 }}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => {
-            Alert.alert("Delete Quote", "Delete this quote?", [
-              { text: "Cancel", style: "cancel" },
-              { text: "Delete", style: "destructive", onPress: () => { deleteQuote(quote.id); router.back(); } },
-            ]);
-          }}
-        >
-          <Ionicons name="trash-outline" size={22} color={colors.destructive} />
+        <Text style={[styles.headerNum, { color: colors.foreground }]}>{quote.quoteNumber}</Text>
+        <TouchableOpacity onPress={handleDelete}>
+          <Ionicons name="trash-outline" size={20} color="#ef4444" />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.topSection}>
-        <View style={styles.quoteHeader}>
-          <Text style={[styles.quoteNum, { color: colors.foreground }]}>{quote.quoteNumber}</Text>
-          <StatusBadge status={quote.status} />
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: botPadding + 100 }} showsVerticalScrollIndicator={false}>
+        <View style={styles.statusRow}>
+          <StatusBadge status={quote.status} large />
+          <Text style={[styles.validUntil, { color: colors.mutedForeground }]}>Valid until {formatDate(quote.validUntil)}</Text>
         </View>
-        {quote.title ? <Text style={[styles.quoteTitle, { color: colors.mutedForeground }]}>{quote.title}</Text> : null}
-      </View>
 
-      {client && (
-        <View style={[styles.clientCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.billTo, { color: colors.mutedForeground }]}>Quote For</Text>
-          <View style={styles.clientRow}>
-            <ClientBadge name={client.name} color={client.color} size="sm" />
-            <View>
-              <Text style={[styles.clientName, { color: colors.foreground }]}>{client.name}</Text>
-              {client.company ? <Text style={[styles.clientSub, { color: colors.mutedForeground }]}>{client.company}</Text> : null}
+        <View style={[styles.docCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.companyHeader, { borderBottomColor: colors.border, backgroundColor: colors.primary + "0a" }]}>
+            {(companyProfile as any).logoUri && (
+              <Image source={{ uri: (companyProfile as any).logoUri }} style={styles.companyLogo} resizeMode="contain" />
+            )}
+            <View style={styles.companyInfo}>
+              <Text style={[styles.companyName, { color: colors.foreground }]}>{companyName}</Text>
+              {companyProfile.tagline ? <Text style={[styles.companySub, { color: colors.mutedForeground }]}>{companyProfile.tagline}</Text> : null}
             </View>
           </View>
-          <View style={[styles.dateRow, { borderTopColor: colors.border }]}>
-            <View>
-              <Text style={[styles.dateLabel, { color: colors.mutedForeground }]}>Created</Text>
-              <Text style={[styles.dateValue, { color: colors.foreground }]}>{new Date(quote.createdAt).toLocaleDateString("en-ZA")}</Text>
+
+          <View style={{ padding: 20 }}>
+            <View style={styles.metaRow}>
+              <View>
+                <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>QUOTATION</Text>
+                <Text style={[styles.metaValue, { color: colors.foreground }]}>{quote.quoteNumber}</Text>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>DATE</Text>
+                <Text style={[styles.metaValue, { color: colors.foreground }]}>{formatDate(quote.createdAt)}</Text>
+              </View>
             </View>
-            <View>
-              <Text style={[styles.dateLabel, { color: colors.mutedForeground }]}>Valid Until</Text>
-              <Text style={[styles.dateValue, { color: colors.foreground }]}>{new Date(quote.validUntil).toLocaleDateString("en-ZA")}</Text>
+
+            <View style={[styles.fromTo, { borderTopColor: colors.border }]}>
+              <View style={styles.fromBlock}>
+                <Text style={[styles.fromLabel, { color: colors.mutedForeground }]}>FROM</Text>
+                <Text style={[styles.fromName, { color: colors.foreground }]}>{companyName}</Text>
+                {hasCompanyInfo && (
+                  <>
+                    {companyProfile.addressLine1 ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{companyProfile.addressLine1}</Text> : null}
+                    {companyProfile.city ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{companyProfile.city}, {companyProfile.province}</Text> : null}
+                    {companyProfile.phone ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{companyProfile.phone}</Text> : null}
+                    {companyProfile.vatNumber ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>VAT: {companyProfile.vatNumber}</Text> : null}
+                  </>
+                )}
+              </View>
+              <View style={styles.fromBlock}>
+                <Text style={[styles.fromLabel, { color: colors.mutedForeground }]}>QUOTED FOR</Text>
+                <Text style={[styles.fromName, { color: colors.foreground }]}>{client?.name || "Client"}</Text>
+                {client?.company ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{client.company}</Text> : null}
+                {client?.email ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{client.email}</Text> : null}
+              </View>
             </View>
+
+            {quote.title ? <Text style={[styles.docTitle, { color: colors.foreground }]}>{quote.title}</Text> : null}
+
+            <View style={[styles.lineTable, { borderColor: colors.border }]}>
+              <View style={[styles.lineHeader, { backgroundColor: colors.muted }]}>
+                <Text style={[styles.lineHeaderText, { color: colors.mutedForeground, flex: 3 }]}>Description</Text>
+                <Text style={[styles.lineHeaderText, { color: colors.mutedForeground, flex: 1, textAlign: "center" }]}>Qty</Text>
+                <Text style={[styles.lineHeaderText, { color: colors.mutedForeground, flex: 1.5, textAlign: "right" }]}>Amount</Text>
+              </View>
+              {quote.items.map((item, idx) => (
+                <View key={item.id} style={[styles.lineRow, idx < quote.items.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+                  <View style={{ flex: 3 }}>
+                    <Text style={[styles.lineDesc, { color: colors.foreground }]}>{item.description}</Text>
+                    <Text style={[styles.lineSub, { color: colors.mutedForeground }]}>{settings.currency}{item.unitPrice}/unit</Text>
+                  </View>
+                  <Text style={[{ flex: 1, textAlign: "center", fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{item.quantity}</Text>
+                  <Text style={[{ flex: 1.5, textAlign: "right", fontSize: 13, color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    {settings.currency}{(item.quantity * item.unitPrice).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.totalsBlock}>
+              <View style={styles.totalRow}>
+                <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Subtotal</Text>
+                <Text style={[styles.totalValue, { color: colors.foreground }]}>{settings.currency}{subtotal.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+              </View>
+              <View style={styles.totalRow}>
+                <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Tax ({quote.taxPercent}%)</Text>
+                <Text style={[styles.totalValue, { color: colors.foreground }]}>{settings.currency}{tax.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+              </View>
+              <View style={[styles.totalRow, styles.grandRow, { borderTopColor: colors.border }]}>
+                <Text style={[styles.grandLabel, { color: colors.foreground }]}>TOTAL</Text>
+                <Text style={[styles.grandAmount, { color: colors.primary }]}>{settings.currency}{total.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+              </View>
+            </View>
+
+            {quote.notes ? (
+              <View style={[styles.notesBlock, { borderTopColor: colors.border }]}>
+                <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>NOTES</Text>
+                <Text style={[styles.notesText, { color: colors.mutedForeground }]}>{quote.notes}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
-      )}
 
-      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Items</Text>
-      <View style={[styles.itemsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[styles.itemHeader, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.itemHeaderText, { color: colors.mutedForeground, flex: 3 }]}>Description</Text>
-          <Text style={[styles.itemHeaderText, { color: colors.mutedForeground }]}>Qty</Text>
-          <Text style={[styles.itemHeaderText, { color: colors.mutedForeground, textAlign: "right" }]}>Amount</Text>
-        </View>
-        {quote.items.map((item, idx) => (
-          <View
-            key={item.id}
-            style={[styles.itemRow, idx < quote.items.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-          >
-            <Text style={[styles.itemDesc, { color: colors.foreground, flex: 3 }]} numberOfLines={2}>{item.description}</Text>
-            <Text style={[styles.itemQty, { color: colors.mutedForeground }]}>{item.quantity}</Text>
-            <Text style={[styles.itemAmt, { color: colors.foreground, textAlign: "right" }]}>
-              {formatCurrency(item.quantity * item.unitPrice, settings.currency)}
-            </Text>
-          </View>
-        ))}
-        <View style={[styles.totalsSection, { borderTopColor: colors.border }]}>
-          <View style={styles.totalRow}>
-            <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Subtotal</Text>
-            <Text style={[styles.totalValue, { color: colors.foreground }]}>{formatCurrency(subtotal, settings.currency)}</Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Tax ({quote.taxPercent}%)</Text>
-            <Text style={[styles.totalValue, { color: colors.foreground }]}>{formatCurrency(taxAmount, settings.currency)}</Text>
-          </View>
-          <View style={[styles.totalRow, styles.grandTotal]}>
-            <Text style={[styles.grandTotalLabel, { color: colors.foreground }]}>Total</Text>
-            <Text style={[styles.grandTotalValue, { color: colors.primary }]}>{formatCurrency(total, settings.currency)}</Text>
-          </View>
-        </View>
-      </View>
-
-      {quote.notes ? (
-        <>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Notes</Text>
-          <View style={[styles.notesCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.notesText, { color: colors.mutedForeground }]}>{quote.notes}</Text>
-          </View>
-        </>
-      ) : null}
-
-      {/* Actions */}
-      {(quote.status === "draft" || quote.status === "sent") && (
-        <View style={styles.actionsRow}>
+        <View style={styles.actions}>
           {quote.status === "draft" && (
             <TouchableOpacity
               style={[styles.actionBtn, { backgroundColor: colors.primary }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); updateQuote(quote.id, { status: "sent" }); }}
-              testID="mark-sent-quote"
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); updateQuote(id, { status: "sent" }); }}
+              testID="mark-quote-sent"
             >
-              <Ionicons name="send-outline" size={18} color="#fff" />
-              <Text style={styles.actionBtnText}>Mark Sent</Text>
+              <Ionicons name="send" size={18} color="#fff" />
+              <Text style={styles.actionBtnText}>Mark as Sent</Text>
             </TouchableOpacity>
           )}
           {quote.status === "sent" && (
-            <>
+            <View style={styles.sentActions}>
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: "#10b981" }]}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); updateQuote(quote.id, { status: "accepted" }); }}
+                style={[styles.actionBtn, { flex: 1, backgroundColor: "#10b981" }]}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); updateQuote(id, { status: "accepted" }); }}
+                testID="accept-quote"
               >
-                <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-                <Text style={styles.actionBtnText}>Accept</Text>
+                <Ionicons name="checkmark" size={18} color="#fff" />
+                <Text style={styles.actionBtnText}>Accepted</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: "#ef4444" }]}
-                onPress={() => updateQuote(quote.id, { status: "rejected" })}
+                style={[styles.actionBtn, { flex: 1, backgroundColor: "#ef4444" }]}
+                onPress={() => updateQuote(id, { status: "rejected" })}
               >
-                <Ionicons name="close-circle-outline" size={18} color="#fff" />
-                <Text style={styles.actionBtnText}>Reject</Text>
+                <Ionicons name="close" size={18} color="#fff" />
+                <Text style={styles.actionBtnText}>Rejected</Text>
               </TouchableOpacity>
-            </>
+            </View>
+          )}
+          {quote.status === "accepted" && (
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: colors.primary }]}
+              onPress={handleConvert}
+              testID="convert-to-invoice"
+            >
+              <Ionicons name="document-text" size={18} color="#fff" />
+              <Text style={styles.actionBtnText}>Convert to Invoice</Text>
+            </TouchableOpacity>
           )}
         </View>
-      )}
-      {quote.status === "accepted" && (
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: colors.primary }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              convertQuoteToInvoice(quote.id);
-              router.back();
-            }}
-            testID="convert-to-invoice-btn"
-          >
-            <Ionicons name="document-text-outline" size={18} color="#fff" />
-            <Text style={styles.actionBtnText}>Convert to Invoice</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 20 },
-  topSection: { paddingHorizontal: 20, marginBottom: 20 },
-  quoteHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  quoteNum: { fontSize: 24, fontFamily: "Inter_700Bold" },
-  quoteTitle: { fontSize: 15, fontFamily: "Inter_400Regular", marginTop: 4 },
-  clientCard: { marginHorizontal: 20, borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 20 },
-  billTo: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
-  clientRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
-  clientName: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  clientSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
-  dateRow: { flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, paddingTop: 14 },
-  dateLabel: { fontSize: 11, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.4 },
-  dateValue: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginTop: 4 },
-  sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", paddingHorizontal: 20, marginTop: 20, marginBottom: 12 },
-  itemsCard: { marginHorizontal: 20, borderRadius: 14, borderWidth: 1, overflow: "hidden" },
-  itemHeader: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, gap: 8 },
-  itemHeaderText: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4 },
-  itemRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, gap: 8 },
-  itemDesc: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  itemQty: { fontSize: 14, fontFamily: "Inter_400Regular", width: 30 },
-  itemAmt: { fontSize: 14, fontFamily: "Inter_600SemiBold", width: 80 },
-  totalsSection: { borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, gap: 8 },
-  totalRow: { flexDirection: "row", justifyContent: "space-between" },
-  totalLabel: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  totalValue: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  grandTotal: { marginTop: 8, paddingTop: 8 },
-  grandTotalLabel: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  grandTotalValue: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  notesCard: { marginHorizontal: 20, borderRadius: 14, borderWidth: 1, padding: 16 },
-  notesText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
-  actionsRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, marginTop: 24, flexWrap: "wrap" },
-  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 14 },
-  actionBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  notFound: { textAlign: "center", marginTop: 100, fontSize: 16 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
+  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  headerNum: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  statusRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  validUntil: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  docCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden", marginBottom: 20 },
+  companyHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 20, borderBottomWidth: 1 },
+  companyLogo: { width: 80, height: 36 },
+  companyInfo: { flex: 1 },
+  companyName: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  companySub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  metaRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
+  metaLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase" },
+  metaValue: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginTop: 4 },
+  fromTo: { flexDirection: "row", gap: 20, borderTopWidth: 1, paddingTop: 20, marginBottom: 20 },
+  fromBlock: { flex: 1 },
+  fromLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 },
+  fromName: { fontSize: 14, fontFamily: "Inter_700Bold", marginBottom: 4 },
+  fromAddr: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2, lineHeight: 18 },
+  docTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 16 },
+  lineTable: { borderWidth: 1, borderRadius: 10, overflow: "hidden", marginBottom: 16 },
+  lineHeader: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 10 },
+  lineHeaderText: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, textTransform: "uppercase" },
+  lineRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 12 },
+  lineDesc: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  lineSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  totalsBlock: { alignItems: "flex-end", gap: 6, marginBottom: 16 },
+  totalRow: { flexDirection: "row", justifyContent: "space-between", width: "55%" },
+  totalLabel: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  totalValue: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  grandRow: { borderTopWidth: 1, paddingTop: 10, marginTop: 4, width: "100%" },
+  grandLabel: { fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 0.5, textTransform: "uppercase" },
+  grandAmount: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  notesBlock: { borderTopWidth: 1, paddingTop: 16 },
+  notesLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 },
+  notesText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  actions: { gap: 10 },
+  sentActions: { flexDirection: "row", gap: 10 },
+  actionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 16 },
+  actionBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });
