@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
+  Alert,
   FlatList,
   Platform,
   StyleSheet,
@@ -40,6 +41,7 @@ export default function FinanceScreen() {
   const insets = useSafeAreaInsets();
   const {
     clients, invoices, quotes, quoteTemplates,
+    timeEntries, updateTimeEntry,
     addInvoice, addQuote, deleteInvoice, deleteQuote, deleteQuoteTemplate,
     markInvoicePaid, convertQuoteToInvoice, updateInvoice, updateQuote,
     addQuoteTemplate, settings, startTimer, activeTimer,
@@ -77,6 +79,14 @@ export default function FinanceScreen() {
   const [templateName, setTemplateName] = useState("");
   const [formError, setFormError] = useState("");
   const [pendingDeleteItem, setPendingDeleteItem] = useState<{ id: string; isInvoice: boolean } | null>(null);
+  const [includeUnbilledEntries, setIncludeUnbilledEntries] = useState(false);
+
+  // Unbilled time entries for the currently selected client
+  const clientUnbilledEntries = useMemo(() =>
+    selectedClientId
+      ? timeEntries.filter((e) => e.billable && !e.invoiceId && !!e.endTime && e.clientId === selectedClientId)
+      : []
+  , [timeEntries, selectedClientId]);
 
   const addLineItem = () => {
     if (!itemDesc.trim() || !itemPrice) return;
@@ -91,6 +101,7 @@ export default function FinanceScreen() {
     setItemDesc(""); setItemQty("1"); setItemPrice("");
     setTaxPct(settings.defaultTaxPercent.toString());
     setFormError("");
+    setIncludeUnbilledEntries(false);
     setShowNew(true);
   };
 
@@ -109,11 +120,17 @@ export default function FinanceScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 30);
     if (tab === "invoices") {
-      addInvoice({ clientId: selectedClientId, title: title || "Invoice", items: finalItems, notes, taxPercent: parseFloat(taxPct) || 0, status: "draft", dueDate: dueDate.toISOString(), paidAt: null, quoteId: null });
+      const newInvoiceId = addInvoice({ clientId: selectedClientId, title: title || "Invoice", items: finalItems, notes, taxPercent: parseFloat(taxPct) || 0, status: "draft", dueDate: dueDate.toISOString(), paidAt: null, quoteId: null });
+      // Link any selected unbilled time entries to this invoice
+      if (includeUnbilledEntries && clientUnbilledEntries.length > 0) {
+        for (const entry of clientUnbilledEntries) {
+          updateTimeEntry(entry.id, { invoiceId: newInvoiceId });
+        }
+      }
     } else {
       addQuote({ clientId: selectedClientId, title: title || "Quote", items: finalItems, notes, taxPercent: parseFloat(taxPct) || 0, status: "draft", validUntil: dueDate.toISOString() });
     }
-    setShowNew(false); setTitle(""); setNotes(""); setLineItems([]);
+    setShowNew(false); setTitle(""); setNotes(""); setLineItems([]); setIncludeUnbilledEntries(false);
   };
 
   const handleSaveTemplate = () => {
@@ -361,10 +378,42 @@ export default function FinanceScreen() {
         <ClientDropdown
           clients={clients}
           value={selectedClientId}
-          onChange={setSelectedClientId}
+          onChange={(id) => { setSelectedClientId(id); setIncludeUnbilledEntries(false); }}
           label="Client"
           placeholder="Select a client"
         />
+
+        {/* Unbilled time entries banner — only shown for invoices when client has unbilled entries */}
+        {tab === "invoices" && clientUnbilledEntries.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setIncludeUnbilledEntries((v) => !v)}
+            style={[styles.unbilledLinkRow, {
+              backgroundColor: includeUnbilledEntries ? "#f0fdf4" : colors.muted,
+              borderColor: includeUnbilledEntries ? "#86efac" : colors.border,
+            }]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.unbilledLinkTitle, { color: includeUnbilledEntries ? "#065f46" : colors.foreground }]}>
+                Link {clientUnbilledEntries.length} unbilled time entr{clientUnbilledEntries.length === 1 ? "y" : "ies"}
+              </Text>
+              <Text style={[styles.unbilledLinkSub, { color: includeUnbilledEntries ? "#16a34a" : colors.mutedForeground }]}>
+                {clientUnbilledEntries.reduce((s, e) => s + e.durationSeconds, 0) >= 3600
+                  ? `${(clientUnbilledEntries.reduce((s, e) => s + e.durationSeconds, 0) / 3600).toFixed(1)}h`
+                  : `${Math.round(clientUnbilledEntries.reduce((s, e) => s + e.durationSeconds, 0) / 60)}m`
+                }
+                {" · "}
+                {settings.currency}{clientUnbilledEntries.reduce((s, e) => s + (e.durationSeconds / 3600) * e.hourlyRate, 0).toFixed(0)} total
+                {" · "}Mark entries as billed
+              </Text>
+            </View>
+            <View style={[styles.unbilledToggle, {
+              backgroundColor: includeUnbilledEntries ? "#10b981" : colors.border,
+            }]}>
+              <View style={[styles.unbilledToggleThumb, { transform: [{ translateX: includeUnbilledEntries ? 18 : 0 }] }]} />
+            </View>
+          </TouchableOpacity>
+        )}
+
         <FormField label="Title" placeholder="e.g., Website Redesign" value={title} onChangeText={setTitle} />
         <FormField label="Tax %" placeholder="15" value={taxPct} onChangeText={setTaxPct} keyboardType="decimal-pad" />
         <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>Line Items</Text>
@@ -470,4 +519,9 @@ const styles = StyleSheet.create({
   saveTemplateBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderRadius: 10, paddingVertical: 10, marginBottom: 12 },
   createBtn: { borderRadius: 14, paddingVertical: 16, alignItems: "center" },
   createBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  unbilledLinkRow: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 14 },
+  unbilledLinkTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginBottom: 3 },
+  unbilledLinkSub: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
+  unbilledToggle: { width: 40, height: 22, borderRadius: 11, justifyContent: "center", paddingHorizontal: 3 },
+  unbilledToggleThumb: { width: 16, height: 16, borderRadius: 8, backgroundColor: "#fff" },
 });

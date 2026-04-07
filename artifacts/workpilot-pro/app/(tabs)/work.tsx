@@ -44,14 +44,18 @@ function formatDate(iso: string) {
   return d.toLocaleDateString("en-ZA", { weekday: "short", month: "short", day: "numeric" });
 }
 
-function TimeEntryCard({ entry, onDelete }: { entry: TimeEntry; onDelete: () => void }) {
+function TimeEntryCard({ entry, onPress, onDelete }: { entry: TimeEntry; onPress: () => void; onDelete: () => void }) {
   const colors = useColors();
   const { clients, settings } = useApp();
   const client = clients.find((c) => c.id === entry.clientId);
   const earned = entry.endTime ? ((entry.durationSeconds / 3600) * entry.hourlyRate).toFixed(0) : null;
 
   return (
-    <View style={[styles.entryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.75}
+      style={[styles.entryCard, { backgroundColor: colors.card, borderColor: entry.billable && !entry.invoiceId ? colors.warning + "60" : colors.border }]}
+    >
       <View style={styles.entryTop}>
         <View style={styles.entryLeft}>
           {client && <ClientBadge name={client.name} color={client.color} size="sm" />}
@@ -81,13 +85,20 @@ function TimeEntryCard({ entry, onDelete }: { entry: TimeEntry; onDelete: () => 
             <Text style={[styles.tagText, { color: colors.mutedForeground }]}>Non-billable</Text>
           </View>
         )}
+        {entry.billable && !entry.invoiceId && (
+          <View style={[styles.tagBadge, { backgroundColor: colors.warning + "20" }]}>
+            <Ionicons name="alert-circle-outline" size={12} color={colors.warning} />
+            <Text style={[styles.tagText, { color: colors.warning }]}>Unbilled</Text>
+          </View>
+        )}
         {entry.invoiceId && (
           <View style={[styles.tagBadge, { backgroundColor: "#10b98118" }]}>
+            <Ionicons name="checkmark-circle-outline" size={12} color="#10b981" />
             <Text style={[styles.tagText, { color: "#10b981" }]}>Invoiced</Text>
           </View>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -101,7 +112,10 @@ export default function WorkScreen() {
 
   const [showStart, setShowStart] = useState(false);
   const [showQuickInvoice, setShowQuickInvoice] = useState(false);
+  const [showEntrySheet, setShowEntrySheet] = useState(false);
+  const [showBatchSheet, setShowBatchSheet] = useState(false);
   const [stoppedEntry, setStoppedEntry] = useState<TimeEntry | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<TimeEntry | null>(null);
   const [desc, setDesc] = useState("");
   const [selectedClientId, setSelectedClientId] = useState(clients[0]?.id || "");
   const [billable, setBillable] = useState(true);
@@ -125,22 +139,46 @@ export default function WorkScreen() {
     return Array.from(map.entries()).map(([date, entries]) => ({ date, entries }));
   }, [filteredEntries]);
 
-  const handleStop = () => {
-    if (activeTimer && activeTimer.billable) {
-      const now = Date.now();
-      const durationSeconds = Math.floor((now - new Date(activeTimer.startTime).getTime()) / 1000);
-      setStoppedEntry({ ...activeTimer, endTime: new Date().toISOString(), durationSeconds });
-      setShowQuickInvoice(true);
+  // Unbilled entries grouped by client for batch invoicing
+  const unbilledByClient = useMemo(() => {
+    const allUnbilled = timeEntries.filter((e) => e.billable && !e.invoiceId && e.endTime);
+    const map = new Map<string, TimeEntry[]>();
+    for (const e of allUnbilled) {
+      if (!map.has(e.clientId)) map.set(e.clientId, []);
+      map.get(e.clientId)!.push(e);
     }
+    return Array.from(map.entries()).map(([clientId, entries]) => {
+      const client = clients.find((c) => c.id === clientId);
+      const totalSeconds = entries.reduce((s, e) => s + e.durationSeconds, 0);
+      const totalAmount = entries.reduce((s, e) => s + (e.durationSeconds / 3600) * e.hourlyRate, 0);
+      return { clientId, client, entries, totalSeconds, totalAmount };
+    });
+  }, [timeEntries, clients]);
+
+  const handleStop = () => {
+    const timer = activeTimer;
     stopTimer();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (timer && timer.billable) {
+      const now = Date.now();
+      const durationSeconds = Math.floor((now - new Date(timer.startTime).getTime()) / 1000);
+      setStoppedEntry({ ...timer, endTime: new Date().toISOString(), durationSeconds });
+      setShowQuickInvoice(true);
+    }
   };
+
+  const buildInvoiceItems = (entries: TimeEntry[]) =>
+    entries.map((e) => ({
+      id: Date.now().toString() + Math.random(),
+      description: e.description || "Professional services",
+      quantity: parseFloat((e.durationSeconds / 3600).toFixed(2)),
+      unitPrice: e.hourlyRate,
+    }));
 
   const handleQuickInvoice = () => {
     if (!stoppedEntry) return;
     const hours = stoppedEntry.durationSeconds / 3600;
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 30);
+    const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 30);
     const invoiceId = addInvoice({
       clientId: stoppedEntry.clientId,
       title: stoppedEntry.description || "Time tracking invoice",
@@ -152,9 +190,54 @@ export default function WorkScreen() {
       paidAt: null,
       quoteId: null,
     });
-    updateTimeEntry(stoppedEntry.id, { invoiceId });
+    // Link the time entry to the invoice - use a small delay to ensure stopTimer() has saved it
+    setTimeout(() => updateTimeEntry(stoppedEntry.id, { invoiceId }), 100);
     setShowQuickInvoice(false);
     setStoppedEntry(null);
+    router.push({ pathname: "/invoice/[id]", params: { id: invoiceId } });
+  };
+
+  // Create invoice for any single unbilled entry (from the entry detail sheet)
+  const handleCreateInvoiceForEntry = (entry: TimeEntry) => {
+    const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 30);
+    const invoiceId = addInvoice({
+      clientId: entry.clientId,
+      title: entry.description || "Time tracking invoice",
+      items: buildInvoiceItems([entry]),
+      notes: companyProfile.paymentTerms || "",
+      taxPercent: settings.defaultTaxPercent,
+      status: "draft",
+      dueDate: dueDate.toISOString(),
+      paidAt: null,
+      quoteId: null,
+    });
+    updateTimeEntry(entry.id, { invoiceId });
+    setShowEntrySheet(false);
+    setSelectedEntry(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({ pathname: "/invoice/[id]", params: { id: invoiceId } });
+  };
+
+  // Create one invoice for ALL unbilled entries for a client
+  const handleBatchInvoiceForClient = (clientId: string) => {
+    const client = clients.find((c) => c.id === clientId);
+    const entries = unbilledByClient.find((g) => g.clientId === clientId)?.entries ?? [];
+    if (entries.length === 0) return;
+    const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 30);
+    const invoiceId = addInvoice({
+      clientId,
+      title: `Services for ${client?.name || "Client"}`,
+      items: buildInvoiceItems(entries),
+      notes: companyProfile.paymentTerms || "",
+      taxPercent: settings.defaultTaxPercent,
+      status: "draft",
+      dueDate: dueDate.toISOString(),
+      paidAt: null,
+      quoteId: null,
+    });
+    for (const e of entries) updateTimeEntry(e.id, { invoiceId });
+    setShowBatchSheet(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push({ pathname: "/invoice/[id]", params: { id: invoiceId } });
   };
 
@@ -191,6 +274,8 @@ export default function WorkScreen() {
     setDesc("");
   };
 
+  const entryClient = selectedEntry ? clients.find((c) => c.id === selectedEntry.clientId) : null;
+
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const botPadding = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -198,13 +283,26 @@ export default function WorkScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
         <Text style={[styles.screenTitle, { color: colors.foreground }]}>Time Tracking</Text>
-        <TouchableOpacity
-          style={[styles.addBtn, { backgroundColor: colors.primary }]}
-          onPress={() => { if (!activeTimer) setShowStart(true); else handleStop(); }}
-          testID="start-timer-btn"
-        >
-          <Ionicons name={activeTimer ? "stop" : "add"} size={22} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          {unbilledByClient.length > 0 && (
+            <TouchableOpacity
+              style={[styles.batchBtn, { backgroundColor: colors.warning + "20", borderColor: colors.warning + "60" }]}
+              onPress={() => setShowBatchSheet(true)}
+            >
+              <Ionicons name="receipt-outline" size={14} color={colors.warning} />
+              <Text style={[styles.batchBtnText, { color: colors.warning }]}>
+                Batch Invoice
+              </Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.addBtn, { backgroundColor: colors.primary }]}
+            onPress={() => { if (!activeTimer) setShowStart(true); else handleStop(); }}
+            testID="start-timer-btn"
+          >
+            <Ionicons name={activeTimer ? "stop" : "add"} size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {activeTimer && (
@@ -223,17 +321,34 @@ export default function WorkScreen() {
             <Text style={[styles.filterLabel, { color: filter === f ? colors.primary : colors.mutedForeground }]}>
               {f.charAt(0).toUpperCase() + f.slice(1)}
             </Text>
+            {f === "unbilled" && unbilledByClient.reduce((s, g) => s + g.entries.length, 0) > 0 && (
+              <View style={[styles.filterBadge, { backgroundColor: colors.warning }]}>
+                <Text style={styles.filterBadgeText}>
+                  {unbilledByClient.reduce((s, g) => s + g.entries.length, 0)}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         ))}
       </View>
 
+      {/* Unbilled summary banner */}
+      {filter === "unbilled" && unbilledByClient.length > 0 && (
+        <View style={[styles.unbilledBanner, { backgroundColor: colors.warning + "12", borderBottomColor: colors.warning + "30" }]}>
+          <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
+          <Text style={[styles.unbilledBannerText, { color: colors.warning }]}>
+            Tap an entry to invoice it, or use Batch Invoice to group multiple entries.
+          </Text>
+        </View>
+      )}
+
       {grouped.length === 0 ? (
         <EmptyState
           icon="time-outline"
-          title="No time entries"
-          description={activeTimer ? "Timer is running." : "Start tracking your work time."}
-          actionLabel={activeTimer ? undefined : "Start Timer"}
-          onAction={activeTimer ? undefined : () => setShowStart(true)}
+          title={filter === "unbilled" ? "All caught up!" : "No time entries"}
+          description={filter === "unbilled" ? "No unbilled time. Great work staying on top of your billing!" : activeTimer ? "Timer is running." : "Start tracking your work time."}
+          actionLabel={activeTimer || filter === "unbilled" ? undefined : "Start Timer"}
+          onAction={activeTimer || filter === "unbilled" ? undefined : () => setShowStart(true)}
         />
       ) : (
         <FlatList
@@ -254,6 +369,7 @@ export default function WorkScreen() {
                 <TimeEntryCard
                   key={entry.id}
                   entry={entry}
+                  onPress={() => { setSelectedEntry(entry); setShowEntrySheet(true); }}
                   onDelete={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setPendingDeleteEntryId(entry.id); }}
                 />
               ))}
@@ -266,13 +382,11 @@ export default function WorkScreen() {
       <Modal visible={showQuickInvoice} transparent animationType="fade" onRequestClose={handleInvoiceLater}>
         <View style={styles.modalOverlay}>
           <View style={[styles.quickInvCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {/* Header */}
             <View style={[styles.quickInvIcon, { backgroundColor: colors.primary + "20" }]}>
               <Ionicons name="timer-outline" size={30} color={colors.primary} />
             </View>
             <Text style={[styles.quickInvTitle, { color: colors.foreground }]}>Timer Stopped</Text>
 
-            {/* Summary pill */}
             {stoppedEntry && (
               <View style={[styles.summaryPill, { backgroundColor: colors.muted }]}>
                 <Text style={[styles.summaryTime, { color: colors.foreground }]}>
@@ -293,7 +407,6 @@ export default function WorkScreen() {
 
             <View style={styles.divider} />
 
-            {/* Actions */}
             <TouchableOpacity
               style={[styles.actionRow, { backgroundColor: colors.primary }]}
               onPress={handleQuickInvoice}
@@ -323,6 +436,166 @@ export default function WorkScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Entry Detail Sheet */}
+      <BottomSheet
+        visible={showEntrySheet}
+        onClose={() => { setShowEntrySheet(false); setSelectedEntry(null); }}
+        title="Time Entry"
+      >
+        {selectedEntry && (
+          <>
+            {/* Entry summary card */}
+            <View style={[styles.entryDetailCard, { backgroundColor: colors.muted, borderRadius: colors.cr }]}>
+              {entryClient && (
+                <View style={{ marginBottom: 10 }}>
+                  <ClientBadge name={entryClient.name} color={entryClient.color} size="sm" />
+                </View>
+              )}
+              <Text style={[styles.entryDetailDesc, { color: colors.foreground }]}>
+                {selectedEntry.description || "No description"}
+              </Text>
+              <View style={styles.entryDetailRow}>
+                <View style={styles.entryDetailStat}>
+                  <Text style={[styles.entryDetailStatLabel, { color: colors.mutedForeground }]}>DURATION</Text>
+                  <Text style={[styles.entryDetailStatValue, { color: colors.foreground }]}>
+                    {formatDuration(selectedEntry.durationSeconds)}
+                  </Text>
+                </View>
+                <View style={[styles.entryDetailDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.entryDetailStat}>
+                  <Text style={[styles.entryDetailStatLabel, { color: colors.mutedForeground }]}>RATE</Text>
+                  <Text style={[styles.entryDetailStatValue, { color: colors.foreground }]}>
+                    {settings.currency}{selectedEntry.hourlyRate}/h
+                  </Text>
+                </View>
+                <View style={[styles.entryDetailDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.entryDetailStat}>
+                  <Text style={[styles.entryDetailStatLabel, { color: colors.mutedForeground }]}>EARNED</Text>
+                  <Text style={[styles.entryDetailStatValue, { color: "#10b981" }]}>
+                    {settings.currency}{((selectedEntry.durationSeconds / 3600) * selectedEntry.hourlyRate).toFixed(0)}
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.entryDetailDate, { color: colors.mutedForeground }]}>
+                {new Date(selectedEntry.startTime).toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long" })}
+                {" · "}{formatTime(selectedEntry.startTime)}
+                {selectedEntry.endTime ? ` – ${formatTime(selectedEntry.endTime)}` : " · Running"}
+              </Text>
+            </View>
+
+            <View style={{ height: 16 }} />
+
+            {/* Status */}
+            {!selectedEntry.billable && (
+              <View style={[styles.statusBanner, { backgroundColor: colors.muted }]}>
+                <Ionicons name="information-circle-outline" size={16} color={colors.mutedForeground} />
+                <Text style={[styles.statusBannerText, { color: colors.mutedForeground }]}>This entry is non-billable.</Text>
+              </View>
+            )}
+
+            {selectedEntry.billable && selectedEntry.invoiceId && (
+              <>
+                <View style={[styles.statusBanner, { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }]}>
+                  <Ionicons name="checkmark-circle" size={16} color="#10b981" />
+                  <Text style={[styles.statusBannerText, { color: "#065f46" }]}>Already linked to an invoice.</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.sheetBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => { setShowEntrySheet(false); router.push({ pathname: "/invoice/[id]", params: { id: selectedEntry.invoiceId! } }); }}
+                >
+                  <Ionicons name="document-text-outline" size={18} color="#fff" />
+                  <Text style={styles.sheetBtnText}>View Invoice</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {selectedEntry.billable && !selectedEntry.invoiceId && (
+              <>
+                <View style={[styles.statusBanner, { backgroundColor: colors.warning + "15", borderColor: colors.warning + "40" }]}>
+                  <Ionicons name="alert-circle-outline" size={16} color={colors.warning} />
+                  <Text style={[styles.statusBannerText, { color: colors.warning }]}>This entry hasn't been invoiced yet.</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.sheetBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => handleCreateInvoiceForEntry(selectedEntry)}
+                >
+                  <Ionicons name="document-text-outline" size={18} color="#fff" />
+                  <Text style={styles.sheetBtnText}>Create Invoice for This Entry</Text>
+                </TouchableOpacity>
+                {/* Batch invoice shortcut if multiple unbilled for same client */}
+                {(unbilledByClient.find((g) => g.clientId === selectedEntry.clientId)?.entries.length ?? 0) > 1 && (
+                  <TouchableOpacity
+                    style={[styles.sheetBtnOutline, { borderColor: colors.primary }]}
+                    onPress={() => { setShowEntrySheet(false); setShowBatchSheet(true); }}
+                  >
+                    <Ionicons name="receipt-outline" size={18} color={colors.primary} />
+                    <Text style={[styles.sheetBtnOutlineText, { color: colors.primary }]}>
+                      Batch Invoice ({unbilledByClient.find((g) => g.clientId === selectedEntry.clientId)?.entries.length} entries)
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+
+            <TouchableOpacity
+              style={[styles.sheetBtnDanger, { borderColor: "#ef444440" }]}
+              onPress={() => { setShowEntrySheet(false); setPendingDeleteEntryId(selectedEntry.id); }}
+            >
+              <Ionicons name="trash-outline" size={16} color="#ef4444" />
+              <Text style={styles.sheetBtnDangerText}>Delete Entry</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </BottomSheet>
+
+      {/* Batch Invoice Sheet */}
+      <BottomSheet
+        visible={showBatchSheet}
+        onClose={() => setShowBatchSheet(false)}
+        title="Batch Invoice"
+      >
+        <Text style={[styles.batchHint, { color: colors.mutedForeground }]}>
+          Create one invoice per client covering all their unbilled time entries.
+        </Text>
+        {unbilledByClient.length === 0 ? (
+          <View style={{ alignItems: "center", paddingVertical: 24 }}>
+            <Ionicons name="checkmark-circle-outline" size={40} color="#10b981" />
+            <Text style={[{ color: colors.mutedForeground, marginTop: 8, fontFamily: "Inter_500Medium", fontSize: 14 }]}>
+              No unbilled time entries.
+            </Text>
+          </View>
+        ) : (
+          unbilledByClient.map((group) => (
+            <View
+              key={group.clientId}
+              style={[styles.batchClientCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.cr }]}
+            >
+              <View style={styles.batchClientTop}>
+                {group.client && <ClientBadge name={group.client.name} color={group.client.color} size="sm" />}
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.batchClientName, { color: colors.foreground }]}>
+                    {group.client?.name || "Unknown Client"}
+                  </Text>
+                  <Text style={[styles.batchClientSub, { color: colors.mutedForeground }]}>
+                    {group.entries.length} entr{group.entries.length === 1 ? "y" : "ies"} · {formatDuration(group.totalSeconds)}
+                  </Text>
+                </View>
+                <Text style={[styles.batchClientAmount, { color: "#10b981" }]}>
+                  {settings.currency}{group.totalAmount.toFixed(0)}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.batchInvoiceBtn, { backgroundColor: colors.primary }]}
+                onPress={() => handleBatchInvoiceForClient(group.clientId)}
+              >
+                <Ionicons name="document-text-outline" size={15} color="#fff" />
+                <Text style={styles.batchInvoiceBtnText}>Invoice All {group.entries.length} Entries</Text>
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
+      </BottomSheet>
 
       <BottomSheet visible={showStart} onClose={() => setShowStart(false)} title="Start Timer">
         <FormField label="What are you working on?" placeholder="e.g., Website redesign, Client meeting" value={desc} onChangeText={setDesc} />
@@ -361,11 +634,18 @@ export default function WorkScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   screenTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
   addBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  batchBtn: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1 },
+  batchBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   filterRow: { flexDirection: "row", borderBottomWidth: 1, paddingHorizontal: 20 },
-  filterTab: { flex: 1, paddingVertical: 12, alignItems: "center" },
+  filterTab: { flex: 1, paddingVertical: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
   filterLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  filterBadge: { borderRadius: 10, paddingHorizontal: 5, paddingVertical: 1, minWidth: 18, alignItems: "center" },
+  filterBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#fff" },
+  unbilledBanner: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
+  unbilledBannerText: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", lineHeight: 17 },
   group: { marginBottom: 20 },
   groupHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
   groupDate: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5 },
@@ -380,9 +660,8 @@ const styles = StyleSheet.create({
   durBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   durText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   earnedText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  tagBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  tagBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, flexDirection: "row", alignItems: "center", gap: 4 },
   tagText: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  fieldLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 8, letterSpacing: 0.3 },
   billableRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24 },
   billableLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
   toggle: { width: 48, height: 28, borderRadius: 14, justifyContent: "center", paddingHorizontal: 4 },
@@ -402,4 +681,30 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: "row", alignItems: "center", gap: 10, width: "100%", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18, justifyContent: "center" },
   actionRowOutline: { flexDirection: "row", alignItems: "center", gap: 10, width: "100%", borderRadius: 14, paddingVertical: 13, paddingHorizontal: 18, justifyContent: "center", borderWidth: 1 },
   actionRowText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  // Entry detail sheet
+  entryDetailCard: { padding: 16 },
+  entryDetailDesc: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 14 },
+  entryDetailRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  entryDetailStat: { flex: 1, alignItems: "center" },
+  entryDetailStatLabel: { fontSize: 10, fontFamily: "Inter_500Medium", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 3 },
+  entryDetailStatValue: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  entryDetailDivider: { width: 1, height: 32 },
+  entryDetailDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  statusBanner: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, borderWidth: 1, borderColor: "transparent", padding: 12, marginBottom: 12 },
+  statusBannerText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
+  sheetBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18, marginBottom: 10 },
+  sheetBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  sheetBtnOutline: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 18, borderWidth: 1, marginBottom: 10 },
+  sheetBtnOutlineText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  sheetBtnDanger: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 18, borderWidth: 1, marginTop: 4 },
+  sheetBtnDangerText: { fontSize: 14, fontFamily: "Inter_500Medium", color: "#ef4444" },
+  // Batch sheet
+  batchHint: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 16, lineHeight: 18 },
+  batchClientCard: { borderWidth: 1, padding: 14, marginBottom: 12 },
+  batchClientTop: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 },
+  batchClientName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  batchClientSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  batchClientAmount: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  batchInvoiceBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 10, paddingVertical: 11 },
+  batchInvoiceBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });
