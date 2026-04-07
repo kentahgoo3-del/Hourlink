@@ -27,7 +27,15 @@
           "origin": "https://replit.com/"
         }
       ],
-      "expo-font",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Ionicons.ttf",
+            "./assets/fonts/Feather.ttf"
+          ]
+        }
+      ],
       "expo-web-browser"
     ],
     "experiments": {
