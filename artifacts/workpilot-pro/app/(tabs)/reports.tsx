@@ -1,6 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   ScrollView,
   StyleSheet,
@@ -39,6 +42,16 @@ function getPrevPeriodStart(period: Period): Date {
   return new Date(now.getFullYear() - 1, 0, 1);
 }
 
+function getDayKey(iso: string) {
+  return iso.split("T")[0];
+}
+
+function getMiniLabel(dateStr: string, period: Period) {
+  const [, m, d] = dateStr.split("-");
+  if (period === "year") return `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(m)-1]}`;
+  return `${d}/${m}`;
+}
+
 function MiniBar({ percent, color }: { percent: number; color: string }) {
   return (
     <View style={styles.barTrack}>
@@ -57,11 +70,68 @@ function Insight({ icon, text, color }: { icon: string; text: string; color: str
   );
 }
 
+interface BarChartProps {
+  data: { label: string; value: number }[];
+  color: string;
+  formatValue: (v: number) => string;
+  maxBars?: number;
+}
+
+function VerticalBarChart({ data, color, formatValue, maxBars = 14 }: BarChartProps) {
+  const colors = useColors();
+  const displayed = data.slice(-maxBars);
+  const maxVal = Math.max(1, ...displayed.map((d) => d.value));
+  const barW = Math.max(16, Math.floor(300 / Math.max(displayed.length, 1)) - 4);
+
+  if (displayed.every((d) => d.value === 0)) {
+    return (
+      <View style={styles.chartEmpty}>
+        <Text style={[styles.chartEmptyText, { color: colors.mutedForeground }]}>No data for this period</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.chartWrap}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={styles.chartInner}>
+          {displayed.map((item, idx) => {
+            const pct = item.value / maxVal;
+            const isActive = item.value > 0;
+            return (
+              <View key={idx} style={[styles.barGroup, { width: barW + 8 }]}>
+                <Text style={[styles.barTopLabel, { color: isActive ? colors.foreground : "transparent" }]} numberOfLines={1}>
+                  {isActive ? formatValue(item.value) : ""}
+                </Text>
+                <View style={styles.barContainer}>
+                  <View
+                    style={[
+                      styles.vertBar,
+                      {
+                        height: `${Math.max(4, pct * 100)}%` as any,
+                        width: barW,
+                        backgroundColor: isActive ? color : colors.muted,
+                        borderRadius: 4,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={[styles.barBottomLabel, { color: colors.mutedForeground }]} numberOfLines={1}>{item.label}</Text>
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
 export default function ReportsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { clients, timeEntries, invoices, expenses, settings, tasks } = useApp();
+  const { clients, timeEntries, invoices, expenses, settings, tasks, companyProfile } = useApp();
   const [period, setPeriod] = useState<Period>("month");
+  const [exporting, setExporting] = useState(false);
 
   const periodStart = useMemo(() => getPeriodStart(period), [period]);
   const prevStart = useMemo(() => getPrevPeriodStart(period), [period]);
@@ -113,7 +183,6 @@ export default function ReportsScreen() {
 
   const maxSeconds = Math.max(1, ...clientBreakdown.map((c) => c.seconds));
 
-  // Insights
   const insights: Array<{ icon: string; text: string; color: string }> = useMemo(() => {
     const list: Array<{ icon: string; text: string; color: string }> = [];
     if (revenueChange > 10) list.push({ icon: "📈", text: `Revenue up ${revenueChange.toFixed(0)}% vs last ${period}`, color: "#10b981" });
@@ -138,7 +207,6 @@ export default function ReportsScreen() {
     return list.slice(0, 4);
   }, [revenueChange, billableSeconds, totalSeconds, avgHourlyRate, clientBreakdown, invoices, totalExpenses]);
 
-  // Task breakdown — group time entries by taskId for the period
   const taskBreakdown = useMemo(() => {
     const map = new Map<string, { seconds: number; earned: number; taskTitle: string; rate: number }>();
     for (const e of periodEntries) {
@@ -167,11 +235,170 @@ export default function ReportsScreen() {
     };
   }, [invoices, periodStart]);
 
+  const dailyHoursData = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const e of periodEntries) {
+      const key = getDayKey(e.startTime);
+      map.set(key, (map.get(key) || 0) + e.durationSeconds);
+    }
+    const sorted = Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    return sorted.map(([key, secs]) => ({
+      label: getMiniLabel(key, period),
+      value: parseFloat((secs / 3600).toFixed(2)),
+    }));
+  }, [periodEntries, period]);
+
+  const dailyRevenueData = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const inv of periodInvoices) {
+      const key = getDayKey(inv.paidAt || inv.createdAt);
+      const sub = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
+      const total = sub * (1 + inv.taxPercent / 100);
+      map.set(key, (map.get(key) || 0) + total);
+    }
+    const sorted = Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    return sorted.map(([key, amount]) => ({
+      label: getMiniLabel(key, period),
+      value: Math.round(amount),
+    }));
+  }, [periodInvoices, period]);
+
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const botPadding = Platform.OS === "web" ? 34 : insets.bottom;
-
   const changeColor = (pct: number) => pct >= 0 ? "#10b981" : "#ef4444";
   const changePrefix = (pct: number) => pct >= 0 ? "+" : "";
+
+  const handleExportPDF = async () => {
+    setExporting(true);
+    try {
+      const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
+      const now = new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
+      const utilPct = totalSeconds > 0 ? Math.round((billableSeconds / totalSeconds) * 100) : 0;
+
+      const clientRows = clientBreakdown.map((item) => `
+        <tr>
+          <td>${item.client?.name || "Unknown"}</td>
+          <td>${formatHours(item.seconds)}</td>
+          <td>${formatCurrency(item.earned, settings.currency)}</td>
+        </tr>`).join("");
+
+      const taskRows = taskBreakdown.map((item) => `
+        <tr>
+          <td>${item.taskTitle}</td>
+          <td>${formatHours(item.seconds)}</td>
+          <td>${formatCurrency(item.earned, settings.currency)}</td>
+        </tr>`).join("");
+
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${companyProfile.name || "WorkPilot Pro"} — ${periodLabel} Report</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1e293b; background: #fff; padding: 48px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; border-bottom: 2px solid #3b82f6; padding-bottom: 24px; }
+    .company-name { font-size: 26px; font-weight: 800; color: #1e293b; }
+    .report-title { font-size: 14px; color: #64748b; margin-top: 4px; }
+    .date { font-size: 12px; color: #94a3b8; text-align: right; }
+    .section-title { font-size: 14px; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.5px; margin: 32px 0 12px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 8px; }
+    .kpi { background: #f8fafc; border-radius: 12px; padding: 16px; }
+    .kpi-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .kpi-value { font-size: 22px; font-weight: 800; color: #1e293b; }
+    .kpi-sub { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    th { background: #f1f5f9; padding: 10px 14px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+    td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155; }
+    tr:last-child td { border-bottom: none; }
+    .insight { background: #f0fdf4; border-left: 3px solid #10b981; padding: 10px 14px; margin-bottom: 8px; font-size: 13px; color: #065f46; border-radius: 0 8px 8px 0; }
+    .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 80px; margin: 12px 0; }
+    .bar-item { display: flex; flex-direction: column; align-items: center; flex: 1; }
+    .bar-fill { width: 100%; background: #3b82f6; border-radius: 3px 3px 0 0; min-height: 2px; }
+    .bar-label { font-size: 8px; color: #94a3b8; margin-top: 3px; }
+    .footer { margin-top: 48px; border-top: 1px solid #e2e8f0; padding-top: 16px; font-size: 11px; color: #94a3b8; display: flex; justify-content: space-between; }
+    .profit-positive { color: #10b981; }
+    .profit-negative { color: #ef4444; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="company-name">${companyProfile.name || "WorkPilot Pro"}</div>
+      <div class="report-title">${periodLabel} Performance Report</div>
+    </div>
+    <div class="date">Generated ${now}</div>
+  </div>
+
+  <div class="section-title">Key Metrics</div>
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-label">Revenue</div>
+      <div class="kpi-value">${formatCurrency(totalRevenue, settings.currency)}</div>
+      ${prevRevenue > 0 ? `<div class="kpi-sub">${changePrefix(revenueChange)}${revenueChange.toFixed(0)}% vs prev ${period}</div>` : ""}
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Net Profit</div>
+      <div class="kpi-value ${netProfit >= 0 ? "profit-positive" : "profit-negative"}">${formatCurrency(netProfit, settings.currency)}</div>
+      ${totalExpenses > 0 ? `<div class="kpi-sub">${formatCurrency(totalExpenses, settings.currency)} expenses</div>` : ""}
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Hours Tracked</div>
+      <div class="kpi-value">${formatHours(totalSeconds)}</div>
+      <div class="kpi-sub">${formatHours(billableSeconds)} billable</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Utilization</div>
+      <div class="kpi-value">${utilPct}%</div>
+      ${avgHourlyRate > 0 ? `<div class="kpi-sub">${settings.currency}${avgHourlyRate.toFixed(0)}/h avg rate</div>` : ""}
+    </div>
+  </div>
+
+  ${clientBreakdown.length > 0 ? `
+  <div class="section-title">Hours by Client</div>
+  <table>
+    <thead><tr><th>Client</th><th>Hours</th><th>Earned</th></tr></thead>
+    <tbody>${clientRows}</tbody>
+  </table>` : ""}
+
+  ${taskBreakdown.length > 0 ? `
+  <div class="section-title">Hours by Task</div>
+  <table>
+    <thead><tr><th>Task</th><th>Hours</th><th>Earned</th></tr></thead>
+    <tbody>${taskRows}</tbody>
+  </table>` : ""}
+
+  ${invoiceStatus.total > 0 ? `
+  <div class="section-title">Invoice Summary</div>
+  <table>
+    <thead><tr><th>Status</th><th>Count</th></tr></thead>
+    <tbody>
+      <tr><td>Paid</td><td>${invoiceStatus.paid}</td></tr>
+      <tr><td>Sent / Awaiting</td><td>${invoiceStatus.sent}</td></tr>
+      <tr><td>Overdue</td><td>${invoiceStatus.overdue}</td></tr>
+      <tr><td>Draft</td><td>${invoiceStatus.draft}</td></tr>
+    </tbody>
+  </table>` : ""}
+
+  ${insights.length > 0 ? `
+  <div class="section-title">Insights</div>
+  ${insights.map((ins) => `<div class="insight">${ins.icon} ${ins.text}</div>`).join("")}` : ""}
+
+  <div class="footer">
+    <span>${companyProfile.name || "WorkPilot Pro"}</span>
+    <span>WorkPilot Pro · ${periodLabel} Report · ${now}</span>
+  </div>
+</body>
+</html>`;
+
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${periodLabel} Report`, UTI: "com.adobe.pdf" });
+    } catch (e) {
+      console.error("PDF export error", e);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <ScrollView
@@ -179,7 +406,22 @@ export default function ReportsScreen() {
       contentContainerStyle={[styles.content, { paddingTop: topPadding + 16, paddingBottom: botPadding + 100 }]}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={[styles.screenTitle, { color: colors.foreground }]}>Reports</Text>
+      {/* Header */}
+      <View style={styles.headerRow}>
+        <Text style={[styles.screenTitle, { color: colors.foreground }]}>Reports</Text>
+        <TouchableOpacity
+          style={[styles.exportBtn, { backgroundColor: exporting ? colors.muted : colors.primary }]}
+          onPress={handleExportPDF}
+          disabled={exporting}
+          testID="export-pdf-btn"
+        >
+          {exporting
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <Ionicons name="document-outline" size={16} color="#fff" />
+          }
+          <Text style={styles.exportBtnText}>{exporting ? "Generating…" : "Export PDF"}</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Period Selector */}
       <View style={[styles.periodRow, { backgroundColor: colors.muted }]}>
@@ -219,7 +461,7 @@ export default function ReportsScreen() {
         <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
           <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Net Profit</Text>
           <Text style={[styles.summaryValue, { color: netProfit >= 0 ? "#10b981" : "#ef4444" }]}>{formatCurrency(netProfit, settings.currency)}</Text>
-          {totalExpenses > 0 && <Text style={[styles.summarySub, { color: colors.mutedForeground }]}>{formatCurrency(totalExpenses, settings.currency)} in expenses</Text>}
+          {totalExpenses > 0 && <Text style={[styles.summarySub, { color: colors.mutedForeground }]}>{formatCurrency(totalExpenses, settings.currency)} expenses</Text>}
         </View>
       </View>
       <View style={[styles.summaryGrid, { marginTop: 10 }]}>
@@ -241,11 +483,46 @@ export default function ReportsScreen() {
         </View>
       </View>
 
-      {/* Client Breakdown */}
+      {/* Daily Hours Bar Chart */}
+      {dailyHoursData.length > 0 && (
+        <>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Hours per Day</Text>
+          <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <VerticalBarChart
+              data={dailyHoursData}
+              color={colors.primary}
+              formatValue={(v) => `${v.toFixed(1)}h`}
+            />
+          </View>
+        </>
+      )}
+
+      {/* Daily Revenue Bar Chart */}
+      {dailyRevenueData.length > 0 && (
+        <>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Revenue per Day</Text>
+          <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <VerticalBarChart
+              data={dailyRevenueData}
+              color="#10b981"
+              formatValue={(v) => `${settings.currency}${v}`}
+            />
+          </View>
+        </>
+      )}
+
+      {/* Client Hours Bar Chart */}
       {clientBreakdown.length > 0 && (
         <>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Hours by Client</Text>
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <VerticalBarChart
+              data={clientBreakdown.map((item) => ({ label: item.client?.name?.split(" ")[0] || "?", value: parseFloat((item.seconds / 3600).toFixed(2)) }))}
+              color="#f59e0b"
+              formatValue={(v) => `${v.toFixed(1)}h`}
+            />
+          </View>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 10 }]}>
             {clientBreakdown.map((item, idx) => (
               <View key={item.id} style={[styles.clientRow, idx < clientBreakdown.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
                 {item.client && <ClientBadge name={item.client.name} color={item.client.color} size="sm" />}
@@ -323,7 +600,10 @@ export default function ReportsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingHorizontal: 20 },
-  screenTitle: { fontSize: 24, fontFamily: "Inter_700Bold", marginBottom: 20 },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
+  screenTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  exportBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
+  exportBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
   periodRow: { flexDirection: "row", borderRadius: 12, padding: 4, marginBottom: 20 },
   periodBtn: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 10 },
   periodLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
@@ -336,6 +616,16 @@ const styles = StyleSheet.create({
   summaryValue: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff", marginBottom: 4 },
   summarySub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)" },
   summaryChange: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  chartCard: { borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 4 },
+  chartWrap: { width: "100%" },
+  chartInner: { flexDirection: "row", alignItems: "flex-end", gap: 4, height: 120, paddingBottom: 20 },
+  chartEmpty: { height: 80, alignItems: "center", justifyContent: "center" },
+  chartEmptyText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  barGroup: { alignItems: "center", height: "100%" },
+  barContainer: { flex: 1, width: "100%", justifyContent: "flex-end", alignItems: "center" },
+  vertBar: { borderRadius: 4 },
+  barTopLabel: { fontSize: 9, fontFamily: "Inter_500Medium", marginBottom: 2, textAlign: "center" },
+  barBottomLabel: { fontSize: 9, fontFamily: "Inter_400Regular", marginTop: 4, textAlign: "center" },
   card: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
   clientRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
   clientMid: { flex: 1 },
