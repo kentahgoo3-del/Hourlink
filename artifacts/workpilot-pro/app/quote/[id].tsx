@@ -1,8 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as FileSystem from "expo-file-system";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   Modal,
   Platform,
@@ -22,6 +26,17 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
 }
 
+async function getLogoDataUri(logoUri?: string): Promise<string> {
+  if (!logoUri) return "";
+  try {
+    const ext = logoUri.split(".").pop()?.toLowerCase() || "png";
+    const mimeMap: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp" };
+    const mime = mimeMap[ext] || "image/png";
+    const base64 = await FileSystem.readAsStringAsync(logoUri, { encoding: FileSystem.EncodingType.Base64 });
+    return `data:${mime};base64,${base64}`;
+  } catch { return ""; }
+}
+
 export default function QuoteDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -30,6 +45,7 @@ export default function QuoteDetailScreen() {
   const [showTimerPrompt, setShowTimerPrompt] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const quote = quotes.find((q) => q.id === id);
   const client = clients.find((c) => c.id === quote?.clientId);
@@ -50,6 +66,40 @@ export default function QuoteDetailScreen() {
   }
 
   const handleDelete = () => setShowDeleteConfirm(true);
+
+  const handleExportPDF = async () => {
+    if (!quote) return;
+    setExporting(true);
+    try {
+      const logoDataUri = await getLogoDataUri((companyProfile as any).logoUri);
+      const logoHtml = logoDataUri ? `<img src="${logoDataUri}" style="max-height:100px;max-width:240px;object-fit:contain;display:block;margin-bottom:12px;" alt="logo"/>` : "";
+      const cName = companyProfile.name || settings.name || "Your Company";
+      const hasAddr = !!(companyProfile.addressLine1 || companyProfile.city || companyProfile.phone);
+      const sub = quote.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
+      const taxAmt = sub * (quote.taxPercent / 100);
+      const tot = sub + taxAmt;
+      const fmt = (n: number) => `${settings.currency}${n.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const itemRows = quote.items.map((item) => `<tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9">${item.description}<div style="font-size:11px;color:#94a3b8;margin-top:2px">${settings.currency}${item.unitPrice}/unit</div></td><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;text-align:center;color:#64748b">${item.quantity}</td><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:600">${fmt(item.quantity * item.unitPrice)}</td></tr>`).join("");
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${quote.quoteNumber}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,Helvetica,Arial,sans-serif;color:#1e293b;background:#fff;padding:48px}th{background:#f1f5f9;padding:10px 14px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px}table{width:100%;border-collapse:collapse}tr:last-child td{border-bottom:none!important}</style></head><body>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px;padding-bottom:24px;border-bottom:3px solid #8b5cf6">
+  <div>${logoHtml}<div style="font-size:24px;font-weight:800;color:#1e293b">${cName}</div>${companyProfile.tagline ? `<div style="font-size:13px;color:#64748b;margin-top:4px">${companyProfile.tagline}</div>` : ""}${hasAddr ? `<div style="font-size:12px;color:#94a3b8;margin-top:8px;line-height:1.6">${[companyProfile.addressLine1, companyProfile.city && companyProfile.province ? `${companyProfile.city}, ${companyProfile.province}` : companyProfile.city, companyProfile.phone, companyProfile.vatNumber ? `VAT: ${companyProfile.vatNumber}` : ""].filter(Boolean).join("<br/>")}</div>` : ""}</div>
+  <div style="text-align:right"><div style="font-size:28px;font-weight:800;color:#8b5cf6">QUOTATION</div><div style="font-size:16px;font-weight:600;margin-top:4px">${quote.quoteNumber}</div><div style="font-size:12px;color:#94a3b8;margin-top:8px">Date: ${formatDate(quote.createdAt)}</div><div style="font-size:12px;color:#94a3b8;margin-top:4px">Valid until: ${formatDate(quote.validUntil)}</div></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:36px">
+  <div><div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">QUOTED FOR</div><div style="font-size:15px;font-weight:700">${client?.name || "Client"}</div>${client?.company ? `<div style="color:#64748b;font-size:13px;margin-top:4px">${client.company}</div>` : ""}${client?.email ? `<div style="color:#64748b;font-size:13px;margin-top:2px">${client.email}</div>` : ""}</div>
+  <div style="text-align:right"><div style="display:inline-block;background:#f5f3ff;color:#8b5cf6;border:1px solid #8b5cf6;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">${quote.status}</div></div>
+</div>
+${quote.title ? `<div style="font-size:16px;font-weight:600;margin-bottom:16px">${quote.title}</div>` : ""}
+<table style="margin-bottom:24px"><thead><tr><th style="width:60%">Description</th><th style="text-align:center">Qty</th><th style="text-align:right">Amount</th></tr></thead><tbody>${itemRows}</tbody></table>
+<div style="display:flex;justify-content:flex-end;margin-bottom:24px"><div style="width:300px"><div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9"><span style="color:#64748b">Subtotal</span><span>${fmt(sub)}</span></div><div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9"><span style="color:#64748b">Tax (${quote.taxPercent}%)</span><span>${fmt(taxAmt)}</span></div><div style="display:flex;justify-content:space-between;padding:12px 0;border-top:2px solid #1e293b;margin-top:4px"><span style="font-weight:700;text-transform:uppercase;letter-spacing:.5px">TOTAL</span><span style="font-size:22px;font-weight:800;color:#8b5cf6">${fmt(tot)}</span></div></div></div>
+${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"><div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">NOTES</div><div style="font-size:13px;color:#64748b;line-height:1.6">${quote.notes}</div></div>` : ""}
+<div style="margin-top:48px;border-top:1px solid #e2e8f0;padding-top:16px;font-size:11px;color:#94a3b8;display:flex;justify-content:space-between"><span>${cName}</span><span>Generated by WorkPilot Pro</span></div>
+</body></html>`;
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: quote.quoteNumber, UTI: "com.adobe.pdf" });
+    } catch (e) { console.error("PDF error", e); }
+    finally { setExporting(false); }
+  };
 
   const handleAccept = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -90,9 +140,21 @@ export default function QuoteDetailScreen() {
           <Ionicons name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerNum, { color: colors.foreground }]}>{quote.quoteNumber}</Text>
-        <TouchableOpacity onPress={handleDelete}>
-          <Ionicons name="trash-outline" size={20} color="#ef4444" />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={[styles.exportBtn, { backgroundColor: exporting ? colors.muted : "#8b5cf6" }]}
+            onPress={handleExportPDF}
+            disabled={exporting}
+          >
+            {exporting
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <Ionicons name="download-outline" size={15} color="#fff" />}
+            <Text style={styles.exportBtnText}>{exporting ? "…" : "PDF"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleDelete}>
+            <Ionicons name="trash-outline" size={20} color="#ef4444" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: botPadding + 100 }} showsVerticalScrollIndicator={false}>
@@ -299,11 +361,14 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerNum: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+  exportBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  exportBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
   statusRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
   validUntil: { fontSize: 12, fontFamily: "Inter_400Regular" },
   docCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden", marginBottom: 20 },
-  companyHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 20, borderBottomWidth: 1 },
-  companyLogo: { width: 240, height: 108 },
+  companyHeader: { padding: 20, borderBottomWidth: 1, gap: 10 },
+  companyLogo: { width: "100%" as any, height: 140 },
   companyInfo: { flex: 1 },
   companyName: { fontSize: 16, fontFamily: "Inter_700Bold" },
   companySub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
