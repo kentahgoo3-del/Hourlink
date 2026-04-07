@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -183,7 +183,7 @@ export default function TeamScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPadding + 16 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color={colors.foreground} />
+          <AppIcon name="chevron-back" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.screenTitle, { color: colors.foreground }]}>Team & Delegation</Text>
         {workspace && (
@@ -191,7 +191,7 @@ export default function TeamScreen() {
             style={[styles.syncBtn, { backgroundColor: colors.muted }]}
             onPress={() => syncPending(workspaceCode)}
           >
-            {syncing ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="refresh" size={18} color={colors.primary} />}
+            {syncing ? <ActivityIndicator size="small" color={colors.primary} /> : <AppIcon name="refresh" size={18} color={colors.primary} />}
           </TouchableOpacity>
         )}
       </View>
@@ -202,7 +202,7 @@ export default function TeamScreen() {
           <>
             <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={[styles.heroIcon, { backgroundColor: colors.primary + "18" }]}>
-                <Ionicons name="people" size={40} color={colors.primary} />
+                <AppIcon name="people" size={40} color={colors.primary} />
               </View>
               <Text style={[styles.heroTitle, { color: colors.foreground }]}>Team Collaboration</Text>
               <Text style={[styles.heroDesc, { color: colors.mutedForeground }]}>
@@ -215,7 +215,7 @@ export default function TeamScreen() {
               onPress={handleCreate}
             >
               {loading ? <ActivityIndicator color="#fff" /> : <>
-                <Ionicons name="add-circle" size={22} color="#fff" />
+                <AppIcon name="add-circle" size={22} color="#fff" />
                 <Text style={styles.bigBtnText}>Create My Workspace</Text>
               </>}
             </TouchableOpacity>
@@ -224,7 +224,7 @@ export default function TeamScreen() {
               style={[styles.bigBtn, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
               onPress={() => setShowJoin(true)}
             >
-              <Ionicons name="log-in" size={22} color={colors.primary} />
+              <AppIcon name="log-in" size={22} color={colors.primary} />
               <Text style={[styles.bigBtnText, { color: colors.foreground }]}>Join a Workspace</Text>
             </TouchableOpacity>
           </>
@@ -277,7 +277,7 @@ export default function TeamScreen() {
                 </View>
                 {pendingTasks.length === 0 ? (
                   <View style={[styles.emptyBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <Ionicons name="checkmark-done" size={28} color={colors.mutedForeground} />
+                    <AppIcon name="checkmark-done" size={28} color={colors.mutedForeground} />
                     <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No pending tasks from your team</Text>
                   </View>
                 ) : (
@@ -296,7 +296,7 @@ export default function TeamScreen() {
                         style={[styles.acceptBtn, { backgroundColor: colors.primary }]}
                         onPress={() => handleAccept(task)}
                       >
-                        <Ionicons name="add-circle" size={16} color="#fff" />
+                        <AppIcon name="add-circle" size={16} color="#fff" />
                         <Text style={styles.acceptBtnText}>Add to My Tasks</Text>
                       </TouchableOpacity>
                     </View>
@@ -311,7 +311,7 @@ export default function TeamScreen() {
                 style={[styles.bigBtn, { backgroundColor: colors.primary }]}
                 onPress={() => setShowDelegate(true)}
               >
-                <Ionicons name="paper-plane" size={20} color="#fff" />
+                <AppIcon name="paper-plane" size={20} color="#fff" />
                 <Text style={styles.bigBtnText}>Send Task to Owner</Text>
               </TouchableOpacity>
             )}
@@ -375,7 +375,7 @@ export default function TeamScreen() {
           onPress={handleDelegate}
         >
           {loading ? <ActivityIndicator color="#fff" /> : <>
-            <Ionicons name="paper-plane" size={18} color="#fff" />
+            <AppIcon name="paper-plane" size={18} color="#fff" />
             <Text style={styles.bigBtnText}>Send Task</Text>
           </>}
         </TouchableOpacity>

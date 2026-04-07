@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -70,7 +70,7 @@ function TimeEntryCard({ entry, onPress, onDelete }: { entry: TimeEntry; onPress
           </View>
         </View>
         <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="trash-outline" size={16} color={colors.mutedForeground} />
+          <AppIcon name="trash-outline" size={16} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
       <View style={styles.entryBottom}>
@@ -87,13 +87,13 @@ function TimeEntryCard({ entry, onPress, onDelete }: { entry: TimeEntry; onPress
         )}
         {entry.billable && !entry.invoiceId && (
           <View style={[styles.tagBadge, { backgroundColor: colors.warning + "20" }]}>
-            <Ionicons name="alert-circle-outline" size={12} color={colors.warning} />
+            <AppIcon name="alert-circle-outline" size={12} color={colors.warning} />
             <Text style={[styles.tagText, { color: colors.warning }]}>Unbilled</Text>
           </View>
         )}
         {entry.invoiceId && (
           <View style={[styles.tagBadge, { backgroundColor: "#10b98118" }]}>
-            <Ionicons name="checkmark-circle-outline" size={12} color="#10b981" />
+            <AppIcon name="checkmark-circle-outline" size={12} color="#10b981" />
             <Text style={[styles.tagText, { color: "#10b981" }]}>Invoiced</Text>
           </View>
         )}
@@ -289,7 +289,7 @@ export default function WorkScreen() {
               style={[styles.batchBtn, { backgroundColor: colors.warning + "20", borderColor: colors.warning + "60" }]}
               onPress={() => setShowBatchSheet(true)}
             >
-              <Ionicons name="receipt-outline" size={14} color={colors.warning} />
+              <AppIcon name="receipt-outline" size={14} color={colors.warning} />
               <Text style={[styles.batchBtnText, { color: colors.warning }]}>
                 Batch Invoice
               </Text>
@@ -300,7 +300,7 @@ export default function WorkScreen() {
             onPress={() => { if (!activeTimer) setShowStart(true); else handleStop(); }}
             testID="start-timer-btn"
           >
-            <Ionicons name={activeTimer ? "stop" : "add"} size={22} color="#fff" />
+            <AppIcon name={activeTimer ? "stop" : "add"} size={22} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -335,7 +335,7 @@ export default function WorkScreen() {
       {/* Unbilled summary banner */}
       {filter === "unbilled" && unbilledByClient.length > 0 && (
         <View style={[styles.unbilledBanner, { backgroundColor: colors.warning + "12", borderBottomColor: colors.warning + "30" }]}>
-          <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
+          <AppIcon name="information-circle-outline" size={16} color={colors.warning} />
           <Text style={[styles.unbilledBannerText, { color: colors.warning }]}>
             Tap an entry to invoice it, or use Batch Invoice to group multiple entries.
           </Text>
@@ -383,7 +383,7 @@ export default function WorkScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.quickInvCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.quickInvIcon, { backgroundColor: colors.primary + "20" }]}>
-              <Ionicons name="timer-outline" size={30} color={colors.primary} />
+              <AppIcon name="timer-outline" size={30} color={colors.primary} />
             </View>
             <Text style={[styles.quickInvTitle, { color: colors.foreground }]}>Timer Stopped</Text>
 
@@ -412,7 +412,7 @@ export default function WorkScreen() {
               onPress={handleQuickInvoice}
               testID="quick-invoice-now"
             >
-              <Ionicons name="document-text-outline" size={18} color="#fff" />
+              <AppIcon name="document-text-outline" size={18} color="#fff" />
               <Text style={[styles.actionRowText, { color: "#fff" }]}>Invoice Now</Text>
             </TouchableOpacity>
 
@@ -421,7 +421,7 @@ export default function WorkScreen() {
               onPress={handleResume}
               testID="resume-timer"
             >
-              <Ionicons name="play-outline" size={18} color={colors.foreground} />
+              <AppIcon name="play-outline" size={18} color={colors.foreground} />
               <Text style={[styles.actionRowText, { color: colors.foreground }]}>Resume Timer</Text>
             </TouchableOpacity>
 
@@ -430,7 +430,7 @@ export default function WorkScreen() {
               onPress={handleInvoiceLater}
               testID="invoice-later"
             >
-              <Ionicons name="time-outline" size={18} color={colors.mutedForeground} />
+              <AppIcon name="time-outline" size={18} color={colors.mutedForeground} />
               <Text style={[styles.actionRowText, { color: colors.mutedForeground }]}>Invoice Later</Text>
             </TouchableOpacity>
           </View>
@@ -489,7 +489,7 @@ export default function WorkScreen() {
             {/* Status */}
             {!selectedEntry.billable && (
               <View style={[styles.statusBanner, { backgroundColor: colors.muted }]}>
-                <Ionicons name="information-circle-outline" size={16} color={colors.mutedForeground} />
+                <AppIcon name="information-circle-outline" size={16} color={colors.mutedForeground} />
                 <Text style={[styles.statusBannerText, { color: colors.mutedForeground }]}>This entry is non-billable.</Text>
               </View>
             )}
@@ -497,14 +497,14 @@ export default function WorkScreen() {
             {selectedEntry.billable && selectedEntry.invoiceId && (
               <>
                 <View style={[styles.statusBanner, { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }]}>
-                  <Ionicons name="checkmark-circle" size={16} color="#10b981" />
+                  <AppIcon name="checkmark-circle" size={16} color="#10b981" />
                   <Text style={[styles.statusBannerText, { color: "#065f46" }]}>Already linked to an invoice.</Text>
                 </View>
                 <TouchableOpacity
                   style={[styles.sheetBtn, { backgroundColor: colors.primary }]}
                   onPress={() => { setShowEntrySheet(false); router.push({ pathname: "/invoice/[id]", params: { id: selectedEntry.invoiceId! } }); }}
                 >
-                  <Ionicons name="document-text-outline" size={18} color="#fff" />
+                  <AppIcon name="document-text-outline" size={18} color="#fff" />
                   <Text style={styles.sheetBtnText}>View Invoice</Text>
                 </TouchableOpacity>
               </>
@@ -513,14 +513,14 @@ export default function WorkScreen() {
             {selectedEntry.billable && !selectedEntry.invoiceId && (
               <>
                 <View style={[styles.statusBanner, { backgroundColor: colors.warning + "15", borderColor: colors.warning + "40" }]}>
-                  <Ionicons name="alert-circle-outline" size={16} color={colors.warning} />
+                  <AppIcon name="alert-circle-outline" size={16} color={colors.warning} />
                   <Text style={[styles.statusBannerText, { color: colors.warning }]}>This entry hasn't been invoiced yet.</Text>
                 </View>
                 <TouchableOpacity
                   style={[styles.sheetBtn, { backgroundColor: colors.primary }]}
                   onPress={() => handleCreateInvoiceForEntry(selectedEntry)}
                 >
-                  <Ionicons name="document-text-outline" size={18} color="#fff" />
+                  <AppIcon name="document-text-outline" size={18} color="#fff" />
                   <Text style={styles.sheetBtnText}>Create Invoice for This Entry</Text>
                 </TouchableOpacity>
                 {/* Batch invoice shortcut if multiple unbilled for same client */}
@@ -529,7 +529,7 @@ export default function WorkScreen() {
                     style={[styles.sheetBtnOutline, { borderColor: colors.primary }]}
                     onPress={() => { setShowEntrySheet(false); setShowBatchSheet(true); }}
                   >
-                    <Ionicons name="receipt-outline" size={18} color={colors.primary} />
+                    <AppIcon name="receipt-outline" size={18} color={colors.primary} />
                     <Text style={[styles.sheetBtnOutlineText, { color: colors.primary }]}>
                       Batch Invoice ({unbilledByClient.find((g) => g.clientId === selectedEntry.clientId)?.entries.length} entries)
                     </Text>
@@ -542,7 +542,7 @@ export default function WorkScreen() {
               style={[styles.sheetBtnDanger, { borderColor: "#ef444440" }]}
               onPress={() => { setShowEntrySheet(false); setPendingDeleteEntryId(selectedEntry.id); }}
             >
-              <Ionicons name="trash-outline" size={16} color="#ef4444" />
+              <AppIcon name="trash-outline" size={16} color="#ef4444" />
               <Text style={styles.sheetBtnDangerText}>Delete Entry</Text>
             </TouchableOpacity>
           </>
@@ -560,7 +560,7 @@ export default function WorkScreen() {
         </Text>
         {unbilledByClient.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 24 }}>
-            <Ionicons name="checkmark-circle-outline" size={40} color="#10b981" />
+            <AppIcon name="checkmark-circle-outline" size={40} color="#10b981" />
             <Text style={[{ color: colors.mutedForeground, marginTop: 8, fontFamily: "Inter_500Medium", fontSize: 14 }]}>
               No unbilled time entries.
             </Text>
@@ -589,7 +589,7 @@ export default function WorkScreen() {
                 style={[styles.batchInvoiceBtn, { backgroundColor: colors.primary }]}
                 onPress={() => handleBatchInvoiceForClient(group.clientId)}
               >
-                <Ionicons name="document-text-outline" size={15} color="#fff" />
+                <AppIcon name="document-text-outline" size={15} color="#fff" />
                 <Text style={styles.batchInvoiceBtnText}>Invoice All {group.entries.length} Entries</Text>
               </TouchableOpacity>
             </View>
@@ -613,7 +613,7 @@ export default function WorkScreen() {
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={[styles.startBtn, { backgroundColor: colors.primary }]} onPress={handleStartTimer} testID="confirm-start-timer">
-          <Ionicons name="play" size={18} color="#fff" />
+          <AppIcon name="play" size={18} color="#fff" />
           <Text style={styles.startBtnText}>Start Timer</Text>
         </TouchableOpacity>
       </BottomSheet>

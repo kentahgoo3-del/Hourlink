@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import * as FileSystem from "expo-file-system";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -341,7 +341,7 @@ export default function ReportsScreen() {
           disabled={exporting}
           testID="export-pdf-btn"
         >
-          {exporting ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="document-outline" size={16} color="#fff" />}
+          {exporting ? <ActivityIndicator size="small" color="#fff" /> : <AppIcon name="document-outline" size={16} color="#fff" />}
           <Text style={styles.exportBtnText}>{exporting ? "Generating…" : "Export PDF"}</Text>
         </TouchableOpacity>
       </View>
@@ -364,7 +364,7 @@ export default function ReportsScreen() {
       {/* Period navigator */}
       <View style={[styles.navRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <TouchableOpacity style={[styles.navArrow, { backgroundColor: colors.muted }]} onPress={() => setOffset(o => o - 1)}>
-          <Ionicons name="chevron-back" size={16} color={colors.foreground} />
+          <AppIcon name="chevron-back" size={16} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.navCenter}>
           <Text style={[styles.navLabel, { color: colors.foreground }]}>{bounds.label}</Text>
@@ -375,7 +375,7 @@ export default function ReportsScreen() {
           onPress={() => setOffset(o => Math.min(0, o + 1))}
           disabled={offset >= 0}
         >
-          <Ionicons name="chevron-forward" size={16} color={offset >= 0 ? colors.mutedForeground : colors.foreground} />
+          <AppIcon name="chevron-forward" size={16} color={offset >= 0 ? colors.mutedForeground : colors.foreground} />
         </TouchableOpacity>
       </View>
 
@@ -521,7 +521,7 @@ export default function ReportsScreen() {
       {totalSeconds === 0 && totalRevenue === 0 && (
         <View style={styles.emptyWrap}>
           <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
-            <Ionicons name="bar-chart-outline" size={36} color={colors.mutedForeground} />
+            <AppIcon name="bar-chart-outline" size={36} color={colors.mutedForeground} />
           </View>
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No data for {bounds.sublabel.toLowerCase()}</Text>
           <Text style={[styles.emptyDesc, { color: colors.mutedForeground }]}>

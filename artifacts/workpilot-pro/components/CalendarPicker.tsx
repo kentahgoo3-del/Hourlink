@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
@@ -97,11 +97,11 @@ export function CalendarPicker({ value, onChange }: CalendarPickerProps) {
         onPress={() => setExpanded(e => !e)}
         activeOpacity={0.7}
       >
-        <Ionicons name="calendar-outline" size={16} color={value ? colors.primary : colors.mutedForeground} />
+        <AppIcon name="calendar-outline" size={16} color={value ? colors.primary : colors.mutedForeground} />
         <Text style={[styles.triggerText, { color: value ? colors.foreground : colors.mutedForeground }]}>
           {value ? formatSelected(value) : "No date set"}
         </Text>
-        <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={14} color={colors.mutedForeground} />
+        <AppIcon name={expanded ? "chevron-up" : "chevron-down"} size={14} color={colors.mutedForeground} />
       </TouchableOpacity>
 
       {/* Expanded calendar */}
@@ -110,13 +110,13 @@ export function CalendarPicker({ value, onChange }: CalendarPickerProps) {
           {/* Month nav */}
           <View style={styles.nav}>
             <TouchableOpacity style={[styles.navBtn, { backgroundColor: colors.muted }]} onPress={prevMonth}>
-              <Ionicons name="chevron-back" size={14} color={colors.foreground} />
+              <AppIcon name="chevron-back" size={14} color={colors.foreground} />
             </TouchableOpacity>
             <Text style={[styles.monthLabel, { color: colors.foreground }]}>
               {MONTHS[viewMonth]} {viewYear}
             </Text>
             <TouchableOpacity style={[styles.navBtn, { backgroundColor: colors.muted }]} onPress={nextMonth}>
-              <Ionicons name="chevron-forward" size={14} color={colors.foreground} />
+              <AppIcon name="chevron-forward" size={14} color={colors.foreground} />
             </TouchableOpacity>
           </View>
 

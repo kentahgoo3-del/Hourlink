@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -160,7 +160,7 @@ export default function FinanceScreen() {
           style={[styles.swipeBtn, { backgroundColor: "#10b981" }]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); markInvoicePaid(item.id); }}
         >
-          <Ionicons name="checkmark" size={20} color="#fff" />
+          <AppIcon name="checkmark" size={20} color="#fff" />
           <Text style={styles.swipeBtnText}>Paid</Text>
         </TouchableOpacity>
       )}
@@ -169,7 +169,7 @@ export default function FinanceScreen() {
           style={[styles.swipeBtn, { backgroundColor: colors.primary }]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); updateInvoice(item.id, { status: "sent" }); }}
         >
-          <Ionicons name="send" size={18} color="#fff" />
+          <AppIcon name="send" size={18} color="#fff" />
           <Text style={styles.swipeBtnText}>Send</Text>
         </TouchableOpacity>
       )}
@@ -178,7 +178,7 @@ export default function FinanceScreen() {
           style={[styles.swipeBtn, { backgroundColor: "#10b981" }]}
           onPress={() => handleStartTimerForQuote(item as typeof quotes[0])}
         >
-          <Ionicons name="timer-outline" size={18} color="#fff" />
+          <AppIcon name="timer-outline" size={18} color="#fff" />
           <Text style={styles.swipeBtnText}>Timer</Text>
         </TouchableOpacity>
       )}
@@ -187,7 +187,7 @@ export default function FinanceScreen() {
           style={[styles.swipeBtn, { backgroundColor: colors.primary }]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); convertQuoteToInvoice(item.id); }}
         >
-          <Ionicons name="document-text" size={18} color="#fff" />
+          <AppIcon name="document-text" size={18} color="#fff" />
           <Text style={styles.swipeBtnText}>Invoice</Text>
         </TouchableOpacity>
       )}
@@ -195,7 +195,7 @@ export default function FinanceScreen() {
         style={[styles.swipeBtn, { backgroundColor: "#ef4444" }]}
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setPendingDeleteItem({ id: item.id, isInvoice }); }}
       >
-        <Ionicons name="trash" size={18} color="#fff" />
+        <AppIcon name="trash" size={18} color="#fff" />
         <Text style={styles.swipeBtnText}>Delete</Text>
       </TouchableOpacity>
     </View>
@@ -211,7 +211,7 @@ export default function FinanceScreen() {
               style={[styles.iconBtn, { backgroundColor: colors.muted }]}
               onPress={() => setTab("templates")}
             >
-              <Ionicons name="copy-outline" size={18} color={colors.foreground} />
+              <AppIcon name="copy-outline" size={18} color={colors.foreground} />
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -219,7 +219,7 @@ export default function FinanceScreen() {
             onPress={openNew}
             testID="new-finance-btn"
           >
-            <Ionicons name="add" size={22} color="#fff" />
+            <AppIcon name="add" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -266,7 +266,7 @@ export default function FinanceScreen() {
               return (
                 <Swipeable renderRightActions={() => (
                   <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: "#ef4444", borderRadius: 12, margin: 4 }]} onPress={() => deleteQuoteTemplate(item.id)}>
-                    <Ionicons name="trash" size={18} color="#fff" />
+                    <AppIcon name="trash" size={18} color="#fff" />
                   </TouchableOpacity>
                 )}>
                   <TouchableOpacity
@@ -342,7 +342,7 @@ export default function FinanceScreen() {
                         style={styles.timerRow}
                         onPress={() => handleStartTimerForQuote(item as typeof quotes[0])}
                       >
-                        <Ionicons name="timer-outline" size={14} color="#10b981" />
+                        <AppIcon name="timer-outline" size={14} color="#10b981" />
                         <Text style={styles.timerRowText}>Start Timer for this Quote</Text>
                       </TouchableOpacity>
                     )}
@@ -422,7 +422,7 @@ export default function FinanceScreen() {
             <Text style={[styles.lineDesc, { color: colors.foreground }]} numberOfLines={1}>{item.description}</Text>
             <Text style={[styles.lineAmt, { color: colors.foreground }]}>{item.quantity} × {settings.currency}{item.unitPrice}</Text>
             <TouchableOpacity onPress={() => setLineItems((p) => p.filter((_, i) => i !== idx))}>
-              <Ionicons name="close-circle" size={18} color={colors.destructive} />
+              <AppIcon name="close-circle" size={18} color={colors.destructive} />
             </TouchableOpacity>
           </View>
         ))}
@@ -433,14 +433,14 @@ export default function FinanceScreen() {
             <View style={{ flex: 2 }}><FormField label="Unit Price" prefix={settings.currency} placeholder="0.00" value={itemPrice} onChangeText={setItemPrice} keyboardType="decimal-pad" /></View>
           </View>
           <TouchableOpacity style={[styles.addItemBtn, { backgroundColor: colors.primary + "22" }]} onPress={addLineItem}>
-            <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
+            <AppIcon name="add-circle-outline" size={16} color={colors.primary} />
             <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Add Item</Text>
           </TouchableOpacity>
         </View>
         <FormField label="Notes / Payment Terms" placeholder="Payment terms, special instructions..." value={notes} onChangeText={setNotes} multiline numberOfLines={3} />
         {lineItems.length > 0 && (
           <TouchableOpacity style={[styles.saveTemplateBtn, { borderColor: colors.primary }]} onPress={() => setShowTemplate(true)}>
-            <Ionicons name="copy-outline" size={14} color={colors.primary} />
+            <AppIcon name="copy-outline" size={14} color={colors.primary} />
             <Text style={{ color: colors.primary, fontFamily: "Inter_500Medium", fontSize: 13 }}>Save as Template</Text>
           </TouchableOpacity>
         )}

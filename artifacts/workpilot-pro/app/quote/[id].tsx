@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system";
 import * as Print from "expo-print";
@@ -137,7 +137,7 @@ ${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={colors.foreground} />
+          <AppIcon name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerNum, { color: colors.foreground }]}>{quote.quoteNumber}</Text>
         <View style={styles.headerRight}>
@@ -148,11 +148,11 @@ ${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"
           >
             {exporting
               ? <ActivityIndicator size="small" color="#fff" />
-              : <Ionicons name="download-outline" size={15} color="#fff" />}
+              : <AppIcon name="download-outline" size={15} color="#fff" />}
             <Text style={styles.exportBtnText}>{exporting ? "…" : "PDF"}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleDelete}>
-            <Ionicons name="trash-outline" size={20} color="#ef4444" />
+            <AppIcon name="trash-outline" size={20} color="#ef4444" />
           </TouchableOpacity>
         </View>
       </View>
@@ -260,7 +260,7 @@ ${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); updateQuote(id, { status: "sent" }); }}
               testID="mark-quote-sent"
             >
-              <Ionicons name="send" size={18} color="#fff" />
+              <AppIcon name="send" size={18} color="#fff" />
               <Text style={styles.actionBtnText}>Mark as Sent</Text>
             </TouchableOpacity>
           )}
@@ -271,14 +271,14 @@ ${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"
                 onPress={handleAccept}
                 testID="accept-quote"
               >
-                <Ionicons name="checkmark" size={18} color="#fff" />
+                <AppIcon name="checkmark" size={18} color="#fff" />
                 <Text style={styles.actionBtnText}>Accepted</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionBtn, { flex: 1, backgroundColor: "#ef4444" }]}
                 onPress={() => updateQuote(id, { status: "rejected" })}
               >
-                <Ionicons name="close" size={18} color="#fff" />
+                <AppIcon name="close" size={18} color="#fff" />
                 <Text style={styles.actionBtnText}>Rejected</Text>
               </TouchableOpacity>
             </View>
@@ -289,7 +289,7 @@ ${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"
               onPress={handleConvert}
               testID="convert-to-invoice"
             >
-              <Ionicons name="document-text" size={18} color="#fff" />
+              <AppIcon name="document-text" size={18} color="#fff" />
               <Text style={styles.actionBtnText}>Convert to Invoice</Text>
             </TouchableOpacity>
           )}
@@ -319,7 +319,7 @@ ${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.modalIconWrap, { backgroundColor: "#10b98120" }]}>
-              <Ionicons name="checkmark-circle" size={36} color="#10b981" />
+              <AppIcon name="checkmark-circle" size={36} color="#10b981" />
             </View>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Quote Accepted!</Text>
             <Text style={[styles.modalBody, { color: colors.mutedForeground }]}>
@@ -330,7 +330,7 @@ ${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"
               style={[styles.modalPrimaryBtn, { backgroundColor: "#10b981" }]}
               onPress={handleStartTimerNow}
             >
-              <Ionicons name="timer-outline" size={18} color="#fff" />
+              <AppIcon name="timer-outline" size={18} color="#fff" />
               <Text style={styles.modalPrimaryBtnText}>Start Timer Now</Text>
             </TouchableOpacity>
             <TouchableOpacity

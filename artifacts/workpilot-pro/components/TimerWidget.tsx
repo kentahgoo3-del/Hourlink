@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -55,7 +55,7 @@ export function TimerWidget() {
             style={styles.stopBtn}
             testID="stop-timer-btn"
           >
-            <Ionicons name="stop" size={18} color="#fff" />
+            <AppIcon name="stop" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>

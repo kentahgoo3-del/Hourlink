@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system";
 import * as Print from "expo-print";
@@ -114,7 +114,7 @@ ${(companyProfile.bankName || companyProfile.bankAccount) ? `<div style="backgro
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={colors.foreground} />
+          <AppIcon name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerNum, { color: colors.foreground }]}>{invoice.invoiceNumber}</Text>
         <View style={styles.headerRight}>
@@ -125,11 +125,11 @@ ${(companyProfile.bankName || companyProfile.bankAccount) ? `<div style="backgro
           >
             {exporting
               ? <ActivityIndicator size="small" color="#fff" />
-              : <Ionicons name="download-outline" size={15} color="#fff" />}
+              : <AppIcon name="download-outline" size={15} color="#fff" />}
             <Text style={styles.exportBtnText}>{exporting ? "…" : "PDF"}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleDelete}>
-            <Ionicons name="trash-outline" size={20} color="#ef4444" />
+            <AppIcon name="trash-outline" size={20} color="#ef4444" />
           </TouchableOpacity>
         </View>
       </View>
@@ -145,7 +145,7 @@ ${(companyProfile.bankName || companyProfile.bankAccount) ? `<div style="backgro
             style={[styles.editBtn, { backgroundColor: colors.muted }]}
             onPress={() => setShowEdit(true)}
           >
-            <Ionicons name="pencil" size={14} color={colors.mutedForeground} />
+            <AppIcon name="pencil" size={14} color={colors.mutedForeground} />
             <Text style={[styles.editBtnText, { color: colors.mutedForeground }]}>Edit</Text>
           </TouchableOpacity>
         </View>
@@ -275,7 +275,7 @@ ${(companyProfile.bankName || companyProfile.bankAccount) ? `<div style="backgro
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); updateInvoice(id, { status: "sent" }); }}
               testID="mark-sent-btn"
             >
-              <Ionicons name="send" size={18} color="#fff" />
+              <AppIcon name="send" size={18} color="#fff" />
               <Text style={styles.actionBtnText}>Mark as Sent</Text>
             </TouchableOpacity>
           )}
@@ -285,7 +285,7 @@ ${(companyProfile.bankName || companyProfile.bankAccount) ? `<div style="backgro
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); markInvoicePaid(id); }}
               testID="mark-paid-btn"
             >
-              <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              <AppIcon name="checkmark-circle" size={18} color="#fff" />
               <Text style={styles.actionBtnText}>Mark as Paid</Text>
             </TouchableOpacity>
           )}

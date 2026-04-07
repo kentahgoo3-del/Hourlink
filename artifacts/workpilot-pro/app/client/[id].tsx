@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -121,7 +121,7 @@ export default function ClientDetailScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={colors.foreground} />
+          <AppIcon name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <ClientBadge name={client.name} color={client.color} />
@@ -129,10 +129,10 @@ export default function ClientDetailScreen() {
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity onPress={() => { setEditName(client.name); setEditCompany(client.company); setEditEmail(client.email); setEditPhone(client.phone); setEditRate(client.hourlyRate.toString()); setShowEditClient(true); }} style={styles.headerBtn}>
-            <Ionicons name="pencil" size={18} color={colors.foreground} />
+            <AppIcon name="pencil" size={18} color={colors.foreground} />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleDelete} style={styles.headerBtn}>
-            <Ionicons name="trash-outline" size={18} color="#ef4444" />
+            <AppIcon name="trash-outline" size={18} color="#ef4444" />
           </TouchableOpacity>
         </View>
       </View>
@@ -235,7 +235,7 @@ export default function ClientDetailScreen() {
         {tab === "notes" && (
           <>
             <TouchableOpacity style={[styles.addRowBtn, { backgroundColor: colors.primary }]} onPress={() => setShowAddNote(true)} testID="add-note-btn">
-              <Ionicons name="add" size={18} color="#fff" />
+              <AppIcon name="add" size={18} color="#fff" />
               <Text style={styles.addRowBtnText}>Add Note</Text>
             </TouchableOpacity>
             {clientNotesList.length === 0 && <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No notes yet. Add context about this client.</Text>}
@@ -244,7 +244,7 @@ export default function ClientDetailScreen() {
                 <View style={styles.noteTop}>
                   <Text style={[styles.noteDate, { color: colors.mutedForeground }]}>{formatDate(note.createdAt)}</Text>
                   <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setPendingDeleteNoteId(note.id); }}>
-                    <Ionicons name="trash-outline" size={14} color={colors.mutedForeground} />
+                    <AppIcon name="trash-outline" size={14} color={colors.mutedForeground} />
                   </TouchableOpacity>
                 </View>
                 <Text style={[styles.noteText, { color: colors.foreground }]}>{note.text}</Text>
@@ -257,7 +257,7 @@ export default function ClientDetailScreen() {
         {tab === "meetings" && (
           <>
             <TouchableOpacity style={[styles.addRowBtn, { backgroundColor: colors.primary }]} onPress={() => setShowAddMeeting(true)} testID="add-meeting-btn">
-              <Ionicons name="add" size={18} color="#fff" />
+              <AppIcon name="add" size={18} color="#fff" />
               <Text style={styles.addRowBtnText}>Log Meeting</Text>
             </TouchableOpacity>
             {clientMeetings.length === 0 && <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No meetings logged yet.</Text>}
@@ -266,7 +266,7 @@ export default function ClientDetailScreen() {
                 <View style={styles.noteTop}>
                   <Text style={[styles.noteDate, { color: colors.mutedForeground }]}>{formatDate(m.date)} · {m.durationMinutes}min</Text>
                   <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setPendingDeleteMeetingId(m.id); }}>
-                    <Ionicons name="trash-outline" size={14} color={colors.mutedForeground} />
+                    <AppIcon name="trash-outline" size={14} color={colors.mutedForeground} />
                   </TouchableOpacity>
                 </View>
                 <Text style={[styles.noteText, { color: colors.foreground }]}>{m.title}</Text>
@@ -280,7 +280,7 @@ export default function ClientDetailScreen() {
         {tab === "expenses" && (
           <>
             <TouchableOpacity style={[styles.addRowBtn, { backgroundColor: colors.primary }]} onPress={() => setShowAddExpense(true)} testID="add-expense-btn">
-              <Ionicons name="add" size={18} color="#fff" />
+              <AppIcon name="add" size={18} color="#fff" />
               <Text style={styles.addRowBtnText}>Add Expense</Text>
             </TouchableOpacity>
             {clientExpenses.length > 0 && (
@@ -300,7 +300,7 @@ export default function ClientDetailScreen() {
                     <Text style={[styles.noteDate, { color: colors.mutedForeground }]}>{formatDate(exp.date)}</Text>
                   </View>
                   <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setPendingDeleteExpenseId(exp.id); }}>
-                    <Ionicons name="trash-outline" size={14} color={colors.mutedForeground} />
+                    <AppIcon name="trash-outline" size={14} color={colors.mutedForeground} />
                   </TouchableOpacity>
                 </View>
                 <View style={styles.expRow}>

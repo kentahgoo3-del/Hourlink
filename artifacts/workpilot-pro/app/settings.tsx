@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -110,7 +110,7 @@ export default function SettingsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.back} testID="settings-back">
-          <Ionicons name="chevron-back" size={24} color={colors.foreground} />
+          <AppIcon name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.foreground }]}>Settings</Text>
         <View style={{ width: 40 }} />
@@ -132,7 +132,7 @@ export default function SettingsScreen() {
           style={[styles.sectionTab, { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 }]}
           onPress={() => router.push("/team")}
         >
-          <Ionicons name="people-outline" size={13} color={colors.primary} />
+          <AppIcon name="people-outline" size={13} color={colors.primary} />
           <Text style={[styles.sectionTabLabel, { color: colors.primary }]} numberOfLines={1}>Team</Text>
         </TouchableOpacity>
       </View>
@@ -165,7 +165,7 @@ export default function SettingsScreen() {
 
             <View style={[styles.getStartedCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.cr }]}>
               <View style={styles.getStartedIcon}>
-                <Ionicons name="rocket-outline" size={22} color={colors.primary} />
+                <AppIcon name="rocket-outline" size={22} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.getStartedTitle, { color: colors.foreground }]}>App Tour</Text>
@@ -194,7 +194,7 @@ export default function SettingsScreen() {
                 <Image source={{ uri: (companyProfile as any).logoUri }} style={styles.logoImg} resizeMode="contain" />
               ) : (
                 <View style={styles.logoPlaceholder}>
-                  <Ionicons name="image-outline" size={28} color={colors.mutedForeground} />
+                  <AppIcon name="image-outline" size={28} color={colors.mutedForeground} />
                   <Text style={[styles.logoPlaceholderText, { color: colors.mutedForeground }]}>Tap to upload logo</Text>
                 </View>
               )}
@@ -255,7 +255,7 @@ export default function SettingsScreen() {
                       </View>
                       {isActive && (
                         <View style={[styles.themeCheck, { backgroundColor: theme.light.primary }]}>
-                          <Ionicons name="checkmark" size={12} color="#fff" />
+                          <AppIcon name="checkmark" size={12} color="#fff" />
                         </View>
                       )}
                     </View>
@@ -289,7 +289,7 @@ export default function SettingsScreen() {
                     ]}
                     onPress={() => setAppearance({ accentColor: ac.value })}
                   >
-                    {isActive && <Ionicons name="checkmark" size={18} color="#fff" />}
+                    {isActive && <AppIcon name="checkmark" size={18} color="#fff" />}
                     {!isActive && ac.value === null && (
                       <Text style={{ fontSize: 8, color: "#fff", fontFamily: "Inter_600SemiBold", textAlign: "center", lineHeight: 10 }}>AUTO</Text>
                     )}
@@ -387,7 +387,7 @@ export default function SettingsScreen() {
               style={[styles.dangerBtn, { borderColor: "#ef4444" }]}
               onPress={() => setShowClearConfirm(true)}
             >
-              <Ionicons name="trash-outline" size={18} color="#ef4444" />
+              <AppIcon name="trash-outline" size={18} color="#ef4444" />
               <Text style={styles.dangerBtnText}>Clear All Data</Text>
             </TouchableOpacity>
           </>

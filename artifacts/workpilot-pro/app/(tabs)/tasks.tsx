@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -110,12 +110,12 @@ function TaskCard({ task, onComplete, onDelete, onEdit, onStartTimer, showDate =
     <View style={styles.swipeActions}>
       {task.status !== "done" && (
         <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: "#10b981" }]} onPress={onComplete}>
-          <Ionicons name="checkmark" size={20} color="#fff" />
+          <AppIcon name="checkmark" size={20} color="#fff" />
           <Text style={styles.swipeBtnLabel}>Done</Text>
         </TouchableOpacity>
       )}
       <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: "#ef4444" }]} onPress={onDelete}>
-        <Ionicons name="trash" size={18} color="#fff" />
+        <AppIcon name="trash" size={18} color="#fff" />
         <Text style={styles.swipeBtnLabel}>Delete</Text>
       </TouchableOpacity>
     </View>
@@ -138,7 +138,7 @@ function TaskCard({ task, onComplete, onDelete, onEdit, onStartTimer, showDate =
             style={[styles.checkbox, { borderColor: done ? "#10b981" : pCfg.color, backgroundColor: done ? "#10b981" : "transparent" }]}
             onPress={(e) => { e.stopPropagation(); onComplete(); }}
           >
-            {done && <Ionicons name="checkmark" size={12} color="#fff" />}
+            {done && <AppIcon name="checkmark" size={12} color="#fff" />}
           </TouchableOpacity>
           <View style={styles.taskMain}>
             <Text style={[styles.taskTitle, { color: colors.foreground }, done && { textDecorationLine: "line-through", color: colors.mutedForeground }]} numberOfLines={2}>
@@ -152,7 +152,7 @@ function TaskCard({ task, onComplete, onDelete, onEdit, onStartTimer, showDate =
               onPress={(e) => { e.stopPropagation(); onStartTimer(); }}
               testID={`task-timer-${task.id}`}
             >
-              <Ionicons name="play" size={14} color={colors.primary} />
+              <AppIcon name="play" size={14} color={colors.primary} />
             </TouchableOpacity>
           )}
         </View>
@@ -163,13 +163,13 @@ function TaskCard({ task, onComplete, onDelete, onEdit, onStartTimer, showDate =
           </View>
           {showDate && task.dueDate && (
             <View style={[styles.dueBadge, { backgroundColor: overdue ? "#ef444418" : colors.muted }]}>
-              <Ionicons name="calendar-outline" size={11} color={overdue ? "#ef4444" : colors.mutedForeground} />
+              <AppIcon name="calendar-outline" size={11} color={overdue ? "#ef4444" : colors.mutedForeground} />
               <Text style={[styles.dueLabel, { color: overdue ? "#ef4444" : colors.mutedForeground }]}>{formatDate(task.dueDate)}</Text>
             </View>
           )}
           {task.estimatedHours ? (
             <View style={[styles.dueBadge, { backgroundColor: colors.muted }]}>
-              <Ionicons name="time-outline" size={11} color={colors.mutedForeground} />
+              <AppIcon name="time-outline" size={11} color={colors.mutedForeground} />
               <Text style={[styles.dueLabel, { color: colors.mutedForeground }]}>{task.estimatedHours}h est.</Text>
             </View>
           ) : null}
@@ -304,14 +304,14 @@ export default function TasksScreen() {
             style={[styles.iconBtn, { backgroundColor: viewMode === "calendar" ? colors.primary : colors.muted }]}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setViewMode(v => v === "list" ? "calendar" : "list"); }}
           >
-            <Ionicons name={viewMode === "calendar" ? "list-outline" : "calendar-outline"} size={18} color={viewMode === "calendar" ? "#fff" : colors.foreground} />
+            <AppIcon name={viewMode === "calendar" ? "list-outline" : "calendar-outline"} size={18} color={viewMode === "calendar" ? "#fff" : colors.foreground} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.addBtn, { backgroundColor: colors.primary }]}
             onPress={() => openAdd(viewMode === "calendar" ? selectedDate.toISOString() : undefined)}
             testID="add-task-btn"
           >
-            <Ionicons name="add" size={22} color="#fff" />
+            <AppIcon name="add" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -375,11 +375,11 @@ export default function TasksScreen() {
             {/* Month + nav */}
             <View style={styles.weekNav}>
               <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setWeekOffset(w => w - 1); }}>
-                <Ionicons name="chevron-back" size={20} color={colors.foreground} />
+                <AppIcon name="chevron-back" size={20} color={colors.foreground} />
               </TouchableOpacity>
               <Text style={[styles.monthLabel, { color: colors.foreground }]}>{monthLabel}</Text>
               <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setWeekOffset(w => w + 1); }}>
-                <Ionicons name="chevron-forward" size={20} color={colors.foreground} />
+                <AppIcon name="chevron-forward" size={20} color={colors.foreground} />
               </TouchableOpacity>
             </View>
 
@@ -442,7 +442,7 @@ export default function TasksScreen() {
           {tasksForDate.length === 0 ? (
             <View style={styles.calEmpty}>
               <View style={[styles.calEmptyIcon, { backgroundColor: colors.muted }]}>
-                <Ionicons name="calendar-outline" size={28} color={colors.mutedForeground} />
+                <AppIcon name="calendar-outline" size={28} color={colors.mutedForeground} />
               </View>
               <Text style={[styles.calEmptyTitle, { color: colors.foreground }]}>Nothing scheduled</Text>
               <Text style={[styles.calEmptyDesc, { color: colors.mutedForeground }]}>
@@ -452,7 +452,7 @@ export default function TasksScreen() {
                 style={[styles.calAddBtn, { backgroundColor: colors.primary }]}
                 onPress={() => openAdd(selectedDate.toISOString())}
               >
-                <Ionicons name="add" size={16} color="#fff" />
+                <AppIcon name="add" size={16} color="#fff" />
                 <Text style={styles.calAddBtnText}>Add task</Text>
               </TouchableOpacity>
             </View>
@@ -478,7 +478,7 @@ export default function TasksScreen() {
                   <View style={styles.calSectionRow}>
                     <Text style={[styles.calSectionLabel, { color: colors.mutedForeground }]}>COMPLETED</Text>
                     <View style={[styles.calBadge, { backgroundColor: "#10b98120" }]}>
-                      <Ionicons name="checkmark-circle" size={11} color="#10b981" />
+                      <AppIcon name="checkmark-circle" size={11} color="#10b981" />
                       <Text style={[styles.calBadgeText, { color: "#10b981" }]}>{tasksForDate.filter(t => t.status === "done").length} done</Text>
                     </View>
                   </View>

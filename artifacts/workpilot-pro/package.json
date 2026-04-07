@@ -55,6 +55,7 @@
   "dependencies": {
     "expo-file-system": "~19.0.21",
     "expo-print": "^15.0.8",
-    "expo-sharing": "^14.0.8"
+    "expo-sharing": "^14.0.8",
+    "lucide-react-native": "^1.7.0"
   }
 }

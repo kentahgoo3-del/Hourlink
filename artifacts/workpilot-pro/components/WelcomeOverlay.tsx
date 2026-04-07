@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -18,7 +18,7 @@ const ND = Platform.OS !== "web";
 type Page = {
   bgTop: string;
   bgBottom: string;
-  iconName: keyof typeof Ionicons.glyphMap;
+  iconName: string;
   iconColor: string;
   iconBg: string;
   badge?: string;
@@ -231,7 +231,7 @@ export function WelcomeOverlay({ onDismiss }: Props) {
                 ]}
               >
                 <View style={[styles.iconInner, { backgroundColor: page.iconColor + "20" }]}>
-                  <Ionicons name={page.iconName} size={60} color={page.iconColor} />
+                  <AppIcon name={page.iconName} size={60} color={page.iconColor} />
                 </View>
               </Animated.View>
             </View>
@@ -268,8 +268,8 @@ export function WelcomeOverlay({ onDismiss }: Props) {
                 <Text style={[styles.nextText, { color: page.btnTextColor }]}>
                   {isLast ? "Get Started" : "Next"}
                 </Text>
-                <Ionicons
-                  name={isLast ? "rocket-outline" : "arrow-forward"}
+                <AppIcon
+                  name={isLast ? "rocket-outline" : "chevron-forward"}
                   size={18}
                   color={page.btnTextColor}
                 />

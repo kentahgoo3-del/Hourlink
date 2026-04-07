@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -90,13 +90,13 @@ export default function ClientsScreen() {
           onPress={() => setShowAdd(true)}
           testID="add-client-btn"
         >
-          <Ionicons name="add" size={22} color="#fff" />
+          <AppIcon name="add" size={22} color="#fff" />
         </TouchableOpacity>
       </View>
 
       <View style={[styles.searchWrap, { borderBottomColor: colors.border }]}>
         <View style={[styles.searchBar, { backgroundColor: colors.muted }]}>
-          <Ionicons name="search-outline" size={16} color={colors.mutedForeground} />
+          <AppIcon name="search-outline" size={16} color={colors.mutedForeground} />
           <TextInput
             style={[styles.searchInput, { color: colors.foreground }]}
             placeholder="Search clients..."
@@ -145,7 +145,7 @@ export default function ClientsScreen() {
                     {settings.currency}{rev.toLocaleString("en-ZA", { maximumFractionDigits: 0 })}
                   </Text>
                   <Text style={[styles.clientRevLabel, { color: colors.mutedForeground }]}>earned</Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+                  <AppIcon name="chevron-forward" size={16} color={colors.mutedForeground} />
                 </View>
               </TouchableOpacity>
             );

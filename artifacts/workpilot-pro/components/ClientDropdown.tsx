@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import React, { useRef, useState } from "react";
 import {
   Modal,
@@ -89,7 +89,7 @@ export function ClientDropdown({
               {displayLabel}
             </Text>
           </View>
-          <Ionicons name="chevron-down" size={14} color={colors.mutedForeground} />
+          <AppIcon name="chevron-down" size={14} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
 
@@ -115,7 +115,7 @@ export function ClientDropdown({
               >
                 <View style={[styles.dot, { backgroundColor: colors.border }]} />
                 <Text style={[styles.itemText, { color: colors.foreground }]}>{noneLabel}</Text>
-                {!value && <Ionicons name="checkmark" size={14} color={colors.primary} />}
+                {!value && <AppIcon name="checkmark" size={14} color={colors.primary} />}
               </TouchableOpacity>
             )}
             {clients.map((c) => {
@@ -131,7 +131,7 @@ export function ClientDropdown({
                   <Text style={[styles.itemText, { color: colors.foreground }]} numberOfLines={1}>
                     {label}
                   </Text>
-                  {isSelected && <Ionicons name="checkmark" size={14} color={c.color} />}
+                  {isSelected && <AppIcon name="checkmark" size={14} color={c.color} />}
                 </TouchableOpacity>
               );
             })}

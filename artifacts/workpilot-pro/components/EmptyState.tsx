@@ -1,10 +1,10 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
 
 type EmptyStateProps = {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: string;
   title: string;
   description: string;
   actionLabel?: string;
@@ -16,7 +16,7 @@ export function EmptyState({ icon, title, description, actionLabel, onAction }: 
   return (
     <View style={styles.container}>
       <View style={[styles.iconWrap, { backgroundColor: colors.muted }]}>
-        <Ionicons name={icon} size={32} color={colors.mutedForeground} />
+        <AppIcon name={icon} size={32} color={colors.mutedForeground} />
       </View>
       <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
       <Text style={[styles.desc, { color: colors.mutedForeground }]}>{description}</Text>

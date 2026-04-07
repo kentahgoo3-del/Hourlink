@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -105,7 +105,7 @@ export default function HomeScreen() {
           onPress={() => router.push("/settings")}
           testID="settings-btn"
         >
-          <Ionicons name="settings-outline" size={20} color={colors.foreground} />
+          <AppIcon name="settings-outline" size={20} color={colors.foreground} />
         </TouchableOpacity>
       </View>
 
@@ -142,7 +142,7 @@ export default function HomeScreen() {
           testID="smart-suggestion"
         >
           <View style={styles.suggestionLeft}>
-            <Ionicons name="flash" size={18} color={colors.primary} />
+            <AppIcon name="flash" size={18} color={colors.primary} />
             <View>
               <Text style={[styles.suggestionTitle, { color: colors.foreground }]}>Resume where you left off?</Text>
               <Text style={[styles.suggestionSub, { color: colors.mutedForeground }]}>
@@ -150,7 +150,7 @@ export default function HomeScreen() {
               </Text>
             </View>
           </View>
-          <Ionicons name="play-circle" size={28} color={colors.primary} />
+          <AppIcon name="play-circle" size={28} color={colors.primary} />
         </TouchableOpacity>
       )}
 
@@ -161,7 +161,7 @@ export default function HomeScreen() {
       {billingAlerts.length > 0 && (
         <View style={[styles.alertCard, { backgroundColor: "#f59e0b18", borderColor: "#f59e0b50" }]}>
           <View style={styles.alertHeader}>
-            <Ionicons name="alert-circle" size={18} color="#f59e0b" />
+            <AppIcon name="alert-circle" size={18} color="#f59e0b" />
             <Text style={[styles.alertTitle, { color: colors.foreground }]}>Unbilled work waiting</Text>
           </View>
           {billingAlerts.map((alert) => (
@@ -200,7 +200,7 @@ export default function HomeScreen() {
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/work"); }}
           testID="quick-timer"
         >
-          <Ionicons name="timer-outline" size={22} color="#fff" />
+          <AppIcon name="timer-outline" size={22} color="#fff" />
           <Text style={styles.quickLabel}>New Timer</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -208,7 +208,7 @@ export default function HomeScreen() {
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/finance"); }}
           testID="quick-invoice"
         >
-          <Ionicons name="document-text-outline" size={22} color={colors.foreground} />
+          <AppIcon name="document-text-outline" size={22} color={colors.foreground} />
           <Text style={[styles.quickLabel, { color: colors.foreground }]}>New Invoice</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -216,7 +216,7 @@ export default function HomeScreen() {
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/clients"); }}
           testID="quick-client"
         >
-          <Ionicons name="person-add-outline" size={22} color={colors.foreground} />
+          <AppIcon name="person-add-outline" size={22} color={colors.foreground} />
           <Text style={[styles.quickLabel, { color: colors.foreground }]}>Add Client</Text>
         </TouchableOpacity>
       </View>
@@ -227,7 +227,7 @@ export default function HomeScreen() {
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Expected Income</Text>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cashFlowHeader}>
-              <Ionicons name="trending-up" size={16} color="#10b981" />
+              <AppIcon name="trending-up" size={16} color="#10b981" />
               <Text style={[styles.cashFlowTotal, { color: "#10b981" }]}>
                 {formatCurrency(cashFlow.reduce((s, c) => s + c.amount, 0), settings.currency)} forecasted
               </Text>

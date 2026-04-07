@@ -1,5 +1,5 @@
 import { BlurView } from "expo-blur";
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/AppIcon";
 import { Tabs } from "expo-router";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
@@ -51,7 +51,7 @@ export default function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="home-outline" size={22} color={color} />
+            <AppIcon name="home-outline" size={22} color={color} />
           ),
         }}
       />
@@ -60,7 +60,7 @@ export default function TabLayout() {
         options={{
           title: "Work",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="timer-outline" size={22} color={color} />
+            <AppIcon name="timer-outline" size={22} color={color} />
           ),
         }}
       />
@@ -69,7 +69,7 @@ export default function TabLayout() {
         options={{
           title: "Tasks",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="checkmark-circle-outline" size={22} color={color} />
+            <AppIcon name="checkmark-circle-outline" size={22} color={color} />
           ),
         }}
       />
@@ -78,7 +78,7 @@ export default function TabLayout() {
         options={{
           title: "Clients",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="people-outline" size={22} color={color} />
+            <AppIcon name="people-outline" size={22} color={color} />
           ),
         }}
       />
@@ -87,7 +87,7 @@ export default function TabLayout() {
         options={{
           title: "Finance",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="document-text-outline" size={22} color={color} />
+            <AppIcon name="document-text-outline" size={22} color={color} />
           ),
         }}
       />
@@ -96,7 +96,7 @@ export default function TabLayout() {
         options={{
           title: "Reports",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="bar-chart-outline" size={22} color={color} />
+            <AppIcon name="bar-chart-outline" size={22} color={color} />
           ),
         }}
       />
