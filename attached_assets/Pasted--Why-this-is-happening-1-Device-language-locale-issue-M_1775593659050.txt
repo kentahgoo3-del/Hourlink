@@ -1,0 +1,97 @@
+🔍 Why this is happening
+1. 🌐 Device language / locale issue (MOST COMMON)
+
+Your phone might be set to:
+
+Chinese (Simplified / Traditional), OR
+English + Chinese as secondary language
+
+👉 Apps sometimes auto-switch parts of UI based on system locale.
+
+2. 🧠 Default localization fallback
+
+Your app likely:
+
+Has Chinese as default language
+Missing English translations for some keys → falls back to Chinese
+
+That’s why only certain buttons show Chinese:
+
+“New Timer” → correct (English exists)
+Icons/buttons → Chinese (no English mapping)
+3. 🧩 Hardcoded text in the app
+
+Some text may literally be coded like:
+
+text: "切"
+
+instead of using translation keys.
+
+🛠️ How to fix it (step-by-step)
+✅ Fix #1: Force English on your phone
+
+On Android:
+
+Go to Settings
+Go to General Management
+Tap Language
+Make sure:
+English is first
+Remove Chinese if present
+✅ Fix #2: Force English inside your app (best solution)
+
+If you're building this app (which you are 💡), do this:
+
+React Native example:
+import * as Localization from 'expo-localization';
+import i18n from 'i18n-js';
+
+i18n.locale = 'en'; // FORCE ENGLISH
+i18n.fallbacks = true;
+✅ Fix #3: Replace Chinese labels with English
+
+Here’s what your buttons currently mean:
+
+Chinese	Meaning	Replace with
+切	Cut / Start	Start Timer
+增	Add	New Invoice
+繩	Rope (weird context)	Add Client
+
+👉 You should replace them with icons + English text like:
+
+▶ Start Timer
+➕ New Invoice
+👤 Add Client
+✅ Fix #4: Clean your UI (IMPORTANT)
+
+Right now the UI looks like:
+
+Mixed language ❌
+Slightly “template-like” ❌
+
+👉 Upgrade it to:
+
+Icons instead of characters
+Clean English labels
+Consistent typography
+💡 Pro upgrade (this will make your app 🔥)
+
+Instead of text icons like:
+
+切 增 繩
+
+Use:
+
+⏱ Start Timer
+💰 New Invoice
+👤 Add Client
+
+Much more premium, less “AI template” feel.
+
+🚀 My recommendation (best approach)
+
+Since you're building HourLink, do this:
+
+Remove ALL Chinese characters from code
+Hardcode English first (no localization yet)
+Later → add proper i18n support cleanly

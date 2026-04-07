@@ -184,8 +184,15 @@ export function WelcomeOverlay({ onDismiss }: Props) {
         {/* ── Page background ── */}
         {page.heroImage ? (
           <>
-            <Image source={page.heroImage} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-            {/* Gradient overlay so the button reads clearly */}
+            {/* Light background behind the contained image */}
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#f0f4f8" }]} />
+            {/* Contained hero image — sized to fit the screen width */}
+            <Image
+              source={page.heroImage}
+              style={{ width: W, height: H * 0.82 }}
+              resizeMode="contain"
+            />
+            {/* Gradient fade from image into the button area */}
             <View style={styles.heroGradient} />
           </>
         ) : (
@@ -205,7 +212,7 @@ export function WelcomeOverlay({ onDismiss }: Props) {
               onPress={dismiss}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Text style={styles.skipText}>Skip</Text>
+              <Text style={[styles.skipText, page.heroImage && { color: "#334155" }]}>Skip</Text>
             </TouchableOpacity>
           )}
 
@@ -240,7 +247,7 @@ export function WelcomeOverlay({ onDismiss }: Props) {
                   style={[
                     styles.dot,
                     {
-                      backgroundColor: i === current ? (page.heroImage ? "#14b8a6" : page.iconColor) : "rgba(255,255,255,0.25)",
+                      backgroundColor: i === current ? (page.heroImage ? "#14b8a6" : page.iconColor) : (page.heroImage ? "rgba(0,0,0,0.18)" : "rgba(255,255,255,0.25)"),
                       width: i === current ? 28 : 8,
                     },
                   ]}
@@ -281,14 +288,16 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 260,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    height: 200,
+    backgroundColor: "#f0f4f8",
+    opacity: 0.92,
   },
   bottomCardHero: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
+    backgroundColor: "#f0f4f8",
   },
   blob1: {
     position: "absolute",
