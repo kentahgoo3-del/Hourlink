@@ -60,7 +60,7 @@ function Insight({ icon, text, color }: { icon: string; text: string; color: str
 export default function ReportsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { clients, timeEntries, invoices, expenses, settings } = useApp();
+  const { clients, timeEntries, invoices, expenses, settings, tasks } = useApp();
   const [period, setPeriod] = useState<Period>("month");
 
   const periodStart = useMemo(() => getPeriodStart(period), [period]);
@@ -137,6 +137,24 @@ export default function ReportsScreen() {
     if (totalExpenses > 0) list.push({ icon: "🧾", text: `Net profit: ${formatCurrency(netProfit, settings.currency)} after expenses`, color: netProfit > 0 ? "#10b981" : "#ef4444" });
     return list.slice(0, 4);
   }, [revenueChange, billableSeconds, totalSeconds, avgHourlyRate, clientBreakdown, invoices, totalExpenses]);
+
+  // Task breakdown — group time entries by taskId for the period
+  const taskBreakdown = useMemo(() => {
+    const map = new Map<string, { seconds: number; earned: number; taskTitle: string; rate: number }>();
+    for (const e of periodEntries) {
+      if (!e.taskId) continue;
+      const task = tasks.find((t) => t.id === e.taskId);
+      const cur = map.get(e.taskId) || { seconds: 0, earned: 0, taskTitle: task?.title || "Unknown task", rate: e.hourlyRate };
+      cur.seconds += e.durationSeconds;
+      if (e.billable) cur.earned += (e.durationSeconds / 3600) * e.hourlyRate;
+      map.set(e.taskId, cur);
+    }
+    return Array.from(map.entries())
+      .map(([id, data]) => ({ id, ...data }))
+      .sort((a, b) => b.seconds - a.seconds);
+  }, [periodEntries, tasks]);
+
+  const maxTaskSeconds = Math.max(1, ...taskBreakdown.map((t) => t.seconds));
 
   const invoiceStatus = useMemo(() => {
     const all = invoices.filter((inv) => new Date(inv.createdAt) >= periodStart);
@@ -245,6 +263,31 @@ export default function ReportsScreen() {
         </>
       )}
 
+      {/* Task Hours Breakdown */}
+      {taskBreakdown.length > 0 && (
+        <>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Hours by Task</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {taskBreakdown.map((item, idx) => (
+              <View key={item.id} style={[styles.clientRow, idx < taskBreakdown.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+                <View style={[styles.taskDot, { backgroundColor: colors.primary }]} />
+                <View style={styles.clientMid}>
+                  <View style={styles.clientNameRow}>
+                    <Text style={[styles.clientName, { color: colors.foreground }]} numberOfLines={1}>{item.taskTitle}</Text>
+                    <Text style={[styles.clientHours, { color: colors.foreground }]}>{formatHours(item.seconds)}</Text>
+                  </View>
+                  <MiniBar percent={item.seconds / maxTaskSeconds} color={colors.primary} />
+                  <View style={styles.taskMetaRow}>
+                    <Text style={[styles.clientEarned, { color: colors.mutedForeground }]}>{formatCurrency(item.earned, settings.currency)} earned</Text>
+                    <Text style={[styles.clientEarned, { color: colors.mutedForeground }]}>{settings.currency}{item.rate}/h</Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
+
       {/* Invoice Status */}
       {invoiceStatus.total > 0 && (
         <>
@@ -300,6 +343,8 @@ const styles = StyleSheet.create({
   clientName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   clientHours: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   clientEarned: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 4 },
+  taskDot: { width: 10, height: 10, borderRadius: 5, marginTop: 5 },
+  taskMetaRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
   barTrack: { height: 4, borderRadius: 2, backgroundColor: "#e2e8f0", overflow: "hidden" },
   barFill: { height: 4, borderRadius: 2 },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14 },

@@ -32,6 +32,7 @@ export type TimeEntry = {
   id: string;
   clientId: string;
   projectId: string;
+  taskId: string | null;
   description: string;
   startTime: string;
   endTime: string | null;
@@ -126,6 +127,7 @@ export type Task = {
   status: "todo" | "in_progress" | "done";
   dueDate: string | null;
   estimatedHours: number | null;
+  hourlyRate: number | null;
   createdAt: string;
   completedAt: string | null;
 };
@@ -234,7 +236,7 @@ type AppContextType = {
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
 
-  startTimer: (entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId">) => void;
+  startTimer: (entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId"> & { taskId?: string | null }) => void;
   stopTimer: () => TimeEntry | null;
   addTimeEntry: (entry: Omit<TimeEntry, "id">) => void;
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
@@ -395,9 +397,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [save]);
 
   // Timers
-  const startTimer = useCallback((entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId">) => {
+  const startTimer = useCallback((entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId"> & { taskId?: string | null }) => {
     const timer: TimeEntry = {
-      ...entry, id: genId(), startTime: new Date().toISOString(),
+      ...entry, taskId: entry.taskId ?? null, id: genId(), startTime: new Date().toISOString(),
       endTime: null, durationSeconds: 0, invoiceId: null,
     };
     setActiveTimer(timer);

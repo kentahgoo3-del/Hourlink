@@ -69,6 +69,13 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           );
         })}
+        <TouchableOpacity
+          style={[styles.sectionTab, { flexDirection: "row", alignItems: "center", gap: 4 }]}
+          onPress={() => router.push("/team")}
+        >
+          <Ionicons name="people-outline" size={14} color={colors.primary} />
+          <Text style={[styles.sectionTabLabel, { color: colors.primary }]}>Team</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: botPadding + 40 }} showsVerticalScrollIndicator={false}>

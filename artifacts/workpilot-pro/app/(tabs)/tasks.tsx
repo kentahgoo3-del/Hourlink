@@ -166,6 +166,12 @@ function TaskCard({ task, onComplete, onDelete, onEdit, onStartTimer }: {
             </View>
           ) : null}
           {client && <ClientBadge name={client.name} color={client.color} size="sm" />}
+          {task.hourlyRate != null && (
+            <View style={[styles.dueBadge, { backgroundColor: "#10b98118" }]}>
+              <Ionicons name="cash-outline" size={11} color="#10b981" />
+              <Text style={[styles.dueLabel, { color: "#10b981" }]}>{`R${task.hourlyRate}/h`}</Text>
+            </View>
+          )}
           {task.status === "in_progress" && (
             <View style={[styles.dueBadge, { backgroundColor: "#3b82f618" }]}>
               <Text style={[styles.dueLabel, { color: "#3b82f6" }]}>In Progress</Text>
@@ -194,10 +200,11 @@ export default function TasksScreen() {
   const [clientId, setClientId] = useState("");
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [estHours, setEstHours] = useState("");
+  const [hourlyRate, setHourlyRate] = useState("");
 
   const resetForm = () => {
     setTitle(""); setDesc(""); setPriority("medium"); setStatus("todo");
-    setClientId(""); setDueDate(null); setEstHours("");
+    setClientId(""); setDueDate(null); setEstHours(""); setHourlyRate("");
     setEditingTask(null);
   };
 
@@ -212,17 +219,20 @@ export default function TasksScreen() {
     setClientId(task.clientId);
     setDueDate(task.dueDate ?? null);
     setEstHours(task.estimatedHours?.toString() || "");
+    setHourlyRate(task.hourlyRate?.toString() || "");
     setShowAdd(true);
   };
 
   const handleSave = () => {
     if (!title.trim()) { Alert.alert("Title required", "Please enter a task title."); return; }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (editingTask) {
-      updateTask(editingTask.id, { title: title.trim(), description: desc, priority, status, clientId, dueDate, estimatedHours: estHours ? parseFloat(estHours) : null });
-    } else {
-      addTask({ title: title.trim(), description: desc, priority, status, clientId, dueDate, estimatedHours: estHours ? parseFloat(estHours) : null });
-    }
+    const taskData = {
+      title: title.trim(), description: desc, priority, status, clientId, dueDate,
+      estimatedHours: estHours ? parseFloat(estHours) : null,
+      hourlyRate: hourlyRate ? parseFloat(hourlyRate) : null,
+    };
+    if (editingTask) { updateTask(editingTask.id, taskData); }
+    else { addTask(taskData); }
     setShowAdd(false);
     resetForm();
   };
@@ -231,11 +241,13 @@ export default function TasksScreen() {
     if (activeTimer) { Alert.alert("Timer running", "Stop the current timer first."); return; }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const client = clients.find((c) => c.id === task.clientId);
+    const rate = task.hourlyRate ?? client?.hourlyRate ?? settings.defaultHourlyRate;
     startTimer({
       clientId: task.clientId,
       projectId: "",
+      taskId: task.id,
       description: task.title,
-      hourlyRate: client?.hourlyRate || settings.defaultHourlyRate,
+      hourlyRate: rate,
       billable: true,
     });
     updateTask(task.id, { status: "in_progress" });
@@ -407,7 +419,14 @@ export default function TasksScreen() {
         </Text>
         <CalendarPicker value={dueDate} onChange={setDueDate} />
 
-        <FormField label="Est. Hours" placeholder="e.g., 2.5" value={estHours} onChangeText={setEstHours} keyboardType="decimal-pad" />
+        <View style={styles.twoCol}>
+          <View style={{ flex: 1 }}>
+            <FormField label="Est. Hours" placeholder="e.g., 2.5" value={estHours} onChangeText={setEstHours} keyboardType="decimal-pad" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <FormField label={`Hourly Rate (${settings.currency})`} placeholder={`e.g., ${settings.defaultHourlyRate}`} value={hourlyRate} onChangeText={setHourlyRate} keyboardType="decimal-pad" />
+          </View>
+        </View>
 
         <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} testID="save-task-btn">
           <Text style={styles.saveBtnText}>{editingTask ? "Save Changes" : "Add Task"}</Text>
