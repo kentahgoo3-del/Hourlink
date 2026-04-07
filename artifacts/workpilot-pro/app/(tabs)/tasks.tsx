@@ -14,6 +14,7 @@ import {
 import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/BottomSheet";
+import { CalendarPicker } from "@/components/CalendarPicker";
 import { ClientBadge } from "@/components/ClientBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { FormField } from "@/components/FormField";
@@ -191,12 +192,12 @@ export default function TasksScreen() {
   const [priority, setPriority] = useState<Task["priority"]>("medium");
   const [status, setStatus] = useState<Task["status"]>("todo");
   const [clientId, setClientId] = useState("");
-  const [dueDate, setDueDate] = useState("");
+  const [dueDate, setDueDate] = useState<string | null>(null);
   const [estHours, setEstHours] = useState("");
 
   const resetForm = () => {
     setTitle(""); setDesc(""); setPriority("medium"); setStatus("todo");
-    setClientId(""); setDueDate(""); setEstHours("");
+    setClientId(""); setDueDate(null); setEstHours("");
     setEditingTask(null);
   };
 
@@ -209,7 +210,7 @@ export default function TasksScreen() {
     setPriority(task.priority);
     setStatus(task.status);
     setClientId(task.clientId);
-    setDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : "");
+    setDueDate(task.dueDate ?? null);
     setEstHours(task.estimatedHours?.toString() || "");
     setShowAdd(true);
   };
@@ -217,22 +218,10 @@ export default function TasksScreen() {
   const handleSave = () => {
     if (!title.trim()) { Alert.alert("Title required", "Please enter a task title."); return; }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    let dueDateISO: string | null = null;
-    if (dueDate.trim()) {
-      const parts = dueDate.trim().split("-");
-      if (parts.length === 3) {
-        const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        if (!isNaN(d.getTime())) dueDateISO = d.toISOString();
-      }
-      if (!dueDateISO) {
-        Alert.alert("Invalid date", "Please enter the date as YYYY-MM-DD, e.g. 2026-04-15.");
-        return;
-      }
-    }
     if (editingTask) {
-      updateTask(editingTask.id, { title: title.trim(), description: desc, priority, status, clientId, dueDate: dueDateISO, estimatedHours: estHours ? parseFloat(estHours) : null });
+      updateTask(editingTask.id, { title: title.trim(), description: desc, priority, status, clientId, dueDate, estimatedHours: estHours ? parseFloat(estHours) : null });
     } else {
-      addTask({ title: title.trim(), description: desc, priority, status, clientId, dueDate: dueDateISO, estimatedHours: estHours ? parseFloat(estHours) : null });
+      addTask({ title: title.trim(), description: desc, priority, status, clientId, dueDate, estimatedHours: estHours ? parseFloat(estHours) : null });
     }
     setShowAdd(false);
     resetForm();
@@ -413,14 +402,12 @@ export default function TasksScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.twoCol}>
-          <View style={{ flex: 1 }}>
-            <FormField label="Due Date" placeholder="YYYY-MM-DD" value={dueDate} onChangeText={setDueDate} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <FormField label="Est. Hours" placeholder="e.g., 2.5" value={estHours} onChangeText={setEstHours} keyboardType="decimal-pad" />
-          </View>
-        </View>
+        <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>
+          Due Date{dueDate ? ` — ${new Date(dueDate).toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}` : ""}
+        </Text>
+        <CalendarPicker value={dueDate} onChange={setDueDate} />
+
+        <FormField label="Est. Hours" placeholder="e.g., 2.5" value={estHours} onChangeText={setEstHours} keyboardType="decimal-pad" />
 
         <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} testID="save-task-btn">
           <Text style={styles.saveBtnText}>{editingTask ? "Save Changes" : "Add Task"}</Text>
