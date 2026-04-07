@@ -161,13 +161,16 @@ export default function WorkScreen() {
   };
 
   const handleStartTimer = () => {
-    if (!selectedClientId) {
-      Alert.alert("Select a client", "Please select a client to track time for.");
-      return;
-    }
     const client = clients.find((c) => c.id === selectedClientId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    startTimer({ clientId: selectedClientId, projectId: "", description: desc, hourlyRate: client?.hourlyRate || settings.defaultHourlyRate, billable });
+    startTimer({
+      clientId: selectedClientId || "",
+      projectId: "",
+      taskId: null,
+      description: desc.trim() || "Work session",
+      hourlyRate: client?.hourlyRate ?? settings.defaultHourlyRate,
+      billable,
+    });
     setShowStart(false);
     setDesc("");
   };
