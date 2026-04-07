@@ -26,30 +26,70 @@ function formatHours(seconds: number) {
   return `${(seconds / 3600).toFixed(1)}h`;
 }
 
-function getPeriodStart(period: Period): Date {
-  const now = new Date();
-  if (period === "week") { const d = new Date(now); d.setDate(now.getDate() - 7); return d; }
-  if (period === "month") return new Date(now.getFullYear(), now.getMonth(), 1);
-  if (period === "quarter") { const q = Math.floor(now.getMonth() / 3); return new Date(now.getFullYear(), q * 3, 1); }
-  return new Date(now.getFullYear(), 0, 1);
+interface PeriodBounds {
+  start: Date;
+  end: Date;
+  label: string;
+  sublabel: string;
 }
 
-function getPrevPeriodStart(period: Period): Date {
+function getPeriodBounds(period: Period, offset: number): PeriodBounds {
   const now = new Date();
-  if (period === "week") { const d = new Date(now); d.setDate(now.getDate() - 14); return d; }
-  if (period === "month") return new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  if (period === "quarter") { const q = Math.floor(now.getMonth() / 3); return new Date(now.getFullYear(), (q - 1) * 3, 1); }
-  return new Date(now.getFullYear() - 1, 0, 1);
+
+  if (period === "week") {
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = today.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + diff + offset * 7);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    const sameMonth = monday.getMonth() === sunday.getMonth() && monday.getFullYear() === sunday.getFullYear();
+    const label = sameMonth
+      ? `${monday.getDate()} – ${sunday.getDate()} ${sunday.toLocaleDateString("en-ZA", { month: "short", year: "numeric" })}`
+      : `${monday.toLocaleDateString("en-ZA", { day: "numeric", month: "short" })} – ${sunday.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`;
+    const sublabel = offset === 0 ? "This week" : offset === -1 ? "Last week" : `${Math.abs(offset)} weeks ago`;
+    return { start: monday, end: sunday, label, sublabel };
+  }
+
+  if (period === "month") {
+    const baseYear = now.getFullYear();
+    const baseMonth = now.getMonth() + offset;
+    const start = new Date(baseYear, baseMonth, 1);
+    const end = new Date(baseYear, baseMonth + 1, 0, 23, 59, 59, 999);
+    const monthName = start.toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
+    const fullRange = `1 – ${end.getDate()} ${start.toLocaleDateString("en-ZA", { month: "short", year: "numeric" })}`;
+    const sublabel = offset === 0 ? "This month" : offset === -1 ? "Last month" : `${Math.abs(offset)} months ago`;
+    return { start, end, label: monthName, sublabel };
+  }
+
+  if (period === "quarter") {
+    const baseQ = Math.floor(now.getMonth() / 3) + offset;
+    const yearAdj = Math.floor(baseQ / 4);
+    const qNorm = ((baseQ % 4) + 4) % 4;
+    const qYear = now.getFullYear() + yearAdj;
+    const start = new Date(qYear, qNorm * 3, 1);
+    const end = new Date(qYear, qNorm * 3 + 3, 0, 23, 59, 59, 999);
+    const label = `Q${qNorm + 1} ${qYear}`;
+    const sublabel = offset === 0 ? "This quarter" : offset === -1 ? "Last quarter" : `${Math.abs(offset)} quarters ago`;
+    return { start, end, label, sublabel };
+  }
+
+  const year = now.getFullYear() + offset;
+  const start = new Date(year, 0, 1);
+  const end = new Date(year, 11, 31, 23, 59, 59, 999);
+  const sublabel = offset === 0 ? "This year" : offset === -1 ? "Last year" : `${year}`;
+  return { start, end, label: `${year}`, sublabel };
 }
 
-function getDayKey(iso: string) {
-  return iso.split("T")[0];
-}
+function getDayKey(iso: string) { return iso.split("T")[0]; }
 
 function getMiniLabel(dateStr: string, period: Period) {
   const [, m, d] = dateStr.split("-");
-  if (period === "year") return `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(m)-1]}`;
-  return `${d}/${m}`;
+  if (period === "year") return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(m)-1];
+  if (period === "quarter") return `${d}/${m}`;
+  return `${parseInt(d)}/${parseInt(m)}`;
 }
 
 function MiniBar({ percent, color }: { percent: number; color: string }) {
@@ -104,17 +144,7 @@ function VerticalBarChart({ data, color, formatValue, maxBars = 14 }: BarChartPr
                   {isActive ? formatValue(item.value) : ""}
                 </Text>
                 <View style={styles.barContainer}>
-                  <View
-                    style={[
-                      styles.vertBar,
-                      {
-                        height: `${Math.max(4, pct * 100)}%` as any,
-                        width: barW,
-                        backgroundColor: isActive ? color : colors.muted,
-                        borderRadius: 4,
-                      },
-                    ]}
-                  />
+                  <View style={[styles.vertBar, { height: `${Math.max(4, pct * 100)}%` as any, width: barW, backgroundColor: isActive ? color : colors.muted, borderRadius: 4 }]} />
                 </View>
                 <Text style={[styles.barBottomLabel, { color: colors.mutedForeground }]} numberOfLines={1}>{item.label}</Text>
               </View>
@@ -130,32 +160,42 @@ export default function ReportsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { clients, timeEntries, invoices, expenses, settings, tasks, companyProfile } = useApp();
+
   const [period, setPeriod] = useState<Period>("month");
+  const [offset, setOffset] = useState(0);
   const [exporting, setExporting] = useState(false);
 
-  const periodStart = useMemo(() => getPeriodStart(period), [period]);
-  const prevStart = useMemo(() => getPrevPeriodStart(period), [period]);
-  const prevEnd = useMemo(() => getPeriodStart(period), [period]);
+  const bounds = useMemo(() => getPeriodBounds(period, offset), [period, offset]);
+  const prevBounds = useMemo(() => getPeriodBounds(period, offset - 1), [period, offset]);
 
-  const periodEntries = useMemo(() => timeEntries.filter((e) => e.endTime && new Date(e.startTime) >= periodStart), [timeEntries, periodStart]);
-  const prevEntries = useMemo(() => timeEntries.filter((e) => e.endTime && new Date(e.startTime) >= prevStart && new Date(e.startTime) < prevEnd), [timeEntries, prevStart, prevEnd]);
+  const handlePeriodChange = (p: Period) => { setPeriod(p); setOffset(0); };
 
-  const periodInvoices = useMemo(() => invoices.filter((inv) => inv.status === "paid" && new Date(inv.paidAt || inv.createdAt) >= periodStart), [invoices, periodStart]);
-  const prevInvoices = useMemo(() => invoices.filter((inv) => inv.status === "paid" && new Date(inv.paidAt || inv.createdAt) >= prevStart && new Date(inv.paidAt || inv.createdAt) < prevEnd), [invoices, prevStart, prevEnd]);
+  const periodEntries = useMemo(() =>
+    timeEntries.filter((e) => e.endTime && new Date(e.startTime) >= bounds.start && new Date(e.startTime) <= bounds.end),
+    [timeEntries, bounds]);
+
+  const prevEntries = useMemo(() =>
+    timeEntries.filter((e) => e.endTime && new Date(e.startTime) >= prevBounds.start && new Date(e.startTime) <= prevBounds.end),
+    [timeEntries, prevBounds]);
+
+  const periodInvoices = useMemo(() =>
+    invoices.filter((inv) => inv.status === "paid" && new Date(inv.paidAt || inv.createdAt) >= bounds.start && new Date(inv.paidAt || inv.createdAt) <= bounds.end),
+    [invoices, bounds]);
+
+  const prevInvoices = useMemo(() =>
+    invoices.filter((inv) => inv.status === "paid" && new Date(inv.paidAt || inv.createdAt) >= prevBounds.start && new Date(inv.paidAt || inv.createdAt) <= prevBounds.end),
+    [invoices, prevBounds]);
 
   const totalSeconds = useMemo(() => periodEntries.reduce((s, e) => s + e.durationSeconds, 0), [periodEntries]);
   const prevSeconds = useMemo(() => prevEntries.reduce((s, e) => s + e.durationSeconds, 0), [prevEntries]);
   const billableSeconds = useMemo(() => periodEntries.filter((e) => e.billable).reduce((s, e) => s + e.durationSeconds, 0), [periodEntries]);
 
-  const calcRev = (invs: typeof invoices) => invs.reduce((sum, inv) => {
-    const sub = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
-    return sum + sub * (1 + inv.taxPercent / 100);
-  }, 0);
+  const calcRev = (invs: typeof invoices) =>
+    invs.reduce((sum, inv) => sum + inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0) * (1 + inv.taxPercent / 100), 0);
 
   const totalRevenue = useMemo(() => calcRev(periodInvoices), [periodInvoices]);
   const prevRevenue = useMemo(() => calcRev(prevInvoices), [prevInvoices]);
-
-  const totalExpenses = useMemo(() => expenses.filter((e) => new Date(e.date) >= periodStart).reduce((s, e) => s + e.amount, 0), [expenses, periodStart]);
+  const totalExpenses = useMemo(() => expenses.filter((e) => new Date(e.date) >= bounds.start && new Date(e.date) <= bounds.end).reduce((s, e) => s + e.amount, 0), [expenses, bounds]);
   const netProfit = totalRevenue - totalExpenses;
 
   const revenueChange = prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0;
@@ -164,8 +204,7 @@ export default function ReportsScreen() {
   const avgHourlyRate = useMemo(() => {
     const billHours = billableSeconds / 3600;
     if (billHours === 0) return 0;
-    const totalEarnable = periodEntries.filter((e) => e.billable).reduce((s, e) => s + (e.durationSeconds / 3600) * e.hourlyRate, 0);
-    return totalEarnable / billHours;
+    return periodEntries.filter((e) => e.billable).reduce((s, e) => s + (e.durationSeconds / 3600) * e.hourlyRate, 0) / billHours;
   }, [periodEntries, billableSeconds]);
 
   const clientBreakdown = useMemo(() => {
@@ -183,23 +222,20 @@ export default function ReportsScreen() {
 
   const maxSeconds = Math.max(1, ...clientBreakdown.map((c) => c.seconds));
 
-  const insights: Array<{ icon: string; text: string; color: string }> = useMemo(() => {
+  const insights = useMemo(() => {
     const list: Array<{ icon: string; text: string; color: string }> = [];
-    if (revenueChange > 10) list.push({ icon: "📈", text: `Revenue up ${revenueChange.toFixed(0)}% vs last ${period}`, color: "#10b981" });
-    if (revenueChange < -10) list.push({ icon: "📉", text: `Revenue down ${Math.abs(revenueChange).toFixed(0)}% vs last ${period}`, color: "#ef4444" });
+    if (revenueChange > 10) list.push({ icon: "📈", text: `Revenue up ${revenueChange.toFixed(0)}% vs prev ${period}`, color: "#10b981" });
+    if (revenueChange < -10) list.push({ icon: "📉", text: `Revenue down ${Math.abs(revenueChange).toFixed(0)}% vs prev ${period}`, color: "#ef4444" });
     if (billableSeconds > 0 && totalSeconds > 0) {
       const util = billableSeconds / totalSeconds;
       if (util > 0.85) list.push({ icon: "🔥", text: `${Math.round(util * 100)}% utilization — excellent!`, color: "#f59e0b" });
       if (util < 0.5) list.push({ icon: "⚠️", text: `Only ${Math.round(util * 100)}% of hours are billable`, color: "#f59e0b" });
     }
-    if (avgHourlyRate > 0 && settings.defaultHourlyRate > 0) {
-      if (avgHourlyRate > settings.defaultHourlyRate * 1.1) {
-        list.push({ icon: "💰", text: `Blended rate ${settings.currency}${avgHourlyRate.toFixed(0)}/h — above default`, color: "#10b981" });
-      }
+    if (avgHourlyRate > 0 && settings.defaultHourlyRate > 0 && avgHourlyRate > settings.defaultHourlyRate * 1.1) {
+      list.push({ icon: "💰", text: `Blended rate ${settings.currency}${avgHourlyRate.toFixed(0)}/h — above default`, color: "#10b981" });
     }
-    if (clientBreakdown.length > 0) {
-      const top = clientBreakdown[0];
-      if (top.client) list.push({ icon: "⭐", text: `${top.client.name} is your busiest client (${formatHours(top.seconds)})`, color: "#3b82f6" });
+    if (clientBreakdown.length > 0 && clientBreakdown[0].client) {
+      list.push({ icon: "⭐", text: `${clientBreakdown[0].client.name} is your top client (${formatHours(clientBreakdown[0].seconds)})`, color: "#3b82f6" });
     }
     const unpaidCount = invoices.filter((inv) => inv.status === "overdue").length;
     if (unpaidCount > 0) list.push({ icon: "🚨", text: `${unpaidCount} overdue invoice${unpaidCount > 1 ? "s" : ""} need attention`, color: "#ef4444" });
@@ -217,15 +253,13 @@ export default function ReportsScreen() {
       if (e.billable) cur.earned += (e.durationSeconds / 3600) * e.hourlyRate;
       map.set(e.taskId, cur);
     }
-    return Array.from(map.entries())
-      .map(([id, data]) => ({ id, ...data }))
-      .sort((a, b) => b.seconds - a.seconds);
+    return Array.from(map.entries()).map(([id, data]) => ({ id, ...data })).sort((a, b) => b.seconds - a.seconds);
   }, [periodEntries, tasks]);
 
   const maxTaskSeconds = Math.max(1, ...taskBreakdown.map((t) => t.seconds));
 
   const invoiceStatus = useMemo(() => {
-    const all = invoices.filter((inv) => new Date(inv.createdAt) >= periodStart);
+    const all = invoices.filter((inv) => new Date(inv.createdAt) >= bounds.start && new Date(inv.createdAt) <= bounds.end);
     return {
       total: all.length,
       paid: all.filter((inv) => inv.status === "paid").length,
@@ -233,7 +267,7 @@ export default function ReportsScreen() {
       overdue: all.filter((inv) => inv.status === "overdue").length,
       draft: all.filter((inv) => inv.status === "draft").length,
     };
-  }, [invoices, periodStart]);
+  }, [invoices, bounds]);
 
   const dailyHoursData = useMemo(() => {
     const map = new Map<string, number>();
@@ -241,11 +275,8 @@ export default function ReportsScreen() {
       const key = getDayKey(e.startTime);
       map.set(key, (map.get(key) || 0) + e.durationSeconds);
     }
-    const sorted = Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-    return sorted.map(([key, secs]) => ({
-      label: getMiniLabel(key, period),
-      value: parseFloat((secs / 3600).toFixed(2)),
-    }));
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, secs]) => ({ label: getMiniLabel(key, period), value: parseFloat((secs / 3600).toFixed(2)) }));
   }, [periodEntries, period]);
 
   const dailyRevenueData = useMemo(() => {
@@ -253,14 +284,10 @@ export default function ReportsScreen() {
     for (const inv of periodInvoices) {
       const key = getDayKey(inv.paidAt || inv.createdAt);
       const sub = inv.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
-      const total = sub * (1 + inv.taxPercent / 100);
-      map.set(key, (map.get(key) || 0) + total);
+      map.set(key, (map.get(key) || 0) + sub * (1 + inv.taxPercent / 100));
     }
-    const sorted = Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-    return sorted.map(([key, amount]) => ({
-      label: getMiniLabel(key, period),
-      value: Math.round(amount),
-    }));
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, amount]) => ({ label: getMiniLabel(key, period), value: Math.round(amount) }));
   }, [periodInvoices, period]);
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
@@ -271,128 +298,13 @@ export default function ReportsScreen() {
   const handleExportPDF = async () => {
     setExporting(true);
     try {
-      const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
       const now = new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
       const utilPct = totalSeconds > 0 ? Math.round((billableSeconds / totalSeconds) * 100) : 0;
-
-      const clientRows = clientBreakdown.map((item) => `
-        <tr>
-          <td>${item.client?.name || "Unknown"}</td>
-          <td>${formatHours(item.seconds)}</td>
-          <td>${formatCurrency(item.earned, settings.currency)}</td>
-        </tr>`).join("");
-
-      const taskRows = taskBreakdown.map((item) => `
-        <tr>
-          <td>${item.taskTitle}</td>
-          <td>${formatHours(item.seconds)}</td>
-          <td>${formatCurrency(item.earned, settings.currency)}</td>
-        </tr>`).join("");
-
-      const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${companyProfile.name || "WorkPilot Pro"} — ${periodLabel} Report</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1e293b; background: #fff; padding: 48px; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; border-bottom: 2px solid #3b82f6; padding-bottom: 24px; }
-    .company-name { font-size: 26px; font-weight: 800; color: #1e293b; }
-    .report-title { font-size: 14px; color: #64748b; margin-top: 4px; }
-    .date { font-size: 12px; color: #94a3b8; text-align: right; }
-    .section-title { font-size: 14px; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.5px; margin: 32px 0 12px; }
-    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 8px; }
-    .kpi { background: #f8fafc; border-radius: 12px; padding: 16px; }
-    .kpi-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-    .kpi-value { font-size: 22px; font-weight: 800; color: #1e293b; }
-    .kpi-sub { font-size: 11px; color: #94a3b8; margin-top: 4px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-    th { background: #f1f5f9; padding: 10px 14px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-    td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155; }
-    tr:last-child td { border-bottom: none; }
-    .insight { background: #f0fdf4; border-left: 3px solid #10b981; padding: 10px 14px; margin-bottom: 8px; font-size: 13px; color: #065f46; border-radius: 0 8px 8px 0; }
-    .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 80px; margin: 12px 0; }
-    .bar-item { display: flex; flex-direction: column; align-items: center; flex: 1; }
-    .bar-fill { width: 100%; background: #3b82f6; border-radius: 3px 3px 0 0; min-height: 2px; }
-    .bar-label { font-size: 8px; color: #94a3b8; margin-top: 3px; }
-    .footer { margin-top: 48px; border-top: 1px solid #e2e8f0; padding-top: 16px; font-size: 11px; color: #94a3b8; display: flex; justify-content: space-between; }
-    .profit-positive { color: #10b981; }
-    .profit-negative { color: #ef4444; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div>
-      <div class="company-name">${companyProfile.name || "WorkPilot Pro"}</div>
-      <div class="report-title">${periodLabel} Performance Report</div>
-    </div>
-    <div class="date">Generated ${now}</div>
-  </div>
-
-  <div class="section-title">Key Metrics</div>
-  <div class="kpi-grid">
-    <div class="kpi">
-      <div class="kpi-label">Revenue</div>
-      <div class="kpi-value">${formatCurrency(totalRevenue, settings.currency)}</div>
-      ${prevRevenue > 0 ? `<div class="kpi-sub">${changePrefix(revenueChange)}${revenueChange.toFixed(0)}% vs prev ${period}</div>` : ""}
-    </div>
-    <div class="kpi">
-      <div class="kpi-label">Net Profit</div>
-      <div class="kpi-value ${netProfit >= 0 ? "profit-positive" : "profit-negative"}">${formatCurrency(netProfit, settings.currency)}</div>
-      ${totalExpenses > 0 ? `<div class="kpi-sub">${formatCurrency(totalExpenses, settings.currency)} expenses</div>` : ""}
-    </div>
-    <div class="kpi">
-      <div class="kpi-label">Hours Tracked</div>
-      <div class="kpi-value">${formatHours(totalSeconds)}</div>
-      <div class="kpi-sub">${formatHours(billableSeconds)} billable</div>
-    </div>
-    <div class="kpi">
-      <div class="kpi-label">Utilization</div>
-      <div class="kpi-value">${utilPct}%</div>
-      ${avgHourlyRate > 0 ? `<div class="kpi-sub">${settings.currency}${avgHourlyRate.toFixed(0)}/h avg rate</div>` : ""}
-    </div>
-  </div>
-
-  ${clientBreakdown.length > 0 ? `
-  <div class="section-title">Hours by Client</div>
-  <table>
-    <thead><tr><th>Client</th><th>Hours</th><th>Earned</th></tr></thead>
-    <tbody>${clientRows}</tbody>
-  </table>` : ""}
-
-  ${taskBreakdown.length > 0 ? `
-  <div class="section-title">Hours by Task</div>
-  <table>
-    <thead><tr><th>Task</th><th>Hours</th><th>Earned</th></tr></thead>
-    <tbody>${taskRows}</tbody>
-  </table>` : ""}
-
-  ${invoiceStatus.total > 0 ? `
-  <div class="section-title">Invoice Summary</div>
-  <table>
-    <thead><tr><th>Status</th><th>Count</th></tr></thead>
-    <tbody>
-      <tr><td>Paid</td><td>${invoiceStatus.paid}</td></tr>
-      <tr><td>Sent / Awaiting</td><td>${invoiceStatus.sent}</td></tr>
-      <tr><td>Overdue</td><td>${invoiceStatus.overdue}</td></tr>
-      <tr><td>Draft</td><td>${invoiceStatus.draft}</td></tr>
-    </tbody>
-  </table>` : ""}
-
-  ${insights.length > 0 ? `
-  <div class="section-title">Insights</div>
-  ${insights.map((ins) => `<div class="insight">${ins.icon} ${ins.text}</div>`).join("")}` : ""}
-
-  <div class="footer">
-    <span>${companyProfile.name || "WorkPilot Pro"}</span>
-    <span>WorkPilot Pro · ${periodLabel} Report · ${now}</span>
-  </div>
-</body>
-</html>`;
-
+      const clientRows = clientBreakdown.map((item) => `<tr><td>${item.client?.name || "Unknown"}</td><td>${formatHours(item.seconds)}</td><td>${formatCurrency(item.earned, settings.currency)}</td></tr>`).join("");
+      const taskRows = taskBreakdown.map((item) => `<tr><td>${item.taskTitle}</td><td>${formatHours(item.seconds)}</td><td>${formatCurrency(item.earned, settings.currency)}</td></tr>`).join("");
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${companyProfile.name || "WorkPilot Pro"} — ${bounds.label} Report</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,Helvetica,Arial,sans-serif;color:#1e293b;background:#fff;padding:48px}.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;border-bottom:2px solid #3b82f6;padding-bottom:24px}.company-name{font-size:26px;font-weight:800;color:#1e293b}.report-title{font-size:14px;color:#64748b;margin-top:4px}.date{font-size:12px;color:#94a3b8;text-align:right}.section-title{font-size:14px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:.5px;margin:32px 0 12px}.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:8px}.kpi{background:#f8fafc;border-radius:12px;padding:16px}.kpi-label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}.kpi-value{font-size:22px;font-weight:800;color:#1e293b}.kpi-sub{font-size:11px;color:#94a3b8;margin-top:4px}table{width:100%;border-collapse:collapse;margin-top:4px}th{background:#f1f5f9;padding:10px 14px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px}td{padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155}tr:last-child td{border-bottom:none}.insight{background:#f0fdf4;border-left:3px solid #10b981;padding:10px 14px;margin-bottom:8px;font-size:13px;color:#065f46;border-radius:0 8px 8px 0}.footer{margin-top:48px;border-top:1px solid #e2e8f0;padding-top:16px;font-size:11px;color:#94a3b8;display:flex;justify-content:space-between}</style></head><body><div class="header"><div><div class="company-name">${companyProfile.name || "WorkPilot Pro"}</div><div class="report-title">${bounds.label} · ${bounds.sublabel}</div></div><div class="date">Generated ${now}</div></div><div class="section-title">Key Metrics</div><div class="kpi-grid"><div class="kpi"><div class="kpi-label">Revenue</div><div class="kpi-value">${formatCurrency(totalRevenue, settings.currency)}</div>${prevRevenue > 0 ? `<div class="kpi-sub">${changePrefix(revenueChange)}${revenueChange.toFixed(0)}% vs prev</div>` : ""}</div><div class="kpi"><div class="kpi-label">Net Profit</div><div class="kpi-value">${formatCurrency(netProfit, settings.currency)}</div>${totalExpenses > 0 ? `<div class="kpi-sub">${formatCurrency(totalExpenses, settings.currency)} expenses</div>` : ""}</div><div class="kpi"><div class="kpi-label">Hours</div><div class="kpi-value">${formatHours(totalSeconds)}</div><div class="kpi-sub">${formatHours(billableSeconds)} billable</div></div><div class="kpi"><div class="kpi-label">Utilization</div><div class="kpi-value">${utilPct}%</div>${avgHourlyRate > 0 ? `<div class="kpi-sub">${settings.currency}${avgHourlyRate.toFixed(0)}/h avg</div>` : ""}</div></div>${clientBreakdown.length > 0 ? `<div class="section-title">Hours by Client</div><table><thead><tr><th>Client</th><th>Hours</th><th>Earned</th></tr></thead><tbody>${clientRows}</tbody></table>` : ""}${taskBreakdown.length > 0 ? `<div class="section-title">Hours by Task</div><table><thead><tr><th>Task</th><th>Hours</th><th>Earned</th></tr></thead><tbody>${taskRows}</tbody></table>` : ""}${invoiceStatus.total > 0 ? `<div class="section-title">Invoice Summary</div><table><thead><tr><th>Status</th><th>Count</th></tr></thead><tbody><tr><td>Paid</td><td>${invoiceStatus.paid}</td></tr><tr><td>Sent</td><td>${invoiceStatus.sent}</td></tr><tr><td>Overdue</td><td>${invoiceStatus.overdue}</td></tr><tr><td>Draft</td><td>${invoiceStatus.draft}</td></tr></tbody></table>` : ""}${insights.length > 0 ? `<div class="section-title">Insights</div>${insights.map((ins) => `<div class="insight">${ins.icon} ${ins.text}</div>`).join("")}` : ""}<div class="footer"><span>${companyProfile.name || "WorkPilot Pro"}</span><span>WorkPilot Pro · ${bounds.label}</span></div></body></html>`;
       const { uri } = await Print.printToFileAsync({ html, base64: false });
-      await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${periodLabel} Report`, UTI: "com.adobe.pdf" });
+      await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${bounds.label} Report`, UTI: "com.adobe.pdf" });
     } catch (e) {
       console.error("PDF export error", e);
     } finally {
@@ -415,27 +327,42 @@ export default function ReportsScreen() {
           disabled={exporting}
           testID="export-pdf-btn"
         >
-          {exporting
-            ? <ActivityIndicator size="small" color="#fff" />
-            : <Ionicons name="document-outline" size={16} color="#fff" />
-          }
+          {exporting ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="document-outline" size={16} color="#fff" />}
           <Text style={styles.exportBtnText}>{exporting ? "Generating…" : "Export PDF"}</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Period Selector */}
+      {/* Period tabs */}
       <View style={[styles.periodRow, { backgroundColor: colors.muted }]}>
         {(["week", "month", "quarter", "year"] as Period[]).map((p) => (
           <TouchableOpacity
             key={p}
             style={[styles.periodBtn, period === p && { backgroundColor: colors.primary }]}
-            onPress={() => setPeriod(p)}
+            onPress={() => handlePeriodChange(p)}
           >
             <Text style={[styles.periodLabel, { color: period === p ? "#fff" : colors.mutedForeground }]}>
-              {p.charAt(0).toUpperCase() + p.slice(1)}
+              {p === "quarter" ? "Qtr" : p.charAt(0).toUpperCase() + p.slice(1)}
             </Text>
           </TouchableOpacity>
         ))}
+      </View>
+
+      {/* Period navigator */}
+      <View style={[styles.navRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <TouchableOpacity style={[styles.navArrow, { backgroundColor: colors.muted }]} onPress={() => setOffset(o => o - 1)}>
+          <Ionicons name="chevron-back" size={16} color={colors.foreground} />
+        </TouchableOpacity>
+        <View style={styles.navCenter}>
+          <Text style={[styles.navLabel, { color: colors.foreground }]}>{bounds.label}</Text>
+          <Text style={[styles.navSub, { color: colors.mutedForeground }]}>{bounds.sublabel}</Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.navArrow, { backgroundColor: offset >= 0 ? colors.muted + "60" : colors.muted }]}
+          onPress={() => setOffset(o => Math.min(0, o + 1))}
+          disabled={offset >= 0}
+        >
+          <Ionicons name="chevron-forward" size={16} color={offset >= 0 ? colors.mutedForeground : colors.foreground} />
+        </TouchableOpacity>
       </View>
 
       {/* Insights */}
@@ -454,7 +381,7 @@ export default function ReportsScreen() {
           <Text style={styles.summaryValue}>{formatCurrency(totalRevenue, settings.currency)}</Text>
           {prevRevenue > 0 && (
             <Text style={[styles.summaryChange, { color: revenueChange >= 0 ? "#a7f3d0" : "#fca5a5" }]}>
-              {changePrefix(revenueChange)}{revenueChange.toFixed(0)}% vs prev {period}
+              {changePrefix(revenueChange)}{revenueChange.toFixed(0)}% vs prev
             </Text>
           )}
         </View>
@@ -483,43 +410,34 @@ export default function ReportsScreen() {
         </View>
       </View>
 
-      {/* Daily Hours Bar Chart */}
+      {/* Daily Hours Chart */}
       {dailyHoursData.length > 0 && (
         <>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Hours per Day</Text>
           <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <VerticalBarChart
-              data={dailyHoursData}
-              color={colors.primary}
-              formatValue={(v) => `${v.toFixed(1)}h`}
-            />
+            <VerticalBarChart data={dailyHoursData} color={colors.primary} formatValue={(v) => `${v.toFixed(1)}h`} />
           </View>
         </>
       )}
 
-      {/* Daily Revenue Bar Chart */}
+      {/* Daily Revenue Chart */}
       {dailyRevenueData.length > 0 && (
         <>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Revenue per Day</Text>
           <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <VerticalBarChart
-              data={dailyRevenueData}
-              color="#10b981"
-              formatValue={(v) => `${settings.currency}${v}`}
-            />
+            <VerticalBarChart data={dailyRevenueData} color="#10b981" formatValue={(v) => `${settings.currency}${v}`} />
           </View>
         </>
       )}
 
-      {/* Client Hours Bar Chart */}
+      {/* Client Breakdown */}
       {clientBreakdown.length > 0 && (
         <>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Hours by Client</Text>
           <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <VerticalBarChart
               data={clientBreakdown.map((item) => ({ label: item.client?.name?.split(" ")[0] || "?", value: parseFloat((item.seconds / 3600).toFixed(2)) }))}
-              color="#f59e0b"
-              formatValue={(v) => `${v.toFixed(1)}h`}
+              color="#f59e0b" formatValue={(v) => `${v.toFixed(1)}h`}
             />
           </View>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 10 }]}>
@@ -540,7 +458,7 @@ export default function ReportsScreen() {
         </>
       )}
 
-      {/* Task Hours Breakdown */}
+      {/* Task Breakdown */}
       {taskBreakdown.length > 0 && (
         <>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Hours by Task</Text>
@@ -588,9 +506,20 @@ export default function ReportsScreen() {
 
       {totalSeconds === 0 && totalRevenue === 0 && (
         <View style={styles.emptyWrap}>
-          <Ionicons name="bar-chart-outline" size={48} color={colors.mutedForeground} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No data yet</Text>
-          <Text style={[styles.emptyDesc, { color: colors.mutedForeground }]}>Start tracking time and sending invoices to see your reports.</Text>
+          <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
+            <Ionicons name="bar-chart-outline" size={36} color={colors.mutedForeground} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No data for {bounds.sublabel.toLowerCase()}</Text>
+          <Text style={[styles.emptyDesc, { color: colors.mutedForeground }]}>
+            {offset === 0
+              ? "Start tracking time and sending invoices to see your reports."
+              : `No time entries or paid invoices found for ${bounds.label}.`}
+          </Text>
+          {offset < 0 && (
+            <TouchableOpacity style={[styles.todayBtn, { backgroundColor: colors.primary }]} onPress={() => setOffset(0)}>
+              <Text style={styles.todayBtnText}>Back to current {period}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </ScrollView>
@@ -604,9 +533,14 @@ const styles = StyleSheet.create({
   screenTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
   exportBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
   exportBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  periodRow: { flexDirection: "row", borderRadius: 12, padding: 4, marginBottom: 20 },
+  periodRow: { flexDirection: "row", borderRadius: 12, padding: 4, marginBottom: 12 },
   periodBtn: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 10 },
   periodLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  navRow: { flexDirection: "row", alignItems: "center", borderRadius: 14, borderWidth: 1, padding: 10, marginBottom: 8, gap: 10 },
+  navArrow: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  navCenter: { flex: 1, alignItems: "center", gap: 2 },
+  navLabel: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  navSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
   sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", marginTop: 24, marginBottom: 12 },
   insight: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 8 },
   insightText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", lineHeight: 18 },
@@ -630,7 +564,7 @@ const styles = StyleSheet.create({
   clientRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
   clientMid: { flex: 1 },
   clientNameRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
-  clientName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  clientName: { fontSize: 14, fontFamily: "Inter_600SemiBold", flex: 1, marginRight: 8 },
   clientHours: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   clientEarned: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 4 },
   taskDot: { width: 10, height: 10, borderRadius: 5, marginTop: 5 },
@@ -642,6 +576,9 @@ const styles = StyleSheet.create({
   statusLabel: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium" },
   statusCount: { fontSize: 16, fontFamily: "Inter_700Bold" },
   emptyWrap: { alignItems: "center", justifyContent: "center", paddingVertical: 60, gap: 12 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
+  emptyIcon: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  todayBtn: { borderRadius: 20, paddingHorizontal: 20, paddingVertical: 10, marginTop: 8 },
+  todayBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });
