@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   editBtnText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   docCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden", marginBottom: 20 },
   companyHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 20, borderBottomWidth: 1 },
-  companyLogo: { width: 80, height: 36 },
+  companyLogo: { width: 240, height: 108 },
   companyInfo: { flex: 1 },
   companyName: { fontSize: 16, fontFamily: "Inter_700Bold" },
   companySub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
