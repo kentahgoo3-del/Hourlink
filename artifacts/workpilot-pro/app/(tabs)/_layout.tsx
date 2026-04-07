@@ -3,7 +3,7 @@ import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 
@@ -19,6 +19,10 @@ function NativeTabLayout() {
       <NativeTabs.Trigger name="work">
         <Icon sf={{ default: "timer", selected: "timer.fill" }} />
         <Label>Work</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="tasks">
+        <Icon sf={{ default: "checklist", selected: "checklist" }} />
+        <Label>Tasks</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="clients">
         <Icon sf={{ default: "person.2", selected: "person.2.fill" }} />
@@ -73,7 +77,7 @@ function ClassicTabLayout() {
             />
           ) : null,
         tabBarLabelStyle: {
-          fontSize: 10,
+          fontSize: 9,
           fontFamily: "Inter_500Medium",
         },
       }}
@@ -84,9 +88,9 @@ function ClassicTabLayout() {
           title: "Home",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="house" tintColor={color} size={22} />
+              <SymbolView name="house" tintColor={color} size={20} />
             ) : (
-              <Ionicons name="home-outline" size={22} color={color} />
+              <Ionicons name="home-outline" size={20} color={color} />
             ),
         }}
       />
@@ -96,9 +100,21 @@ function ClassicTabLayout() {
           title: "Work",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="timer" tintColor={color} size={22} />
+              <SymbolView name="timer" tintColor={color} size={20} />
             ) : (
-              <Ionicons name="timer-outline" size={22} color={color} />
+              <Ionicons name="timer-outline" size={20} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="tasks"
+        options={{
+          title: "Tasks",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="checklist" tintColor={color} size={20} />
+            ) : (
+              <Ionicons name="checkmark-circle-outline" size={20} color={color} />
             ),
         }}
       />
@@ -108,9 +124,9 @@ function ClassicTabLayout() {
           title: "Clients",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="person.2" tintColor={color} size={22} />
+              <SymbolView name="person.2" tintColor={color} size={20} />
             ) : (
-              <Ionicons name="people-outline" size={22} color={color} />
+              <Ionicons name="people-outline" size={20} color={color} />
             ),
         }}
       />
@@ -120,9 +136,9 @@ function ClassicTabLayout() {
           title: "Finance",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="doc.text" tintColor={color} size={22} />
+              <SymbolView name="doc.text" tintColor={color} size={20} />
             ) : (
-              <Ionicons name="document-text-outline" size={22} color={color} />
+              <Ionicons name="document-text-outline" size={20} color={color} />
             ),
         }}
       />
@@ -132,9 +148,9 @@ function ClassicTabLayout() {
           title: "Reports",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="chart.bar" tintColor={color} size={22} />
+              <SymbolView name="chart.bar" tintColor={color} size={20} />
             ) : (
-              <Ionicons name="bar-chart-outline" size={22} color={color} />
+              <Ionicons name="bar-chart-outline" size={20} color={color} />
             ),
         }}
       />

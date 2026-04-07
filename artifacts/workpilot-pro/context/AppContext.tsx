@@ -117,6 +117,19 @@ export type Meeting = {
   date: string;
 };
 
+export type Task = {
+  id: string;
+  clientId: string;
+  title: string;
+  description: string;
+  priority: "low" | "medium" | "high";
+  status: "todo" | "in_progress" | "done";
+  dueDate: string | null;
+  estimatedHours: number | null;
+  createdAt: string;
+  completedAt: string | null;
+};
+
 export type CompanyProfile = {
   name: string;
   tagline: string;
@@ -208,6 +221,7 @@ type AppContextType = {
   quoteTemplates: QuoteTemplate[];
   clientNotes: ClientNote[];
   meetings: Meeting[];
+  tasks: Task[];
   settings: UserSettings;
   companyProfile: CompanyProfile;
   activeTimer: TimeEntry | null;
@@ -249,6 +263,11 @@ type AppContextType = {
   addMeeting: (meeting: Omit<Meeting, "id">) => void;
   deleteMeeting: (id: string) => void;
 
+  addTask: (task: Omit<Task, "id" | "createdAt" | "completedAt">) => void;
+  updateTask: (id: string, updates: Partial<Task>) => void;
+  deleteTask: (id: string) => void;
+  completeTask: (id: string) => void;
+
   updateSettings: (updates: Partial<UserSettings>) => void;
   updateCompanyProfile: (updates: Partial<CompanyProfile>) => void;
 
@@ -275,6 +294,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [quoteTemplates, setQuoteTemplates] = useState<QuoteTemplate[]>([]);
   const [clientNotes, setClientNotes] = useState<ClientNote[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(DEFAULT_COMPANY);
   const [activeTimer, setActiveTimer] = useState<TimeEntry | null>(null);
@@ -286,7 +306,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const loadData = async () => {
     try {
-      const keys = ["clients","projects","timeEntries","quotes","invoices","expenses","quoteTemplates","clientNotes","meetings","settings","companyProfile","activeTimer"];
+      const keys = ["clients","projects","timeEntries","quotes","invoices","expenses","quoteTemplates","clientNotes","meetings","tasks","settings","companyProfile","activeTimer"];
       const results = await AsyncStorage.multiGet(keys);
       const map: Record<string, string | null> = {};
       results.forEach(([k, v]) => { map[k] = v; });
@@ -310,6 +330,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (map.quoteTemplates) setQuoteTemplates(JSON.parse(map.quoteTemplates));
       if (map.clientNotes) setClientNotes(JSON.parse(map.clientNotes));
       if (map.meetings) setMeetings(JSON.parse(map.meetings));
+      if (map.tasks) setTasks(JSON.parse(map.tasks));
       if (map.settings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(map.settings) });
       if (map.companyProfile) setCompanyProfile({ ...DEFAULT_COMPANY, ...JSON.parse(map.companyProfile) });
       if (map.activeTimer) setActiveTimer(JSON.parse(map.activeTimer));
@@ -597,6 +618,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [save]);
 
+  // Tasks
+  const addTask = useCallback((task: Omit<Task, "id" | "createdAt" | "completedAt">) => {
+    setTasks((prev) => {
+      const next = [{ ...task, id: genId(), createdAt: new Date().toISOString(), completedAt: null }, ...prev];
+      save("tasks", next);
+      return next;
+    });
+  }, [save]);
+
+  const updateTask = useCallback((id: string, updates: Partial<Task>) => {
+    setTasks((prev) => {
+      const next = prev.map((t) => (t.id === id ? { ...t, ...updates } : t));
+      save("tasks", next);
+      return next;
+    });
+  }, [save]);
+
+  const deleteTask = useCallback((id: string) => {
+    setTasks((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      save("tasks", next);
+      return next;
+    });
+  }, [save]);
+
+  const completeTask = useCallback((id: string) => {
+    setTasks((prev) => {
+      const next = prev.map((t) => t.id === id ? { ...t, status: "done" as const, completedAt: new Date().toISOString() } : t);
+      save("tasks", next);
+      return next;
+    });
+  }, [save]);
+
   // Settings
   const updateSettings = useCallback((updates: Partial<UserSettings>) => {
     setSettings((prev) => {
@@ -715,7 +769,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider value={{
       clients, projects, timeEntries, quotes, invoices,
-      expenses, quoteTemplates, clientNotes, meetings,
+      expenses, quoteTemplates, clientNotes, meetings, tasks,
       settings, companyProfile, activeTimer,
       addClient, updateClient, deleteClient,
       addProject, updateProject, deleteProject,
@@ -726,6 +780,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addQuoteTemplate, deleteQuoteTemplate,
       addClientNote, deleteClientNote,
       addMeeting, deleteMeeting,
+      addTask, updateTask, deleteTask, completeTask,
       updateSettings, updateCompanyProfile,
       getClientRevenue, getClientProfit, getTotalRevenue, getUnbilledAmount,
       getOutstandingAmount, getBillingAlerts, getCashFlowForecast,
