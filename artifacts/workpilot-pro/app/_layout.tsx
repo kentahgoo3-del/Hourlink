@@ -44,9 +44,9 @@ export default function RootLayout() {
           Inter_500Medium,
           Inter_600SemiBold,
           Inter_700Bold,
-          // Load icon fonts directly from bundled assets
-          Ionicons: require("../assets/fonts/Ionicons.ttf"),
-          Feather: require("../assets/fonts/Feather.ttf"),
+          // Must match the exact font family name the icon components use (lowercase)
+          ionicons: require("../assets/fonts/Ionicons.ttf"),
+          feather: require("../assets/fonts/Feather.ttf"),
         });
       } catch (e) {
         // fonts failed — still show the app
