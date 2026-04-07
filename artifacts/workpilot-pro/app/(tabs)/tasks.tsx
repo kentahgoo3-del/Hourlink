@@ -217,7 +217,18 @@ export default function TasksScreen() {
   const handleSave = () => {
     if (!title.trim()) { Alert.alert("Title required", "Please enter a task title."); return; }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const dueDateISO = dueDate ? new Date(dueDate + "T00:00:00").toISOString() : null;
+    let dueDateISO: string | null = null;
+    if (dueDate.trim()) {
+      const parts = dueDate.trim().split("-");
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        if (!isNaN(d.getTime())) dueDateISO = d.toISOString();
+      }
+      if (!dueDateISO) {
+        Alert.alert("Invalid date", "Please enter the date as YYYY-MM-DD, e.g. 2026-04-15.");
+        return;
+      }
+    }
     if (editingTask) {
       updateTask(editingTask.id, { title: title.trim(), description: desc, priority, status, clientId, dueDate: dueDateISO, estimatedHours: estHours ? parseFloat(estHours) : null });
     } else {
