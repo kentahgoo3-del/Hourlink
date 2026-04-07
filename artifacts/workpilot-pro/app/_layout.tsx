@@ -47,7 +47,7 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider style={{ flex: 1 }}>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
@@ -55,15 +55,15 @@ export default function RootLayout() {
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
                   <RootLayoutNav />
-                  {showWelcome && (
-                    <WelcomeOverlay onDismiss={() => setShowWelcome(false)} />
-                  )}
                 </KeyboardProvider>
               </GestureHandlerRootView>
             </AppProvider>
           </ThemeProvider>
         </QueryClientProvider>
       </ErrorBoundary>
+      {showWelcome && (
+        <WelcomeOverlay onDismiss={() => setShowWelcome(false)} />
+      )}
     </SafeAreaProvider>
   );
 }
