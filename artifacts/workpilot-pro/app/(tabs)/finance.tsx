@@ -41,8 +41,26 @@ export default function FinanceScreen() {
     clients, invoices, quotes, quoteTemplates,
     addInvoice, addQuote, deleteInvoice, deleteQuote, deleteQuoteTemplate,
     markInvoicePaid, convertQuoteToInvoice, updateInvoice, updateQuote,
-    addQuoteTemplate, settings,
+    addQuoteTemplate, settings, startTimer, activeTimer,
   } = useApp();
+
+  const handleStartTimerForQuote = (quote: typeof quotes[0]) => {
+    if (activeTimer) {
+      Alert.alert("Timer running", "Stop your current timer before starting a new one.");
+      return;
+    }
+    const client = clients.find((c) => c.id === quote.clientId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    startTimer({
+      clientId: quote.clientId,
+      projectId: "",
+      taskId: null,
+      description: quote.title || (client ? `Work for ${client.name}` : "Quote work"),
+      hourlyRate: client?.hourlyRate ?? settings.defaultHourlyRate,
+      billable: true,
+    });
+    router.push("/(tabs)/work" as any);
+  };
 
   const [tab, setTab] = useState<Tab>("invoices");
   const [showNew, setShowNew] = useState(false);
@@ -134,6 +152,15 @@ export default function FinanceScreen() {
         >
           <Ionicons name="send" size={18} color="#fff" />
           <Text style={styles.swipeBtnText}>Send</Text>
+        </TouchableOpacity>
+      )}
+      {!isInvoice && (item as typeof quotes[0]).status === "accepted" && (
+        <TouchableOpacity
+          style={[styles.swipeBtn, { backgroundColor: "#10b981" }]}
+          onPress={() => handleStartTimerForQuote(item as typeof quotes[0])}
+        >
+          <Ionicons name="timer-outline" size={18} color="#fff" />
+          <Text style={styles.swipeBtnText}>Timer</Text>
         </TouchableOpacity>
       )}
       {!isInvoice && (item as typeof quotes[0]).status === "accepted" && (
@@ -294,6 +321,15 @@ export default function FinanceScreen() {
                         <StatusBadge status={item.status} />
                       </View>
                     </View>
+                    {!isInvoice && (item as typeof quotes[0]).status === "accepted" && (
+                      <TouchableOpacity
+                        style={styles.timerRow}
+                        onPress={() => handleStartTimerForQuote(item as typeof quotes[0])}
+                      >
+                        <Ionicons name="timer-outline" size={14} color="#10b981" />
+                        <Text style={styles.timerRowText}>Start Timer for this Quote</Text>
+                      </TouchableOpacity>
+                    )}
                     <View style={styles.swipeHint}>
                       <Text style={[styles.swipeHintText, { color: colors.mutedForeground }]}>Swipe left for quick actions</Text>
                     </View>
@@ -409,6 +445,8 @@ const styles = StyleSheet.create({
   templateHint: { fontSize: 11, fontFamily: "Inter_500Medium" },
   swipeHint: { marginTop: 4 },
   swipeHintText: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  timerRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: "#dcfce7", borderRadius: 8, alignSelf: "flex-start" },
+  timerRowText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#10b981" },
   swipeActions: { flexDirection: "row", gap: 4, paddingLeft: 8, alignItems: "center" },
   swipeBtn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, alignItems: "center", justifyContent: "center", gap: 4, minWidth: 60 },
   swipeBtnText: { color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold" },
