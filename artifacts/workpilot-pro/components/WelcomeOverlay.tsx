@@ -27,18 +27,19 @@ type Page = {
   btnColor: string;
   btnTextColor: string;
   isHero?: boolean;
+  heroImage?: ReturnType<typeof require>;
 };
 
 const PAGES: Page[] = [
   {
-    isHero: true,
+    heroImage: require("../assets/images/hourlink_hero.png"),
     bgTop: "#0a1628",
     bgBottom: "#0d2137",
     iconName: "briefcase",
     iconColor: "#2dd4bf",
     iconBg: "rgba(45,212,191,0.15)",
-    title: "Track & earn for\nevery hour worked",
-    body: "Your complete freelance business hub — time tracking, invoicing, clients, and finances all in one place.",
+    title: "",
+    body: "",
     btnColor: "#14b8a6",
     btnTextColor: "#fff",
   },
@@ -179,35 +180,24 @@ export function WelcomeOverlay({ onDismiss }: Props) {
       onRequestClose={dismiss}
     >
       <Animated.View style={[{ width: W, height: H, opacity: fadeAnim }]}>
-        {/* Full-screen background gradient simulation */}
-        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: page.bgTop }]} />
-        <View
-          style={[
-            StyleSheet.absoluteFillObject,
-            {
-              backgroundColor: page.bgBottom,
-              top: H * 0.45,
-            },
-          ]}
-        />
 
-        {/* Decorative blobs */}
-        <View
-          style={[
-            styles.blob1,
-            { backgroundColor: page.iconColor + "18", top: H * 0.05, right: -60 },
-          ]}
-        />
-        <View
-          style={[
-            styles.blob2,
-            { backgroundColor: page.iconColor + "10", bottom: H * 0.18, left: -80 },
-          ]}
-        />
+        {/* ── Page background ── */}
+        {page.heroImage ? (
+          <>
+            <Image source={page.heroImage} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+            {/* Gradient overlay so the button reads clearly */}
+            <View style={styles.heroGradient} />
+          </>
+        ) : (
+          <>
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: page.bgTop }]} />
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: page.bgBottom, top: H * 0.45 }]} />
+            <View style={[styles.blob1, { backgroundColor: page.iconColor + "18", top: H * 0.05, right: -60 }]} />
+            <View style={[styles.blob2, { backgroundColor: page.iconColor + "10", bottom: H * 0.18, left: -80 }]} />
+          </>
+        )}
 
-        <Animated.View
-          style={[StyleSheet.absoluteFillObject, { opacity: pageFade }]}
-        >
+        <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: pageFade }]}>
           {/* ── Skip ── */}
           {!isLast && (
             <TouchableOpacity
@@ -219,48 +209,29 @@ export function WelcomeOverlay({ onDismiss }: Props) {
             </TouchableOpacity>
           )}
 
-          {/* ── Central illustration area ── */}
-          <View style={[styles.illustrationArea, { paddingTop: topPad + 60 }]}>
-            {/* Badge pill */}
-            {page.badge && (
-              <View style={[styles.badge, { borderColor: page.iconColor + "55", backgroundColor: page.iconColor + "18" }]}>
-                <Text style={[styles.badgeText, { color: page.iconColor }]}>{page.badge}</Text>
-              </View>
-            )}
-
-            {/* Big icon / logo */}
-            {page.isHero ? (
-              <Animated.View style={{ transform: [{ scale: iconScale }], alignItems: "center", gap: 20 }}>
-                <Image
-                  source={require("../assets/images/hourlink_icon.png")}
-                  style={styles.heroAppIcon}
-                  resizeMode="contain"
-                />
-                <View style={styles.heroWordmark}>
-                  <Text style={styles.heroWordHour}>Hour</Text>
-                  <Text style={styles.heroWordLink}>Link</Text>
+          {/* ── Central illustration (feature pages only) ── */}
+          {!page.heroImage && (
+            <View style={[styles.illustrationArea, { paddingTop: topPad + 60 }]}>
+              {page.badge && (
+                <View style={[styles.badge, { borderColor: page.iconColor + "55", backgroundColor: page.iconColor + "18" }]}>
+                  <Text style={[styles.badgeText, { color: page.iconColor }]}>{page.badge}</Text>
                 </View>
-              </Animated.View>
-            ) : (
+              )}
               <Animated.View
                 style={[
                   styles.iconOuter,
-                  {
-                    backgroundColor: page.iconBg,
-                    borderColor: page.iconColor + "40",
-                    transform: [{ scale: iconScale }],
-                  },
+                  { backgroundColor: page.iconBg, borderColor: page.iconColor + "40", transform: [{ scale: iconScale }] },
                 ]}
               >
                 <View style={[styles.iconInner, { backgroundColor: page.iconColor + "20" }]}>
                   <Ionicons name={page.iconName} size={60} color={page.iconColor} />
                 </View>
               </Animated.View>
-            )}
-          </View>
+            </View>
+          )}
 
           {/* ── Bottom card ── */}
-          <View style={[styles.bottomCard, { paddingBottom: botPad }]}>
+          <View style={[styles.bottomCard, { paddingBottom: botPad }, page.heroImage && styles.bottomCardHero]}>
             {/* Dots */}
             <View style={styles.dots}>
               {PAGES.map((_, i) => (
@@ -269,7 +240,7 @@ export function WelcomeOverlay({ onDismiss }: Props) {
                   style={[
                     styles.dot,
                     {
-                      backgroundColor: i === current ? page.iconColor : "rgba(255,255,255,0.25)",
+                      backgroundColor: i === current ? (page.heroImage ? "#14b8a6" : page.iconColor) : "rgba(255,255,255,0.25)",
                       width: i === current ? 28 : 8,
                     },
                   ]}
@@ -277,8 +248,8 @@ export function WelcomeOverlay({ onDismiss }: Props) {
               ))}
             </View>
 
-            <Text style={styles.title}>{page.title}</Text>
-            <Text style={styles.body}>{page.body}</Text>
+            {!!page.title && <Text style={styles.title}>{page.title}</Text>}
+            {!!page.body && <Text style={styles.body}>{page.body}</Text>}
 
             <Animated.View style={[styles.btnWrap, { transform: [{ scale: btnScale }] }]}>
               <TouchableOpacity
@@ -305,26 +276,19 @@ export function WelcomeOverlay({ onDismiss }: Props) {
 }
 
 const styles = StyleSheet.create({
-  heroAppIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 28,
+  heroGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 260,
+    backgroundColor: "rgba(0,0,0,0.55)",
   },
-  heroWordmark: {
-    flexDirection: "row",
-    alignItems: "baseline",
-  },
-  heroWordHour: {
-    fontSize: 38,
-    fontFamily: "Inter_700Bold",
-    color: "#ffffff",
-    letterSpacing: -0.5,
-  },
-  heroWordLink: {
-    fontSize: 38,
-    fontFamily: "Inter_700Bold",
-    color: "#2dd4bf",
-    letterSpacing: -0.5,
+  bottomCardHero: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   blob1: {
     position: "absolute",
