@@ -56,7 +56,7 @@ export default function SettingsScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.sectionBar, { borderBottomColor: colors.border }]} contentContainerStyle={{ paddingHorizontal: 20, gap: 0 }}>
+      <View style={[styles.sectionBar, { borderBottomColor: colors.border }]}>
         {(["profile", "company", "theme", "billing"] as Section[]).map((s) => {
           const labels: Record<Section, string> = { profile: "Profile", company: "Company", theme: "Theme", billing: "Billing" };
           return (
@@ -65,18 +65,18 @@ export default function SettingsScreen() {
               style={[styles.sectionTab, section === s && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
               onPress={() => setSection(s)}
             >
-              <Text style={[styles.sectionTabLabel, { color: section === s ? colors.primary : colors.mutedForeground }]}>{labels[s]}</Text>
+              <Text style={[styles.sectionTabLabel, { color: section === s ? colors.primary : colors.mutedForeground }]} numberOfLines={1}>{labels[s]}</Text>
             </TouchableOpacity>
           );
         })}
         <TouchableOpacity
-          style={[styles.sectionTab, { flexDirection: "row", alignItems: "center", gap: 4 }]}
+          style={[styles.sectionTab, { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 }]}
           onPress={() => router.push("/team")}
         >
-          <Ionicons name="people-outline" size={14} color={colors.primary} />
-          <Text style={[styles.sectionTabLabel, { color: colors.primary }]}>Team</Text>
+          <Ionicons name="people-outline" size={13} color={colors.primary} />
+          <Text style={[styles.sectionTabLabel, { color: colors.primary }]} numberOfLines={1}>Team</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: botPadding + 40 }} showsVerticalScrollIndicator={false}>
 
@@ -218,9 +218,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   back: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  sectionBar: { borderBottomWidth: 1 },
-  sectionTab: { paddingVertical: 12, paddingHorizontal: 4, marginRight: 20 },
-  sectionTabLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  sectionBar: { borderBottomWidth: 1, flexDirection: "row" },
+  sectionTab: { flex: 1, paddingVertical: 12, alignItems: "center", justifyContent: "center" },
+  sectionTabLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", marginBottom: 16 },
   hint: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 16, lineHeight: 18 },
   label: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 8, letterSpacing: 0.3 },
