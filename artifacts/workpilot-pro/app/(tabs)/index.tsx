@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -88,9 +89,16 @@ export default function HomeScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={[styles.greeting, { color: colors.mutedForeground }]}>{greeting}</Text>
-          <Text style={[styles.name, { color: colors.foreground }]}>{settings.name}</Text>
+        <View style={styles.headerLeft}>
+          <Image
+            source={require("../../assets/images/hourlink_icon.png")}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
+          <View>
+            <Text style={[styles.greeting, { color: colors.mutedForeground }]}>{greeting}</Text>
+            <Text style={[styles.name, { color: colors.foreground }]}>{settings.name || "HourLink"}</Text>
+          </View>
         </View>
         <TouchableOpacity
           style={[styles.settingsBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -306,7 +314,9 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingHorizontal: 20 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  headerLogo: { width: 44, height: 44, borderRadius: 12 },
   greeting: { fontSize: 13, fontFamily: "Inter_400Regular" },
   name: { fontSize: 24, fontFamily: "Inter_700Bold", marginTop: 2 },
   settingsBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1 },

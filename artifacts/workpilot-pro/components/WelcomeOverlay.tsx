@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
+  Image,
   Modal,
   Platform,
   StyleSheet,
@@ -31,15 +32,15 @@ type Page = {
 const PAGES: Page[] = [
   {
     isHero: true,
-    bgTop: "#0f172a",
-    bgBottom: "#1e293b",
+    bgTop: "#0a1628",
+    bgBottom: "#0d2137",
     iconName: "briefcase",
-    iconColor: "#38bdf8",
-    iconBg: "rgba(56,189,248,0.15)",
-    title: "WorkPilot Pro",
+    iconColor: "#2dd4bf",
+    iconBg: "rgba(45,212,191,0.15)",
+    title: "Track & earn for\nevery hour worked",
     body: "Your complete freelance business hub — time tracking, invoicing, clients, and finances all in one place.",
-    btnColor: "#38bdf8",
-    btnTextColor: "#0f172a",
+    btnColor: "#14b8a6",
+    btnTextColor: "#fff",
   },
   {
     bgTop: "#042f2e",
@@ -49,7 +50,7 @@ const PAGES: Page[] = [
     iconBg: "rgba(45,212,191,0.15)",
     badge: "Time Tracking",
     title: "Never Miss a\nBillable Minute",
-    body: "Start a timer with one tap — assign it to a client, set your hourly rate, and mark it billable. WorkPilot logs every second automatically, even in the background.",
+    body: "Start a timer with one tap — assign it to a client, set your hourly rate, and mark it billable. HourLink logs every second automatically, even in the background.",
     btnColor: "#14b8a6",
     btnTextColor: "#fff",
   },
@@ -85,7 +86,7 @@ const PAGES: Page[] = [
     iconBg: "rgba(192,132,252,0.15)",
     badge: "All-in-One",
     title: "Everything a\nFreelancer Needs",
-    body: "Manage clients, track expenses, create tasks, collaborate with your team, and customise the app with your own branding. You run the business — WorkPilot handles the admin.",
+    body: "Manage clients, track expenses, create tasks, collaborate with your team, and customise the app with your own branding. You run the business — HourLink handles the admin.",
     btnColor: "#a855f7",
     btnTextColor: "#fff",
   },
@@ -227,31 +228,34 @@ export function WelcomeOverlay({ onDismiss }: Props) {
               </View>
             )}
 
-            {/* Big icon circle */}
-            <Animated.View
-              style={[
-                styles.iconOuter,
-                {
-                  backgroundColor: page.iconBg,
-                  borderColor: page.iconColor + "40",
-                  transform: [{ scale: iconScale }],
-                },
-              ]}
-            >
-              <View style={[styles.iconInner, { backgroundColor: page.iconColor + "20" }]}>
-                <Ionicons name={page.iconName} size={page.isHero ? 72 : 60} color={page.iconColor} />
-              </View>
-            </Animated.View>
-
-            {/* Hero sub-icon dots */}
-            {page.isHero && (
-              <View style={styles.heroChips}>
-                {(["timer-outline", "document-text-outline", "bar-chart-outline", "people-outline"] as const).map((ic, i) => (
-                  <View key={i} style={[styles.heroChip, { backgroundColor: page.iconColor + "22", borderColor: page.iconColor + "33" }]}>
-                    <Ionicons name={ic} size={16} color={page.iconColor} />
-                  </View>
-                ))}
-              </View>
+            {/* Big icon / logo */}
+            {page.isHero ? (
+              <Animated.View style={{ transform: [{ scale: iconScale }], alignItems: "center", gap: 20 }}>
+                <Image
+                  source={require("../assets/images/hourlink_icon.png")}
+                  style={styles.heroAppIcon}
+                  resizeMode="contain"
+                />
+                <View style={styles.heroWordmark}>
+                  <Text style={styles.heroWordHour}>Hour</Text>
+                  <Text style={styles.heroWordLink}>Link</Text>
+                </View>
+              </Animated.View>
+            ) : (
+              <Animated.View
+                style={[
+                  styles.iconOuter,
+                  {
+                    backgroundColor: page.iconBg,
+                    borderColor: page.iconColor + "40",
+                    transform: [{ scale: iconScale }],
+                  },
+                ]}
+              >
+                <View style={[styles.iconInner, { backgroundColor: page.iconColor + "20" }]}>
+                  <Ionicons name={page.iconName} size={60} color={page.iconColor} />
+                </View>
+              </Animated.View>
             )}
           </View>
 
@@ -301,6 +305,27 @@ export function WelcomeOverlay({ onDismiss }: Props) {
 }
 
 const styles = StyleSheet.create({
+  heroAppIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: 28,
+  },
+  heroWordmark: {
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
+  heroWordHour: {
+    fontSize: 38,
+    fontFamily: "Inter_700Bold",
+    color: "#ffffff",
+    letterSpacing: -0.5,
+  },
+  heroWordLink: {
+    fontSize: 38,
+    fontFamily: "Inter_700Bold",
+    color: "#2dd4bf",
+    letterSpacing: -0.5,
+  },
   blob1: {
     position: "absolute",
     width: 300,
