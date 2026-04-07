@@ -127,10 +127,8 @@ export default function WorkScreen() {
     if (activeTimer && activeTimer.billable) {
       const now = Date.now();
       const durationSeconds = Math.floor((now - new Date(activeTimer.startTime).getTime()) / 1000);
-      if (durationSeconds > 60) {
-        setStoppedEntry({ ...activeTimer, endTime: new Date().toISOString(), durationSeconds });
-        setShowQuickInvoice(true);
-      }
+      setStoppedEntry({ ...activeTimer, endTime: new Date().toISOString(), durationSeconds });
+      setShowQuickInvoice(true);
     }
     stopTimer();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -138,9 +136,7 @@ export default function WorkScreen() {
 
   const handleQuickInvoice = () => {
     if (!stoppedEntry) return;
-    const client = clients.find((c) => c.id === stoppedEntry.clientId);
     const hours = stoppedEntry.durationSeconds / 3600;
-    const amount = hours * stoppedEntry.hourlyRate;
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 30);
     const invoiceId = addInvoice({
@@ -158,6 +154,24 @@ export default function WorkScreen() {
     setShowQuickInvoice(false);
     setStoppedEntry(null);
     router.push({ pathname: "/invoice/[id]", params: { id: invoiceId } });
+  };
+
+  const handleResume = () => {
+    if (!stoppedEntry) return;
+    startTimer({
+      clientId: stoppedEntry.clientId,
+      taskId: stoppedEntry.taskId ?? null,
+      description: stoppedEntry.description,
+      hourlyRate: stoppedEntry.hourlyRate,
+      billable: stoppedEntry.billable,
+    });
+    setShowQuickInvoice(false);
+    setStoppedEntry(null);
+  };
+
+  const handleInvoiceLater = () => {
+    setShowQuickInvoice(false);
+    setStoppedEntry(null);
   };
 
   const handleStartTimer = () => {
@@ -249,35 +263,64 @@ export default function WorkScreen() {
         />
       )}
 
-      {/* Quick Invoice Modal after stopping timer */}
-      <Modal visible={showQuickInvoice} transparent animationType="fade">
+      {/* Timer Stopped Modal */}
+      <Modal visible={showQuickInvoice} transparent animationType="fade" onRequestClose={handleInvoiceLater}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.quickInvCard, { backgroundColor: colors.card }]}>
+          <View style={[styles.quickInvCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {/* Header */}
             <View style={[styles.quickInvIcon, { backgroundColor: colors.primary + "20" }]}>
-              <Ionicons name="document-text" size={28} color={colors.primary} />
+              <Ionicons name="timer-outline" size={30} color={colors.primary} />
             </View>
-            <Text style={[styles.quickInvTitle, { color: colors.foreground }]}>Create Invoice Now?</Text>
-            <Text style={[styles.quickInvSub, { color: colors.mutedForeground }]}>
-              {stoppedEntry ? `${(stoppedEntry.durationSeconds / 3600).toFixed(2)}h · ${settings.currency}${((stoppedEntry.durationSeconds / 3600) * stoppedEntry.hourlyRate).toFixed(0)}` : ""}
-            </Text>
-            <Text style={[styles.quickInvDesc, { color: colors.mutedForeground }]}>
-              {stoppedEntry?.description || ""}
-            </Text>
-            <View style={styles.quickInvActions}>
-              <TouchableOpacity
-                style={[styles.quickInvBtn, { backgroundColor: colors.muted }]}
-                onPress={() => { setShowQuickInvoice(false); setStoppedEntry(null); }}
-              >
-                <Text style={[styles.quickInvBtnText, { color: colors.mutedForeground }]}>Later</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.quickInvBtn, { backgroundColor: colors.primary }]}
-                onPress={handleQuickInvoice}
-                testID="quick-invoice-now"
-              >
-                <Text style={[styles.quickInvBtnText, { color: "#fff" }]}>Create Invoice</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={[styles.quickInvTitle, { color: colors.foreground }]}>Timer Stopped</Text>
+
+            {/* Summary pill */}
+            {stoppedEntry && (
+              <View style={[styles.summaryPill, { backgroundColor: colors.muted }]}>
+                <Text style={[styles.summaryTime, { color: colors.foreground }]}>
+                  {formatDuration(stoppedEntry.durationSeconds)}
+                </Text>
+                <View style={[styles.summaryDot, { backgroundColor: colors.border }]} />
+                <Text style={[styles.summaryAmount, { color: "#10b981" }]}>
+                  {settings.currency}{((stoppedEntry.durationSeconds / 3600) * stoppedEntry.hourlyRate).toFixed(0)}
+                </Text>
+              </View>
+            )}
+
+            {stoppedEntry?.description ? (
+              <Text style={[styles.quickInvDesc, { color: colors.mutedForeground }]} numberOfLines={2}>
+                {stoppedEntry.description}
+              </Text>
+            ) : null}
+
+            <View style={styles.divider} />
+
+            {/* Actions */}
+            <TouchableOpacity
+              style={[styles.actionRow, { backgroundColor: colors.primary }]}
+              onPress={handleQuickInvoice}
+              testID="quick-invoice-now"
+            >
+              <Ionicons name="document-text-outline" size={18} color="#fff" />
+              <Text style={[styles.actionRowText, { color: "#fff" }]}>Invoice Now</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionRow, { backgroundColor: colors.muted }]}
+              onPress={handleResume}
+              testID="resume-timer"
+            >
+              <Ionicons name="play-outline" size={18} color={colors.foreground} />
+              <Text style={[styles.actionRowText, { color: colors.foreground }]}>Resume Timer</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionRowOutline, { borderColor: colors.border }]}
+              onPress={handleInvoiceLater}
+              testID="invoice-later"
+            >
+              <Ionicons name="time-outline" size={18} color={colors.mutedForeground} />
+              <Text style={[styles.actionRowText, { color: colors.mutedForeground }]}>Invoice Later</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -349,12 +392,16 @@ const styles = StyleSheet.create({
   startBtn: { borderRadius: 14, paddingVertical: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   startBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 24 },
-  quickInvCard: { borderRadius: 20, padding: 24, width: "100%", alignItems: "center", gap: 8 },
-  quickInvIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", marginBottom: 4 },
-  quickInvTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
-  quickInvSub: { fontSize: 20, fontFamily: "Inter_600SemiBold" },
-  quickInvDesc: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
-  quickInvActions: { flexDirection: "row", gap: 10, marginTop: 16, width: "100%" },
-  quickInvBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  quickInvBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  quickInvCard: { borderRadius: 20, borderWidth: 1, padding: 24, width: "100%", alignItems: "center", gap: 10 },
+  quickInvIcon: { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center", marginBottom: 2 },
+  quickInvTitle: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
+  quickInvDesc: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", paddingHorizontal: 8 },
+  summaryPill: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
+  summaryTime: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  summaryDot: { width: 4, height: 4, borderRadius: 2 },
+  summaryAmount: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  divider: { height: 1, width: "100%", backgroundColor: "rgba(0,0,0,0.08)", marginVertical: 4 },
+  actionRow: { flexDirection: "row", alignItems: "center", gap: 10, width: "100%", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18, justifyContent: "center" },
+  actionRowOutline: { flexDirection: "row", alignItems: "center", gap: 10, width: "100%", borderRadius: 14, paddingVertical: 13, paddingHorizontal: 18, justifyContent: "center", borderWidth: 1 },
+  actionRowText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });
