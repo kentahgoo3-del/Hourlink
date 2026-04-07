@@ -22,13 +22,31 @@ import { THEMES, type ThemeName } from "@/constants/themes";
 
 const CURRENCIES = ["R", "$", "€", "£", "¥", "A$", "C$", "CHF", "NZD", "AED"];
 
-type Section = "profile" | "company" | "theme" | "billing";
+const ACCENT_COLORS: { label: string; value: string | null }[] = [
+  { label: "Theme", value: null },
+  { label: "Red", value: "#ef4444" },
+  { label: "Rose", value: "#f43f5e" },
+  { label: "Orange", value: "#f97316" },
+  { label: "Amber", value: "#f59e0b" },
+  { label: "Lime", value: "#65a30d" },
+  { label: "Green", value: "#22c55e" },
+  { label: "Teal", value: "#14b8a6" },
+  { label: "Sky", value: "#0ea5e9" },
+  { label: "Blue", value: "#3b82f6" },
+  { label: "Indigo", value: "#6366f1" },
+  { label: "Violet", value: "#8b5cf6" },
+  { label: "Pink", value: "#ec4899" },
+  { label: "Slate", value: "#475569" },
+  { label: "Black", value: "#111111" },
+];
+
+type Section = "profile" | "company" | "theme" | "look" | "billing";
 
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { settings, companyProfile, updateSettings, updateCompanyProfile } = useApp();
-  const { themeName, setTheme } = useTheme();
+  const { themeName, setTheme, appearance, setAppearance } = useTheme();
   const [section, setSection] = useState<Section>("profile");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -48,6 +66,44 @@ export default function SettingsScreen() {
     }
   };
 
+  const sectionLabels: Record<Section, string> = {
+    profile: "Profile", company: "Company", theme: "Themes", look: "Look", billing: "Billing",
+  };
+
+  function SegmentControl({
+    label, options, value, onChange,
+  }: { label: string; options: { label: string; value: string }[]; value: string; onChange: (v: string) => void }) {
+    return (
+      <View style={{ marginBottom: 20 }}>
+        <Text style={[styles.label, { color: colors.mutedForeground }]}>{label}</Text>
+        <View style={[styles.segmentRow, { backgroundColor: colors.muted, borderRadius: colors.cr }]}>
+          {options.map((opt) => {
+            const active = value === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={[
+                  styles.segmentBtn,
+                  { borderRadius: colors.cr - 2 },
+                  active && { backgroundColor: colors.primary },
+                ]}
+                onPress={() => onChange(opt.value)}
+              >
+                <Text style={[
+                  styles.segmentLabel,
+                  { color: active ? "#fff" : colors.mutedForeground },
+                  active && { fontFamily: "Inter_600SemiBold" },
+                ]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
@@ -59,18 +115,17 @@ export default function SettingsScreen() {
       </View>
 
       <View style={[styles.sectionBar, { borderBottomColor: colors.border }]}>
-        {(["profile", "company", "theme", "billing"] as Section[]).map((s) => {
-          const labels: Record<Section, string> = { profile: "Profile", company: "Company", theme: "Theme", billing: "Billing" };
-          return (
-            <TouchableOpacity
-              key={s}
-              style={[styles.sectionTab, section === s && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
-              onPress={() => setSection(s)}
-            >
-              <Text style={[styles.sectionTabLabel, { color: section === s ? colors.primary : colors.mutedForeground }]} numberOfLines={1}>{labels[s]}</Text>
-            </TouchableOpacity>
-          );
-        })}
+        {(["profile", "company", "theme", "look", "billing"] as Section[]).map((s) => (
+          <TouchableOpacity
+            key={s}
+            style={[styles.sectionTab, section === s && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+            onPress={() => setSection(s)}
+          >
+            <Text style={[styles.sectionTabLabel, { color: section === s ? colors.primary : colors.mutedForeground }]} numberOfLines={1}>
+              {sectionLabels[s]}
+            </Text>
+          </TouchableOpacity>
+        ))}
         <TouchableOpacity
           style={[styles.sectionTab, { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 }]}
           onPress={() => router.push("/team")}
@@ -155,8 +210,8 @@ export default function SettingsScreen() {
         {/* THEME */}
         {section === "theme" && (
           <>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>App Theme</Text>
-            <Text style={[styles.hint, { color: colors.mutedForeground }]}>Pick a color theme. The app adapts to your device's light or dark mode setting automatically.</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Color Theme</Text>
+            <Text style={[styles.hint, { color: colors.mutedForeground }]}>Pick a base theme. The app adapts to your device's light or dark mode automatically.</Text>
             <View style={styles.themeGrid}>
               {themeNames.map((name) => {
                 const theme = THEMES[name];
@@ -188,6 +243,117 @@ export default function SettingsScreen() {
                   </TouchableOpacity>
                 );
               })}
+            </View>
+          </>
+        )}
+
+        {/* LOOK */}
+        {section === "look" && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Appearance</Text>
+            <Text style={[styles.hint, { color: colors.mutedForeground }]}>Customise how the app looks and feels. Changes apply across the entire app instantly.</Text>
+
+            {/* Accent Color */}
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>Accent Color</Text>
+            <Text style={[styles.sublabel, { color: colors.mutedForeground }]}>Override the theme's primary color with your own. Select "Theme" to use the default.</Text>
+            <View style={styles.accentGrid}>
+              {ACCENT_COLORS.map((ac) => {
+                const isActive = appearance.accentColor === ac.value;
+                const displayColor = ac.value ?? colors.primary;
+                return (
+                  <TouchableOpacity
+                    key={ac.label}
+                    style={[
+                      styles.accentSwatch,
+                      { backgroundColor: displayColor, borderRadius: colors.cr / 1.5 },
+                      isActive && styles.accentSwatchActive,
+                    ]}
+                    onPress={() => setAppearance({ accentColor: ac.value })}
+                  >
+                    {isActive && <Ionicons name="checkmark" size={18} color="#fff" />}
+                    {!isActive && ac.value === null && (
+                      <Text style={{ fontSize: 8, color: "#fff", fontFamily: "Inter_600SemiBold", textAlign: "center", lineHeight: 10 }}>AUTO</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={{ height: 24 }} />
+
+            {/* Font Size */}
+            <SegmentControl
+              label="Font Size"
+              options={[
+                { label: "Small", value: "small" },
+                { label: "Medium", value: "medium" },
+                { label: "Large", value: "large" },
+              ]}
+              value={appearance.fontSize}
+              onChange={(v) => setAppearance({ fontSize: v as any })}
+            />
+
+            {/* Font Size Preview */}
+            <View style={[styles.previewCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.cr }]}>
+              <Text style={{ fontSize: Math.round(11 * colors.fs), color: colors.mutedForeground, fontFamily: "Inter_500Medium", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 4 }}>PREVIEW LABEL</Text>
+              <Text style={{ fontSize: Math.round(22 * colors.fs), color: colors.foreground, fontFamily: "Inter_700Bold", marginBottom: 2 }}>R 12,450</Text>
+              <Text style={{ fontSize: Math.round(13 * colors.fs), color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>This is how body text looks at this size.</Text>
+            </View>
+
+            <View style={{ height: 16 }} />
+
+            {/* Card Density */}
+            <SegmentControl
+              label="Card Density"
+              options={[
+                { label: "Compact", value: "compact" },
+                { label: "Normal", value: "normal" },
+                { label: "Spacious", value: "spacious" },
+              ]}
+              value={appearance.density}
+              onChange={(v) => setAppearance({ density: v as any })}
+            />
+
+            {/* Density Preview */}
+            <View style={[styles.previewCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.cr, padding: Math.round(16 * colors.sp) }]}>
+              <Text style={{ fontSize: Math.round(13 * colors.fs), color: colors.foreground, fontFamily: "Inter_600SemiBold", marginBottom: Math.round(4 * colors.sp) }}>Card Density Preview</Text>
+              <Text style={{ fontSize: Math.round(12 * colors.fs), color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>This is how card padding feels at this density setting.</Text>
+            </View>
+
+            <View style={{ height: 16 }} />
+
+            {/* Corner Radius */}
+            <SegmentControl
+              label="Corner Radius"
+              options={[
+                { label: "Sharp", value: "sharp" },
+                { label: "Rounded", value: "rounded" },
+                { label: "Pill", value: "pill" },
+              ]}
+              value={appearance.cornerRadius}
+              onChange={(v) => setAppearance({ cornerRadius: v as any })}
+            />
+
+            {/* Radius Preview */}
+            <View style={styles.radiusPreviewRow}>
+              {[5, 14, 28].map((r, i) => (
+                <View
+                  key={r}
+                  style={[
+                    styles.radiusPreviewBox,
+                    {
+                      borderRadius: r,
+                      backgroundColor: colors.primary + (colors.cr === r ? "ff" : "33"),
+                      borderColor: colors.primary,
+                      borderWidth: colors.cr === r ? 2 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: colors.cr === r ? "#fff" : colors.primary, fontSize: 11, fontFamily: "Inter_600SemiBold" }}>
+                    {["Sharp", "Rounded", "Pill"][i]}
+                  </Text>
+                </View>
+              ))}
             </View>
           </>
         )}
@@ -228,9 +394,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
   sectionBar: { borderBottomWidth: 1, flexDirection: "row" },
   sectionTab: { flex: 1, paddingVertical: 12, alignItems: "center", justifyContent: "center" },
-  sectionTabLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  sectionTabLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", marginBottom: 16 },
   hint: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 16, lineHeight: 18 },
+  sublabel: { fontSize: 12, fontFamily: "Inter_400Regular", marginBottom: 12, lineHeight: 17 },
   label: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 8, letterSpacing: 0.3 },
   currencyRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
   currencyChip: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
@@ -250,4 +417,13 @@ const styles = StyleSheet.create({
   themeCheck: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   dangerBtn: { flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "center", borderWidth: 1, borderRadius: 12, paddingVertical: 14, marginTop: 24 },
   dangerBtnText: { color: "#ef4444", fontSize: 15, fontFamily: "Inter_500Medium" },
+  accentGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  accentSwatch: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  accentSwatchActive: { transform: [{ scale: 1.15 }], shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  segmentRow: { flexDirection: "row", padding: 3, gap: 3 },
+  segmentBtn: { flex: 1, paddingVertical: 9, alignItems: "center" },
+  segmentLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  previewCard: { borderWidth: 1, padding: 16 },
+  radiusPreviewRow: { flexDirection: "row", gap: 12 },
+  radiusPreviewBox: { flex: 1, height: 48, alignItems: "center", justifyContent: "center", borderWidth: 1 },
 });
