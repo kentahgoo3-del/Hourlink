@@ -6,10 +6,10 @@ import {
 } from "@expo-google-fonts/inter";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useFonts } from "expo-font";
+import * as Font from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -35,23 +35,38 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    ...Ionicons.font,
-    ...Feather.font,
-  });
+  const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) SplashScreen.hideAsync();
-  }, [fontsLoaded, fontError]);
+    async function prepare() {
+      try {
+        await Font.loadAsync({
+          Inter_400Regular,
+          Inter_500Medium,
+          Inter_600SemiBold,
+          Inter_700Bold,
+          ...Ionicons.font,
+          ...Feather.font,
+        });
+      } catch (e) {
+        // fonts failed — still show the app
+      } finally {
+        setAppReady(true);
+      }
+    }
+    prepare();
+  }, []);
 
-  if (!fontsLoaded && !fontError) return null;
+  const onLayoutRootView = useCallback(async () => {
+    if (appReady) {
+      await SplashScreen.hideAsync();
+    }
+  }, [appReady]);
+
+  if (!appReady) return null;
 
   return (
-    <SafeAreaProvider style={{ flex: 1 }}>
+    <SafeAreaProvider style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
