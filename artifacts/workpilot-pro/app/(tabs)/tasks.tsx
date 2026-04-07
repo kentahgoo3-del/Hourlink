@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -24,12 +25,15 @@ import type { Task } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
 type FilterType = "all" | "todo" | "in_progress" | "done";
+type ViewMode = "list" | "calendar";
 
 const PRIORITY_CONFIG = {
   low: { label: "Low", color: "#10b981" },
   medium: { label: "Medium", color: "#f59e0b" },
   high: { label: "High", color: "#ef4444" },
 };
+
+const DAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -64,28 +68,36 @@ function getGroupKey(task: Task): string {
 
 const GROUP_ORDER = ["overdue", "today", "tomorrow", "this_week", "later", "no_date"];
 const GROUP_LABELS: Record<string, string> = {
-  overdue: "Overdue",
-  today: "Today",
-  tomorrow: "Tomorrow",
-  this_week: "This Week",
-  later: "Later",
-  no_date: "No Date",
+  overdue: "Overdue", today: "Today", tomorrow: "Tomorrow",
+  this_week: "This Week", later: "Later", no_date: "No Date",
 };
 const GROUP_COLORS: Record<string, string> = {
-  overdue: "#ef4444",
-  today: "#3b82f6",
-  tomorrow: "#8b5cf6",
-  this_week: "#f59e0b",
-  later: "#64748b",
-  no_date: "#94a3b8",
+  overdue: "#ef4444", today: "#3b82f6", tomorrow: "#8b5cf6",
+  this_week: "#f59e0b", later: "#64748b", no_date: "#94a3b8",
 };
 
-function TaskCard({ task, onComplete, onDelete, onEdit, onStartTimer }: {
-  task: Task;
-  onComplete: () => void;
-  onDelete: () => void;
-  onEdit: () => void;
-  onStartTimer: () => void;
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+}
+
+function getWeekDates(weekOffset: number): Date[] {
+  const today = new Date();
+  const day = today.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + diff + weekOffset * 7);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+}
+
+function TaskCard({ task, onComplete, onDelete, onEdit, onStartTimer, showDate = true }: {
+  task: Task; onComplete: () => void; onDelete: () => void;
+  onEdit: () => void; onStartTimer: () => void; showDate?: boolean;
 }) {
   const colors = useColors();
   const { clients } = useApp();
@@ -115,13 +127,12 @@ function TaskCard({ task, onComplete, onDelete, onEdit, onStartTimer }: {
         style={[
           styles.taskCard,
           { backgroundColor: colors.card, borderColor: colors.border },
-          done && { opacity: 0.55 },
+          done && { opacity: 0.5 },
           overdue && { borderLeftWidth: 3, borderLeftColor: "#ef4444" },
         ]}
         onPress={onEdit}
         testID={`task-card-${task.id}`}
       >
-        {/* Top row */}
         <View style={styles.taskTop}>
           <TouchableOpacity
             style={[styles.checkbox, { borderColor: done ? "#10b981" : pCfg.color, backgroundColor: done ? "#10b981" : "transparent" }]}
@@ -145,19 +156,15 @@ function TaskCard({ task, onComplete, onDelete, onEdit, onStartTimer }: {
             </TouchableOpacity>
           )}
         </View>
-
-        {/* Bottom row */}
         <View style={styles.taskMeta}>
           <View style={[styles.priorityBadge, { backgroundColor: pCfg.color + "20" }]}>
             <View style={[styles.priorityDot, { backgroundColor: pCfg.color }]} />
             <Text style={[styles.priorityLabel, { color: pCfg.color }]}>{pCfg.label}</Text>
           </View>
-          {task.dueDate && (
+          {showDate && task.dueDate && (
             <View style={[styles.dueBadge, { backgroundColor: overdue ? "#ef444418" : colors.muted }]}>
               <Ionicons name="calendar-outline" size={11} color={overdue ? "#ef4444" : colors.mutedForeground} />
-              <Text style={[styles.dueLabel, { color: overdue ? "#ef4444" : colors.mutedForeground }]}>
-                {formatDate(task.dueDate)}
-              </Text>
+              <Text style={[styles.dueLabel, { color: overdue ? "#ef4444" : colors.mutedForeground }]}>{formatDate(task.dueDate)}</Text>
             </View>
           )}
           {task.estimatedHours ? (
@@ -167,12 +174,6 @@ function TaskCard({ task, onComplete, onDelete, onEdit, onStartTimer }: {
             </View>
           ) : null}
           {client && <ClientBadge name={client.name} color={client.color} size="sm" />}
-          {task.hourlyRate != null && (
-            <View style={[styles.dueBadge, { backgroundColor: "#10b98118" }]}>
-              <Ionicons name="cash-outline" size={11} color="#10b981" />
-              <Text style={[styles.dueLabel, { color: "#10b981" }]}>{`R${task.hourlyRate}/h`}</Text>
-            </View>
-          )}
           {task.status === "in_progress" && (
             <View style={[styles.dueBadge, { backgroundColor: "#3b82f618" }]}>
               <Text style={[styles.dueLabel, { color: "#3b82f6" }]}>In Progress</Text>
@@ -189,9 +190,12 @@ export default function TasksScreen() {
   const insets = useSafeAreaInsets();
   const { clients, tasks, addTask, updateTask, deleteTask, completeTask, startTimer, activeTimer, settings } = useApp();
 
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [filter, setFilter] = useState<FilterType>("all");
   const [showAdd, setShowAdd] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [weekOffset, setWeekOffset] = useState(0);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -210,15 +214,16 @@ export default function TasksScreen() {
     setEditingTask(null);
   };
 
-  const openAdd = () => { resetForm(); setShowAdd(true); };
+  const openAdd = (prefillDate?: string) => {
+    resetForm();
+    if (prefillDate) setDueDate(prefillDate);
+    setShowAdd(true);
+  };
 
   const openEdit = (task: Task) => {
     setEditingTask(task);
-    setTitle(task.title);
-    setDesc(task.description);
-    setPriority(task.priority);
-    setStatus(task.status);
-    setClientId(task.clientId);
+    setTitle(task.title); setDesc(task.description); setPriority(task.priority);
+    setStatus(task.status); setClientId(task.clientId);
     setDueDate(task.dueDate ?? null);
     setEstHours(task.estimatedHours?.toString() || "");
     setHourlyRate(task.hourlyRate?.toString() || "");
@@ -244,14 +249,7 @@ export default function TasksScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const client = clients.find((c) => c.id === task.clientId);
     const rate = task.hourlyRate ?? client?.hourlyRate ?? settings.defaultHourlyRate;
-    startTimer({
-      clientId: task.clientId,
-      projectId: "",
-      taskId: task.id,
-      description: task.title,
-      hourlyRate: rate,
-      billable: true,
-    });
+    startTimer({ clientId: task.clientId, projectId: "", taskId: task.id, description: task.title, hourlyRate: rate, billable: true });
     updateTask(task.id, { status: "in_progress" });
     router.push("/work");
   };
@@ -262,10 +260,7 @@ export default function TasksScreen() {
   };
 
   const filtered = useMemo(() =>
-    tasks.filter((t) => {
-      if (filter === "all") return true;
-      return t.status === filter;
-    }), [tasks, filter]);
+    tasks.filter((t) => filter === "all" ? true : t.status === filter), [tasks, filter]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -280,8 +275,17 @@ export default function TasksScreen() {
   const pendingCount = useMemo(() => tasks.filter((t) => t.status !== "done").length, [tasks]);
   const overdueCount = useMemo(() => tasks.filter(isOverdue).length, [tasks]);
 
+  const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
+
+  const tasksForDate = useMemo(() =>
+    tasks.filter((t) => t.dueDate && isSameDay(new Date(t.dueDate), selectedDate)),
+    [tasks, selectedDate]);
+
+  const todayDate = new Date();
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const botPadding = Platform.OS === "web" ? 34 : insets.bottom;
+
+  const monthLabel = weekDates[0].toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -295,63 +299,202 @@ export default function TasksScreen() {
             </Text>
           )}
         </View>
-        <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={openAdd} testID="add-task-btn">
-          <Ionicons name="add" size={22} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: viewMode === "calendar" ? colors.primary : colors.muted }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setViewMode(v => v === "list" ? "calendar" : "list"); }}
+          >
+            <Ionicons name={viewMode === "calendar" ? "list-outline" : "calendar-outline"} size={18} color={viewMode === "calendar" ? "#fff" : colors.foreground} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.addBtn, { backgroundColor: colors.primary }]}
+            onPress={() => openAdd(viewMode === "calendar" ? selectedDate.toISOString() : undefined)}
+            testID="add-task-btn"
+          >
+            <Ionicons name="add" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Filter tabs */}
-      <View style={[styles.filterRow, { borderBottomColor: colors.border }]}>
-        {(["all", "todo", "in_progress", "done"] as FilterType[]).map((f) => {
-          const labels: Record<FilterType, string> = { all: "All", todo: "To Do", in_progress: "In Progress", done: "Done" };
-          const count = f === "all" ? tasks.length : tasks.filter((t) => t.status === f).length;
-          return (
-            <TouchableOpacity key={f} style={[styles.filterTab, filter === f && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]} onPress={() => setFilter(f)}>
-              <Text style={[styles.filterLabel, { color: filter === f ? colors.primary : colors.mutedForeground }]}>{labels[f]}</Text>
-              {count > 0 && (
-                <View style={[styles.filterCount, { backgroundColor: filter === f ? colors.primary : colors.muted }]}>
-                  <Text style={[styles.filterCountText, { color: filter === f ? "#fff" : colors.mutedForeground }]}>{count}</Text>
+      {viewMode === "list" ? (
+        <>
+          {/* Filter tabs */}
+          <View style={[styles.filterRow, { borderBottomColor: colors.border }]}>
+            {(["all", "todo", "in_progress", "done"] as FilterType[]).map((f) => {
+              const labels: Record<FilterType, string> = { all: "All", todo: "To Do", in_progress: "In Progress", done: "Done" };
+              const count = f === "all" ? tasks.length : tasks.filter((t) => t.status === f).length;
+              return (
+                <TouchableOpacity key={f} style={[styles.filterTab, filter === f && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]} onPress={() => setFilter(f)}>
+                  <Text style={[styles.filterLabel, { color: filter === f ? colors.primary : colors.mutedForeground }]}>{labels[f]}</Text>
+                  {count > 0 && (
+                    <View style={[styles.filterCount, { backgroundColor: filter === f ? colors.primary : colors.muted }]}>
+                      <Text style={[styles.filterCountText, { color: filter === f ? "#fff" : colors.mutedForeground }]}>{count}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Task list */}
+          {filtered.length === 0 ? (
+            <EmptyState
+              icon="checkmark-circle-outline"
+              title={filter === "done" ? "No completed tasks" : "No tasks yet"}
+              description={filter === "all" ? "Add tasks to track your work and set deadlines." : `No ${filter.replace("_", " ")} tasks.`}
+              actionLabel={filter !== "done" ? "Add Task" : undefined}
+              onAction={filter !== "done" ? () => openAdd() : undefined}
+            />
+          ) : (
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: botPadding + 100 }} showsVerticalScrollIndicator={false}>
+              {grouped.map(({ key, label, color, tasks: groupTasks }) => (
+                <View key={key} style={styles.group}>
+                  <View style={styles.groupHeader}>
+                    <View style={[styles.groupDot, { backgroundColor: color }]} />
+                    <Text style={[styles.groupLabel, { color: colors.mutedForeground }]}>{label}</Text>
+                    <Text style={[styles.groupCount, { color: colors.mutedForeground }]}>{groupTasks.length}</Text>
+                  </View>
+                  {groupTasks.map((task) => (
+                    <TaskCard key={task.id} task={task}
+                      onComplete={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); completeTask(task.id); }}
+                      onDelete={() => handleDelete(task.id)}
+                      onEdit={() => openEdit(task)}
+                      onStartTimer={() => handleStartTimer(task)}
+                    />
+                  ))}
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </>
+      ) : (
+        /* ── CALENDAR VIEW ── */
+        <View style={{ flex: 1 }}>
+          {/* Week strip */}
+          <View style={[styles.weekStrip, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+            {/* Month + nav */}
+            <View style={styles.weekNav}>
+              <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setWeekOffset(w => w - 1); }}>
+                <Ionicons name="chevron-back" size={20} color={colors.foreground} />
+              </TouchableOpacity>
+              <Text style={[styles.monthLabel, { color: colors.foreground }]}>{monthLabel}</Text>
+              <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setWeekOffset(w => w + 1); }}>
+                <Ionicons name="chevron-forward" size={20} color={colors.foreground} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Day cells */}
+            <View style={styles.dayRow}>
+              {weekDates.map((date, i) => {
+                const isToday = isSameDay(date, todayDate);
+                const isSelected = isSameDay(date, selectedDate);
+                const dayTasks = tasks.filter(t => t.dueDate && isSameDay(new Date(t.dueDate), date));
+                const doneTasks = dayTasks.filter(t => t.status === "done");
+                const pendTasks = dayTasks.filter(t => t.status !== "done");
+                const overdueTasks = dayTasks.filter(isOverdue);
+
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.dayCell}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedDate(date); }}
+                  >
+                    <Text style={[styles.dayLetter, { color: isToday ? colors.primary : colors.mutedForeground }]}>
+                      {DAY_LETTERS[i]}
+                    </Text>
+                    <View style={[
+                      styles.dayNumWrap,
+                      isSelected && { backgroundColor: colors.primary },
+                      isToday && !isSelected && { backgroundColor: colors.primary + "20" },
+                    ]}>
+                      <Text style={[
+                        styles.dayNum,
+                        { color: isSelected ? "#fff" : isToday ? colors.primary : colors.foreground },
+                      ]}>
+                        {date.getDate()}
+                      </Text>
+                    </View>
+                    {/* Task dots */}
+                    <View style={styles.dotRow}>
+                      {overdueTasks.length > 0 && <View style={[styles.taskDot, { backgroundColor: "#ef4444" }]} />}
+                      {pendTasks.length > 0 && <View style={[styles.taskDot, { backgroundColor: colors.primary }]} />}
+                      {doneTasks.length > 0 && <View style={[styles.taskDot, { backgroundColor: "#10b981" }]} />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Selected day header */}
+          <View style={[styles.calDayHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.calDayTitle, { color: colors.foreground }]}>
+              {isSameDay(selectedDate, todayDate) ? "Today" :
+                isSameDay(selectedDate, new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() + 1)) ? "Tomorrow" :
+                selectedDate.toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long" })}
+            </Text>
+            <Text style={[styles.calDayCount, { color: colors.mutedForeground }]}>
+              {tasksForDate.length} {tasksForDate.length === 1 ? "task" : "tasks"}
+            </Text>
+          </View>
+
+          {/* Tasks for selected day */}
+          {tasksForDate.length === 0 ? (
+            <View style={styles.calEmpty}>
+              <View style={[styles.calEmptyIcon, { backgroundColor: colors.muted }]}>
+                <Ionicons name="calendar-outline" size={28} color={colors.mutedForeground} />
+              </View>
+              <Text style={[styles.calEmptyTitle, { color: colors.foreground }]}>Nothing scheduled</Text>
+              <Text style={[styles.calEmptyDesc, { color: colors.mutedForeground }]}>
+                Tap + to add a task for this day
+              </Text>
+              <TouchableOpacity
+                style={[styles.calAddBtn, { backgroundColor: colors.primary }]}
+                onPress={() => openAdd(selectedDate.toISOString())}
+              >
+                <Ionicons name="add" size={16} color="#fff" />
+                <Text style={styles.calAddBtnText}>Add task</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: botPadding + 100 }} showsVerticalScrollIndicator={false}>
+              {/* Pending */}
+              {tasksForDate.filter(t => t.status !== "done").length > 0 && (
+                <View style={styles.calSection}>
+                  <Text style={[styles.calSectionLabel, { color: colors.mutedForeground }]}>TO DO</Text>
+                  {tasksForDate.filter(t => t.status !== "done").map((task) => (
+                    <TaskCard key={task.id} task={task} showDate={false}
+                      onComplete={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); completeTask(task.id); }}
+                      onDelete={() => handleDelete(task.id)}
+                      onEdit={() => openEdit(task)}
+                      onStartTimer={() => handleStartTimer(task)}
+                    />
+                  ))}
                 </View>
               )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Task list */}
-      {filtered.length === 0 ? (
-        <EmptyState
-          icon="checkmark-circle-outline"
-          title={filter === "done" ? "No completed tasks" : "No tasks yet"}
-          description={filter === "all" ? "Add tasks to track your work and set deadlines." : `No ${filter.replace("_", " ")} tasks.`}
-          actionLabel={filter !== "done" ? "Add Task" : undefined}
-          onAction={filter !== "done" ? openAdd : undefined}
-        />
-      ) : (
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: botPadding + 100 }} showsVerticalScrollIndicator={false}>
-          {grouped.map(({ key, label, color, tasks: groupTasks }) => (
-            <View key={key} style={styles.group}>
-              <View style={styles.groupHeader}>
-                <View style={[styles.groupDot, { backgroundColor: color }]} />
-                <Text style={[styles.groupLabel, { color: colors.mutedForeground }]}>{label}</Text>
-                <Text style={[styles.groupCount, { color: colors.mutedForeground }]}>{groupTasks.length}</Text>
-              </View>
-              {groupTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onComplete={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    completeTask(task.id);
-                  }}
-                  onDelete={() => handleDelete(task.id)}
-                  onEdit={() => openEdit(task)}
-                  onStartTimer={() => handleStartTimer(task)}
-                />
-              ))}
-            </View>
-          ))}
-        </ScrollView>
+              {/* Completed */}
+              {tasksForDate.filter(t => t.status === "done").length > 0 && (
+                <View style={styles.calSection}>
+                  <View style={styles.calSectionRow}>
+                    <Text style={[styles.calSectionLabel, { color: colors.mutedForeground }]}>COMPLETED</Text>
+                    <View style={[styles.calBadge, { backgroundColor: "#10b98120" }]}>
+                      <Ionicons name="checkmark-circle" size={11} color="#10b981" />
+                      <Text style={[styles.calBadgeText, { color: "#10b981" }]}>{tasksForDate.filter(t => t.status === "done").length} done</Text>
+                    </View>
+                  </View>
+                  {tasksForDate.filter(t => t.status === "done").map((task) => (
+                    <TaskCard key={task.id} task={task} showDate={false}
+                      onComplete={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); completeTask(task.id); }}
+                      onDelete={() => handleDelete(task.id)}
+                      onEdit={() => openEdit(task)}
+                      onStartTimer={() => handleStartTimer(task)}
+                    />
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          )}
+        </View>
       )}
 
       {/* Add / Edit Task Sheet */}
@@ -364,8 +507,7 @@ export default function TasksScreen() {
           {(["low", "medium", "high"] as Task["priority"][]).map((p) => {
             const cfg = PRIORITY_CONFIG[p];
             return (
-              <TouchableOpacity
-                key={p}
+              <TouchableOpacity key={p}
                 style={[styles.priorityChip, { backgroundColor: priority === p ? cfg.color : colors.muted, borderColor: priority === p ? cfg.color : "transparent", borderWidth: 1 }]}
                 onPress={() => setPriority(p)}
               >
@@ -381,8 +523,7 @@ export default function TasksScreen() {
           {(["todo", "in_progress", "done"] as Task["status"][]).map((s) => {
             const labels = { todo: "To Do", in_progress: "In Progress", done: "Done" };
             return (
-              <TouchableOpacity
-                key={s}
+              <TouchableOpacity key={s}
                 style={[styles.statusChip, { backgroundColor: status === s ? colors.primary : colors.muted }]}
                 onPress={() => setStatus(s)}
               >
@@ -392,14 +533,8 @@ export default function TasksScreen() {
           })}
         </View>
 
-        <ClientDropdown
-          clients={clients}
-          value={clientId}
-          onChange={setClientId}
-          label="Client (optional)"
-          allowNone
-          noneLabel="No client"
-        />
+        <ClientDropdown clients={clients} value={clientId} onChange={setClientId}
+          label="Client (optional)" allowNone noneLabel="No client" />
 
         <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>
           Due Date{dueDate ? ` — ${new Date(dueDate).toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}` : ""}
@@ -438,6 +573,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   screenTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
   screenSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  iconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   addBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   filterRow: { flexDirection: "row", borderBottomWidth: 1, paddingHorizontal: 20 },
   filterTab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 11 },
@@ -476,4 +613,29 @@ const styles = StyleSheet.create({
   twoCol: { flexDirection: "row", gap: 12 },
   saveBtn: { borderRadius: 14, paddingVertical: 16, alignItems: "center" },
   saveBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  // Calendar styles
+  weekStrip: { paddingVertical: 12, paddingHorizontal: 8, borderBottomWidth: 1 },
+  weekNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8, marginBottom: 12 },
+  monthLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  dayRow: { flexDirection: "row", justifyContent: "space-around" },
+  dayCell: { alignItems: "center", gap: 4, flex: 1 },
+  dayLetter: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  dayNumWrap: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  dayNum: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  dotRow: { flexDirection: "row", gap: 3, height: 6, alignItems: "center" },
+  taskDot: { width: 5, height: 5, borderRadius: 3 },
+  calDayHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
+  calDayTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  calDayCount: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  calEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 40 },
+  calEmptyIcon: { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  calEmptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  calEmptyDesc: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
+  calAddBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 20, paddingHorizontal: 20, paddingVertical: 10, marginTop: 8 },
+  calAddBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  calSection: { marginBottom: 20 },
+  calSectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  calSectionLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8 },
+  calBadge: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
+  calBadgeText: { fontSize: 11, fontFamily: "Inter_500Medium" },
 });
