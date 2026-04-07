@@ -30,42 +30,49 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
       animationType="slide"
       onRequestClose={onClose}
     >
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.kav}
-      >
-        <View style={[styles.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 16 }]}>
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
-            <TouchableOpacity onPress={onClose} testID="bottom-sheet-close">
-              <Text style={[styles.close, { color: colors.mutedForeground }]}>Done</Text>
-            </TouchableOpacity>
+      <View style={styles.root}>
+        {/* Backdrop — behind the sheet in z-order */}
+        <TouchableOpacity
+          style={StyleSheet.absoluteFillObject}
+          activeOpacity={1}
+          onPress={onClose}
+          accessible={false}
+        />
+
+        {/* Sheet — rendered after backdrop so it sits on top */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.kav}
+        >
+          <View style={[styles.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 16 }]}>
+            <View style={[styles.handle, { backgroundColor: colors.border }]} />
+            <View style={styles.header}>
+              <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
+              <TouchableOpacity onPress={onClose} testID="bottom-sheet-close">
+                <Text style={[styles.close, { color: colors.mutedForeground }]}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 16 }}
+            >
+              {children}
+            </ScrollView>
           </View>
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 16 }}
-          >
-            {children}
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
+  root: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
   },
   kav: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    width: "100%",
   },
   sheet: {
     borderTopLeftRadius: 24,
