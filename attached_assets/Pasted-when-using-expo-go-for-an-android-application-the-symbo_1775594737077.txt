@@ -1,0 +1,78 @@
+when using expo go for an android application, the symbols and icons are in japanese and not english please help
+This issue typically occurs because your application is failing to load the required icon fonts. When a font doesn't load, Android often falls back to a default system font, which can interpret icon character codes as Japanese or Chinese characters. 
+GitHub
+GitHub
+ +2
+1. Check Your Dependency Versions
+The most common cause is a version mismatch between your expo package and expo-font. 
+GitHub
+GitHub
+Fix: Run the following command to ensure all your packages are compatible with your current Expo SDK version:
+bash
+npx expo install --check
+Use code with caution.
+
+If it suggests updates, run npx expo install [package-names] as prompted.
+2. Clear the Expo Go Cache 
+Sometimes the Expo Go app itself holds onto corrupted font data. 
+Stack Overflow
+Stack Overflow
+ +1
+Fix: Long-press the Expo Go app icon on your Android device, go to App Info > Storage & cache, and select Clear Cache. Then, restart your development server with:
+bash
+npx expo start --clear
+Use code with caution.
+
+3. Ensure Icons are Preloaded 
+If you are using @expo/vector-icons, the fonts must be loaded before they can be displayed. 
+Expo Documentation
+Expo Documentation
+ +1
+Fix: Ensure you are preloading the font in your App.js or root file.
+javascript
+import * as Font from 'expo-font';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
+
+export default function App() {
+  const [fontLoaded, setFontLoaded] = useState(false);
+
+  useEffect(() => {
+    async function loadFonts() {
+      await Font.loadAsync(Ionicons.font);
+      setFontLoaded(true);
+    }
+    loadFonts();
+  }, []);
+
+  if (!fontLoaded) return null; // Or a splash screen
+  // ... your app code
+}
+Use code with caution.
+
+ 
+4. Resolve Duplicate Packages
+Multiple versions of expo-font in your node_modules can cause conflicts. 
+GitHub
+GitHub
+ +1
+Fix: Delete your node_modules folder and your lock file (package-lock.json or yarn.lock), then reinstall everything:
+bash
+rm -rf node_modules package-lock.json
+npm install
+Use code with caution.
+
+ 
+5. Verify Entry Point
+Using AppRegistry instead of Expo's registerRootComponent can lead to assets not bundling correctly. 
+GitHub
+GitHub
+Fix: Ensure your entry point (usually index.js or App.js) uses:
+javascript
+import { registerRootComponent } from 'expo';
+import App from './App';
+registerRootComponent(App);
+Use code with caution.
+
+ 
+Are you seeing these Japanese characters in standard text (like labels) or only where icons (like a home or settings button) should be?
