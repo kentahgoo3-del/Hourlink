@@ -32,7 +32,7 @@ type Page = {
 
 const PAGES: Page[] = [
   {
-    heroImage: require("../assets/images/hourlink_hero.png"),
+    heroImage: require("../assets/images/hourlink_hero_compressed.jpg"),
     bgTop: "#0a1628",
     bgBottom: "#0d2137",
     iconName: "briefcase",
