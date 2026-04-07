@@ -42,12 +42,21 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - Financial dashboard with KPI cards
   - Reports with period filtering (week/month/quarter/year)
   - Settings with currency and billing defaults
+  - Guided tour (10-step tooltip walkthrough for first-time users, auto-triggers after onboarding)
+  - About HourLink screen (app info, features, version, contact)
+  - Privacy Policy screen (comprehensive, all-local-data focused)
 - **Storage**: AsyncStorage (all data persisted locally)
+- **Icons**: All icons use `AppIcon` component (`components/AppIcon.tsx`) wrapping `lucide-react-native` SVG icons. Never use Ionicons/vector-icons.
 - **Key files**:
   - `context/AppContext.tsx` — global state, all data operations
-  - `app/(tabs)/` — 5 main tabs: Home, Work, Clients, Finance, Reports
+  - `context/WelcomeContext.tsx` — onboarding overlay + guided tour state
+  - `components/GuidedTour.tsx` — 10-step tooltip walkthrough
+  - `components/AppIcon.tsx` — SVG icon mapping (Ionicons names → Lucide components)
+  - `app/(tabs)/` — 6 main tabs: Home, Work, Tasks, Clients, Finance, Reports
   - `app/client/[id].tsx` — client detail with invoices/quotes
   - `app/invoice/[id].tsx` — invoice detail with status workflow
   - `app/quote/[id].tsx` — quote detail with status workflow
-  - `app/settings.tsx` — user settings
+  - `app/settings.tsx` — user settings with Help & Info section
+  - `app/about.tsx` — About HourLink screen
+  - `app/privacy.tsx` — Privacy Policy screen
   - `constants/colors.ts` — design tokens (blue/slate theme)

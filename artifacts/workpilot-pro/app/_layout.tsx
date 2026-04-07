@@ -29,6 +29,8 @@ function RootLayoutNav() {
       <Stack.Screen name="client/[id]" />
       <Stack.Screen name="invoice/[id]" />
       <Stack.Screen name="quote/[id]" />
+      <Stack.Screen name="about" />
+      <Stack.Screen name="privacy" />
     </Stack>
   );
 }

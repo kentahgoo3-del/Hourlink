@@ -48,7 +48,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { settings, companyProfile, updateSettings, updateCompanyProfile } = useApp();
   const { themeName, setTheme, appearance, setAppearance } = useTheme();
-  const { triggerWelcome } = useWelcome();
+  const { triggerWelcome, triggerTour } = useWelcome();
   const [section, setSection] = useState<Section>("profile");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -163,22 +163,63 @@ export default function SettingsScreen() {
             <FormField label="Monthly Income Goal" prefix={settings.currency} placeholder="50000" value={settings.profitGoal.toString()} onChangeText={(v) => updateSettings({ profitGoal: parseFloat(v) || 0 })} keyboardType="decimal-pad" />
             <FormField label="Unbilled Alert (days)" placeholder="7" value={settings.billingReminderDays.toString()} onChangeText={(v) => updateSettings({ billingReminderDays: parseInt(v) || 7 })} keyboardType="number-pad" />
 
-            <View style={[styles.getStartedCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.cr }]}>
-              <View style={styles.getStartedIcon}>
-                <AppIcon name="rocket-outline" size={22} color={colors.primary} />
+            <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 28 }]}>Help & Info</Text>
+
+            <TouchableOpacity
+              style={[styles.linkRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.cr }]}
+              onPress={triggerWelcome}
+            >
+              <View style={[styles.linkIcon, { backgroundColor: "#2dd4bf18" }]}>
+                <AppIcon name="rocket-outline" size={20} color="#2dd4bf" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.getStartedTitle, { color: colors.foreground }]}>App Tour</Text>
-                <Text style={[styles.getStartedHint, { color: colors.mutedForeground }]}>Replay the onboarding walkthrough anytime</Text>
+                <Text style={[styles.linkTitle, { color: colors.foreground }]}>Onboarding Walkthrough</Text>
+                <Text style={[styles.linkHint, { color: colors.mutedForeground }]}>Replay the welcome slides</Text>
               </View>
-              <TouchableOpacity
-                style={[styles.getStartedBtn, { backgroundColor: colors.primary, borderRadius: colors.cr }]}
-                onPress={triggerWelcome}
-                testID="settings-get-started"
-              >
-                <Text style={styles.getStartedBtnText}>View</Text>
-              </TouchableOpacity>
-            </View>
+              <AppIcon name="chevron-forward" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.linkRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.cr }]}
+              onPress={triggerTour}
+            >
+              <View style={[styles.linkIcon, { backgroundColor: "#6366f118" }]}>
+                <AppIcon name="compass-outline" size={20} color="#6366f1" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.linkTitle, { color: colors.foreground }]}>Guided Tour</Text>
+                <Text style={[styles.linkHint, { color: colors.mutedForeground }]}>Step-by-step feature walkthrough</Text>
+              </View>
+              <AppIcon name="chevron-forward" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.linkRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.cr }]}
+              onPress={() => router.push("/about")}
+            >
+              <View style={[styles.linkIcon, { backgroundColor: "#3b82f618" }]}>
+                <AppIcon name="information-circle-outline" size={20} color="#3b82f6" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.linkTitle, { color: colors.foreground }]}>About HourLink</Text>
+                <Text style={[styles.linkHint, { color: colors.mutedForeground }]}>App info, features, and version</Text>
+              </View>
+              <AppIcon name="chevron-forward" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.linkRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.cr }]}
+              onPress={() => router.push("/privacy")}
+            >
+              <View style={[styles.linkIcon, { backgroundColor: "#22c55e18" }]}>
+                <AppIcon name="shield-outline" size={20} color="#22c55e" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.linkTitle, { color: colors.foreground }]}>Privacy Policy</Text>
+                <Text style={[styles.linkHint, { color: colors.mutedForeground }]}>How your data is handled</Text>
+              </View>
+              <AppIcon name="chevron-forward" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
           </>
         )}
 
@@ -445,10 +486,8 @@ const styles = StyleSheet.create({
   previewCard: { borderWidth: 1, padding: 16 },
   radiusPreviewRow: { flexDirection: "row", gap: 12 },
   radiusPreviewBox: { flex: 1, height: 48, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  getStartedCard: { flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 1, padding: 16, marginTop: 24 },
-  getStartedIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: "rgba(0,0,0,0.06)", alignItems: "center", justifyContent: "center" },
-  getStartedTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
-  getStartedHint: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  getStartedBtn: { paddingHorizontal: 16, paddingVertical: 9 },
-  getStartedBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  linkRow: { flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 1, padding: 14, marginBottom: 8 },
+  linkIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  linkTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+  linkHint: { fontSize: 12, fontFamily: "Inter_400Regular" },
 });
