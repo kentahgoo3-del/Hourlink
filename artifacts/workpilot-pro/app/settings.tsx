@@ -17,6 +17,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FormField } from "@/components/FormField";
 import { useApp } from "@/context/AppContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useWelcome } from "@/context/WelcomeContext";
 import { useColors } from "@/hooks/useColors";
 import { THEMES, type ThemeName } from "@/constants/themes";
 
@@ -47,6 +48,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { settings, companyProfile, updateSettings, updateCompanyProfile } = useApp();
   const { themeName, setTheme, appearance, setAppearance } = useTheme();
+  const { triggerWelcome } = useWelcome();
   const [section, setSection] = useState<Section>("profile");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -160,6 +162,23 @@ export default function SettingsScreen() {
             <FormField label="Default Tax %" placeholder="15" value={settings.defaultTaxPercent.toString()} onChangeText={(v) => updateSettings({ defaultTaxPercent: parseFloat(v) || 0 })} keyboardType="decimal-pad" />
             <FormField label="Monthly Income Goal" prefix={settings.currency} placeholder="50000" value={settings.profitGoal.toString()} onChangeText={(v) => updateSettings({ profitGoal: parseFloat(v) || 0 })} keyboardType="decimal-pad" />
             <FormField label="Unbilled Alert (days)" placeholder="7" value={settings.billingReminderDays.toString()} onChangeText={(v) => updateSettings({ billingReminderDays: parseInt(v) || 7 })} keyboardType="number-pad" />
+
+            <View style={[styles.getStartedCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.cr }]}>
+              <View style={styles.getStartedIcon}>
+                <Ionicons name="rocket-outline" size={22} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.getStartedTitle, { color: colors.foreground }]}>App Tour</Text>
+                <Text style={[styles.getStartedHint, { color: colors.mutedForeground }]}>Replay the onboarding walkthrough anytime</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.getStartedBtn, { backgroundColor: colors.primary, borderRadius: colors.cr }]}
+                onPress={triggerWelcome}
+                testID="settings-get-started"
+              >
+                <Text style={styles.getStartedBtnText}>View</Text>
+              </TouchableOpacity>
+            </View>
           </>
         )}
 
@@ -426,4 +445,10 @@ const styles = StyleSheet.create({
   previewCard: { borderWidth: 1, padding: 16 },
   radiusPreviewRow: { flexDirection: "row", gap: 12 },
   radiusPreviewBox: { flex: 1, height: 48, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  getStartedCard: { flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 1, padding: 16, marginTop: 24 },
+  getStartedIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: "rgba(0,0,0,0.06)", alignItems: "center", justifyContent: "center" },
+  getStartedTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+  getStartedHint: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  getStartedBtn: { paddingHorizontal: 16, paddingVertical: 9 },
+  getStartedBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });
