@@ -539,6 +539,28 @@ export default function WorkScreen() {
             )}
 
             <TouchableOpacity
+              style={[styles.sheetBtn, { backgroundColor: colors.muted }]}
+              onPress={() => {
+                if (activeTimer) {
+                  stopTimer();
+                }
+                startTimer({
+                  clientId: selectedEntry.clientId,
+                  taskId: selectedEntry.taskId ?? null,
+                  description: selectedEntry.description,
+                  hourlyRate: selectedEntry.hourlyRate,
+                  billable: selectedEntry.billable,
+                });
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setShowEntrySheet(false);
+                setSelectedEntry(null);
+              }}
+            >
+              <AppIcon name="play" size={18} color={colors.primary} />
+              <Text style={[styles.sheetBtnText, { color: colors.primary }]}>Restart Timer</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={[styles.sheetBtnDanger, { borderColor: "#ef444440" }]}
               onPress={() => { setShowEntrySheet(false); setPendingDeleteEntryId(selectedEntry.id); }}
             >
