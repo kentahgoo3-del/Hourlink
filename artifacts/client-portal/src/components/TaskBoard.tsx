@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { getTasks, addTask, type SharedTask, type WorkspaceInfo } from "../lib/api";
+import { getTasks, addTask, getTaskNotes, addTaskNote, type SharedTask, type WorkspaceInfo, type TaskNote } from "../lib/api";
 
 interface Props {
   workspace: WorkspaceInfo;
@@ -51,6 +51,34 @@ export function TaskBoard({ workspace, portalCode, user, onLogout }: Props) {
   const [dueDate, setDueDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState<"all" | "pending" | "in_progress" | "done">("all");
+  const [expandedComments, setExpandedComments] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, TaskNote[]>>({});
+  const [noteText, setNoteText] = useState<Record<string, string>>({});
+  const [noteSending, setNoteSending] = useState(false);
+
+  const loadNotes = async (taskId: string) => {
+    const n = await getTaskNotes(portalCode, taskId);
+    setNotes((prev) => ({ ...prev, [taskId]: n }));
+  };
+
+  const handleSendNote = async (taskId: string) => {
+    const text = noteText[taskId]?.trim();
+    if (!text) return;
+    setNoteSending(true);
+    await addTaskNote(portalCode, taskId, user.name, user.email, text);
+    setNoteText((prev) => ({ ...prev, [taskId]: "" }));
+    await loadNotes(taskId);
+    setNoteSending(false);
+  };
+
+  const toggleComments = (taskId: string) => {
+    if (expandedComments === taskId) {
+      setExpandedComments(null);
+    } else {
+      setExpandedComments(taskId);
+      loadNotes(taskId);
+    }
+  };
 
   const loadTasks = useCallback(async () => {
     const t = await getTasks(portalCode, user.email);
@@ -309,11 +337,66 @@ export function TaskBoard({ workspace, portalCode, user, onLogout }: Props) {
                           {formatDate(task.dueDate)}
                         </span>
                       )}
+                      <button
+                        onClick={() => toggleComments(task.id)}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                        {expandedComments === task.id ? "Hide" : "Comments"}
+                        {(notes[task.id]?.length || 0) > 0 && (
+                          <span className="bg-primary/10 text-primary px-1.5 rounded-full text-[10px] font-semibold">
+                            {notes[task.id]?.length}
+                          </span>
+                        )}
+                      </button>
                       <span className="text-xs text-muted-foreground">
                         {formatDate(task.sentAt)}
                       </span>
                     </div>
                   </div>
+
+                  {expandedComments === task.id && (
+                    <div className="mt-3 pt-3 border-t border-border space-y-3">
+                      <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide">Comments</h4>
+                      {(notes[task.id] || []).length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No comments yet. Be the first to comment.</p>
+                      ) : (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {(notes[task.id] || []).map((note) => (
+                            <div key={note.id} className={`rounded-lg p-2.5 text-xs ${note.authorEmail === user.email ? "bg-primary/5" : "bg-muted"}`}>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="font-semibold text-foreground">{note.authorName}</span>
+                                <span className="text-muted-foreground text-[10px]">
+                                  {new Date(note.createdAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}{" "}
+                                  {new Date(note.createdAt).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              </div>
+                              <p className="text-foreground whitespace-pre-wrap">{note.text}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          className="flex-1 h-8 px-3 rounded-lg border border-input bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                          placeholder="Write a comment..."
+                          value={noteText[task.id] || ""}
+                          onChange={(e) => setNoteText((prev) => ({ ...prev, [task.id]: e.target.value }))}
+                          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendNote(task.id)}
+                        />
+                        <button
+                          onClick={() => handleSendNote(task.id)}
+                          disabled={!noteText[task.id]?.trim() || noteSending}
+                          className="h-8 px-3 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+                        >
+                          {noteSending ? "..." : "Send"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

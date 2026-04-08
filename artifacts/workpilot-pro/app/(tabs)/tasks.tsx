@@ -7,11 +7,13 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Platform,
   ScrollView,
   Share,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -213,6 +215,10 @@ export default function TasksScreen() {
   const [clientCredentials, setClientCredentials] = useState<{ name: string; email: string; password: string; isNew: boolean }[]>([]);
   const [credsCopied, setCredsCopied] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [taskComments, setTaskComments] = useState<{ id: string; taskId: string; authorName: string; authorEmail: string; text: string; createdAt: string }[]>([]);
+  const [commentText, setCommentText] = useState("");
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentSending, setCommentSending] = useState(false);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -540,6 +546,36 @@ export default function TasksScreen() {
     setEditingTask(null);
   };
 
+  const loadComments = useCallback(async (taskId: string) => {
+    if (!portalCode) return;
+    setCommentsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/${taskId}/notes`);
+      if (res.ok) {
+        const notes = await res.json();
+        setTaskComments(notes);
+      }
+    } catch {}
+    setCommentsLoading(false);
+  }, [portalCode]);
+
+  const postComment = useCallback(async (taskId: string) => {
+    if (!portalCode || !commentText.trim()) return;
+    setCommentSending(true);
+    try {
+      const res = await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/${taskId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ authorName: settings.name || "Freelancer", authorEmail: "", text: commentText.trim() }),
+      });
+      if (res.ok) {
+        setCommentText("");
+        loadComments(taskId);
+      }
+    } catch {}
+    setCommentSending(false);
+  }, [portalCode, commentText, settings.name, loadComments]);
+
   const openAdd = (prefillDate?: string) => {
     resetForm();
     if (prefillDate) setDueDate(prefillDate);
@@ -554,6 +590,11 @@ export default function TasksScreen() {
     setEstHours(task.estimatedHours?.toString() || "");
     setHourlyRate(task.hourlyRate?.toString() || "");
     setShowAdd(true);
+    if (task.portalTaskId && portalCode) {
+      loadComments(task.portalTaskId);
+    } else {
+      setTaskComments([]);
+    }
   };
 
   const updateTaskWithSync = useCallback((id: string, updates: Partial<Task>) => {
@@ -919,6 +960,68 @@ export default function TasksScreen() {
         <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} testID="save-task-btn">
           <Text style={styles.saveBtnText}>{editingTask ? "Save Changes" : "Add Task"}</Text>
         </TouchableOpacity>
+
+        {editingTask && portalCode && editingTask.portalTaskId && (
+          <View style={[styles.commentsSection, { borderTopColor: colors.border }]}>
+            <View style={styles.commentHeader}>
+              <AppIcon name="chatbubble-ellipses-outline" size={16} color={colors.foreground} />
+              <Text style={[styles.commentTitle, { color: colors.foreground }]}>Comments</Text>
+              <Text style={[styles.commentCount, { color: colors.mutedForeground }]}>({taskComments.length})</Text>
+            </View>
+
+            {commentsLoading ? (
+              <ActivityIndicator size="small" color={colors.primary} style={{ paddingVertical: 12 }} />
+            ) : taskComments.length === 0 ? (
+              <Text style={[styles.noComments, { color: colors.mutedForeground }]}>No comments yet. Start the conversation.</Text>
+            ) : (
+              <View style={{ gap: 8, marginBottom: 12 }}>
+                {taskComments.map((c) => (
+                  <View key={c.id} style={[styles.commentBubble, { backgroundColor: c.authorEmail === "" ? colors.primary + "12" : colors.muted }]}>
+                    <View style={styles.commentBubbleTop}>
+                      <Text style={[styles.commentAuthor, { color: colors.foreground }]}>{c.authorName}</Text>
+                      <Text style={[styles.commentTime, { color: colors.mutedForeground }]}>
+                        {new Date(c.createdAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}{" "}
+                        {new Date(c.createdAt).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+                      </Text>
+                    </View>
+                    <Text style={[styles.commentBody, { color: colors.foreground }]}>{c.text}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <View style={styles.commentInputRow}>
+              <TextInput
+                style={[styles.commentInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
+                placeholder="Write a comment..."
+                placeholderTextColor={colors.mutedForeground}
+                value={commentText}
+                onChangeText={setCommentText}
+                multiline
+              />
+              <TouchableOpacity
+                style={[styles.commentSendBtn, { backgroundColor: commentText.trim() ? colors.primary : colors.muted }]}
+                onPress={() => editingTask.portalTaskId && postComment(editingTask.portalTaskId)}
+                disabled={!commentText.trim() || commentSending}
+              >
+                {commentSending ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <AppIcon name="send" size={16} color={commentText.trim() ? "#fff" : colors.mutedForeground} />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {editingTask && !editingTask.portalTaskId && portalCode && (
+          <View style={[styles.commentsSection, { borderTopColor: colors.border }]}>
+            <View style={styles.commentHeader}>
+              <AppIcon name="chatbubble-ellipses-outline" size={16} color={colors.mutedForeground} />
+              <Text style={[styles.noComments, { color: colors.mutedForeground }]}>Comments available once task syncs to portal.</Text>
+            </View>
+          </View>
+        )}
       </BottomSheet>
 
       <BottomSheet visible={showPortal} onClose={() => setShowPortal(false)} title="Client Task Portal">
@@ -1126,4 +1229,17 @@ const styles = StyleSheet.create({
   calSectionLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8 },
   calBadge: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
   calBadgeText: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  commentsSection: { borderTopWidth: 1, marginTop: 20, paddingTop: 16 },
+  commentHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 },
+  commentTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  commentCount: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  noComments: { fontSize: 12, fontFamily: "Inter_400Regular", paddingVertical: 8 },
+  commentBubble: { borderRadius: 10, padding: 10 },
+  commentBubbleTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  commentAuthor: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  commentTime: { fontSize: 10, fontFamily: "Inter_400Regular" },
+  commentBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  commentInputRow: { flexDirection: "row", gap: 8, alignItems: "flex-end" },
+  commentInput: { flex: 1, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, fontFamily: "Inter_400Regular", maxHeight: 80, minHeight: 38 },
+  commentSendBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
 });
