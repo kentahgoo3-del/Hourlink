@@ -130,6 +130,7 @@ export type Task = {
   hourlyRate: number | null;
   createdAt: string;
   completedAt: string | null;
+  portalTaskId?: string | null;
 };
 
 export type CompanyProfile = {

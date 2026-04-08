@@ -13,6 +13,11 @@ export type SharedTask = {
   status: "pending" | "in_progress" | "done";
 };
 
+export type AllowedClient = {
+  name: string;
+  email: string;
+};
+
 export type WorkspaceMember = {
   name: string;
   email: string;
@@ -25,6 +30,7 @@ export type Workspace = {
   createdAt: string;
   members: WorkspaceMember[];
   tasks: SharedTask[];
+  allowedClients: AllowedClient[];
 };
 
 const DATA_PATH = join("/tmp", "workpilot_workspaces.json");
@@ -53,7 +59,7 @@ export const store = {
     const data = load();
     let code = genCode();
     while (data[code]) code = genCode();
-    const ws: Workspace = { code, ownerName, createdAt: new Date().toISOString(), members: [], tasks: [] };
+    const ws: Workspace = { code, ownerName, createdAt: new Date().toISOString(), members: [], tasks: [], allowedClients: [] };
     data[code] = ws;
     save(data);
     return ws;
@@ -64,10 +70,35 @@ export const store = {
     return data[code.toUpperCase()] ?? null;
   },
 
+  setAllowedClients(code: string, clients: AllowedClient[]): boolean {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return false;
+    ws.allowedClients = clients;
+    save(data);
+    return true;
+  },
+
+  isClientAllowed(code: string, name: string, email: string): boolean {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return false;
+    if (ws.allowedClients.length === 0) return true;
+    return ws.allowedClients.some(
+      (c) => c.email.toLowerCase() === email.toLowerCase()
+    );
+  },
+
   joinWorkspace(code: string, memberName: string, email?: string): Workspace | null {
     const data = load();
     const ws = data[code.toUpperCase()];
     if (!ws) return null;
+    if (email && ws.allowedClients.length > 0) {
+      const allowed = ws.allowedClients.some(
+        (c) => c.email.toLowerCase() === email.toLowerCase()
+      );
+      if (!allowed) return "not_allowed" as any;
+    }
     const existing = ws.members.find((m) => m.email === email || m.name === memberName);
     if (!existing) {
       ws.members.push({ name: memberName, email: email || "", joinedAt: new Date().toISOString() });
@@ -97,7 +128,7 @@ export const store = {
     const data = load();
     const ws = data[code.toUpperCase()];
     if (!ws) return [];
-    return ws.tasks.filter((t) => t.fromEmail === email);
+    return ws.tasks.filter((t) => t.fromEmail.toLowerCase() === email.toLowerCase());
   },
 
   getPendingTasks(code: string): SharedTask[] {

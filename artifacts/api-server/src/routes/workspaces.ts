@@ -13,6 +13,21 @@ router.post("/workspaces", (req, res) => {
   res.status(201).json({ code: ws.code, ownerName: ws.ownerName, createdAt: ws.createdAt, members: ws.members });
 });
 
+router.put("/workspaces/:code/clients", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const { clients } = req.body;
+  if (!Array.isArray(clients)) {
+    res.status(400).json({ error: "clients must be an array" });
+    return;
+  }
+  const valid = clients.filter(
+    (c: any) => c && typeof c.name === "string" && typeof c.email === "string" && c.email.includes("@")
+  );
+  const ok = store.setAllowedClients(code, valid.map((c: any) => ({ name: c.name.trim(), email: c.email.trim() })));
+  if (!ok) { res.status(404).json({ error: "Workspace not found" }); return; }
+  res.json({ ok: true, count: valid.length });
+});
+
 router.post("/workspaces/:code/join", (req, res) => {
   const code = req.params.code?.toUpperCase();
   const { memberName, email } = req.body;
@@ -20,9 +35,17 @@ router.post("/workspaces/:code/join", (req, res) => {
     res.status(400).json({ error: "memberName is required" });
     return;
   }
-  const ws = store.joinWorkspace(code, memberName.trim(), email?.trim());
-  if (!ws) { res.status(404).json({ error: "Workspace not found" }); return; }
-  res.json({ code: ws.code, ownerName: ws.ownerName, createdAt: ws.createdAt, members: ws.members });
+  if (!email || typeof email !== "string" || !email.includes("@")) {
+    res.status(400).json({ error: "A valid email is required" });
+    return;
+  }
+  const result = store.joinWorkspace(code, memberName.trim(), email.trim());
+  if (result === "not_allowed" as any) {
+    res.status(403).json({ error: "not_allowed", message: "Your email is not recognised. Please check with the freelancer that your details are correct." });
+    return;
+  }
+  if (!result) { res.status(404).json({ error: "Workspace not found" }); return; }
+  res.json({ code: result.code, ownerName: result.ownerName, createdAt: result.createdAt, members: result.members });
 });
 
 router.get("/workspaces/:code", (req, res) => {

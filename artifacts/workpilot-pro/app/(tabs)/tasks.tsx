@@ -227,6 +227,19 @@ export default function TasksScreen() {
     });
   }, []);
 
+  const syncClientsToApi = useCallback(async (code: string) => {
+    if (clients.length === 0) return;
+    try {
+      await fetch(`${API_BASE}/workspaces/${code}/clients`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clients: clients.map((c) => ({ name: c.name, email: c.email })),
+        }),
+      });
+    } catch {}
+  }, [clients]);
+
   const createOrGetPortal = useCallback(async () => {
     if (portalCode) return portalCode;
     setPortalLoading(true);
@@ -250,59 +263,67 @@ export default function TasksScreen() {
     return null;
   }, [portalCode, settings.name]);
 
-  const fetchPendingTasks = useCallback(async (code: string) => {
+  const fetchAndImportPendingTasks = useCallback(async (code: string) => {
     try {
       const res = await fetch(`${API_BASE}/workspaces/${code}/tasks/pending`);
-      if (res.ok) {
-        const data = await res.json();
-        setPendingTasks(data);
+      if (!res.ok) { setPendingTasks([]); return; }
+      const data = await res.json();
+
+      const existingPortalIds = new Set(tasks.filter((t) => t.portalTaskId).map((t) => t.portalTaskId));
+      const newTasks = data.filter((t: any) => !existingPortalIds.has(t.id));
+
+      for (const task of newTasks) {
+        const matchedClient = clients.find((c) => c.email.toLowerCase() === (task.fromEmail || "").toLowerCase());
+        try {
+          await fetch(`${API_BASE}/workspaces/${code}/tasks/${task.id}/claim`, { method: "PATCH" });
+        } catch {}
+        addTask({
+          title: task.title,
+          description: task.description || "",
+          priority: task.priority || "medium",
+          status: "todo",
+          clientId: matchedClient?.id || "",
+          dueDate: null,
+          estimatedHours: null,
+          hourlyRate: null,
+          portalTaskId: task.id,
+        });
+      }
+
+      const remainingRes = await fetch(`${API_BASE}/workspaces/${code}/tasks/pending`);
+      if (remainingRes.ok) {
+        const remaining = await remainingRes.json();
+        setPendingTasks(remaining);
       } else {
         setPendingTasks([]);
       }
     } catch {
       setPendingTasks([]);
     }
-  }, []);
-
-  const claimPortalTask = useCallback(async (taskId: string, task: any) => {
-    if (!portalCode) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      const claimRes = await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/${taskId}/claim`, { method: "PATCH" });
-      if (!claimRes.ok) {
-        Alert.alert("Error", "Could not claim this task. It may have already been claimed.");
-        return;
-      }
-      await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/${taskId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "in_progress" }),
-      });
-      addTask({
-        title: task.title,
-        description: task.description || "",
-        priority: task.priority || "medium",
-        status: "todo",
-        clientId: "",
-        dueDate: null,
-        estimatedHours: null,
-        hourlyRate: null,
-      });
-      setPendingTasks((prev) => prev.filter((t) => t.id !== taskId));
-    } catch {
-      Alert.alert("Connection Error", "Could not reach the server. Please try again.");
-    }
-  }, [portalCode, addTask]);
+  }, [tasks, clients, addTask]);
 
   const openPortalSheet = useCallback(async () => {
     const code = await createOrGetPortal();
     if (code) {
-      await fetchPendingTasks(code);
+      await syncClientsToApi(code);
+      await fetchAndImportPendingTasks(code);
       setShowPortal(true);
     } else {
       Alert.alert("Connection Error", "Could not connect to the portal server. Please try again.");
     }
-  }, [createOrGetPortal, fetchPendingTasks]);
+  }, [createOrGetPortal, syncClientsToApi, fetchAndImportPendingTasks]);
+
+  const syncTaskStatusToPortal = useCallback(async (portalTaskId: string, newStatus: "todo" | "in_progress" | "done") => {
+    if (!portalCode) return;
+    const portalStatus = newStatus === "todo" ? "pending" : newStatus;
+    try {
+      await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/${portalTaskId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: portalStatus }),
+      });
+    } catch {}
+  }, [portalCode]);
 
   const getPortalUrl = useCallback(() => {
     if (!portalCode) return "";
@@ -350,6 +371,24 @@ export default function TasksScreen() {
     setShowAdd(true);
   };
 
+  const updateTaskWithSync = useCallback((id: string, updates: Partial<Task>) => {
+    updateTask(id, updates);
+    if (updates.status) {
+      const task = tasks.find((t) => t.id === id);
+      if (task?.portalTaskId) {
+        syncTaskStatusToPortal(task.portalTaskId, updates.status as any);
+      }
+    }
+  }, [updateTask, tasks, syncTaskStatusToPortal]);
+
+  const completeTaskWithSync = useCallback((id: string) => {
+    completeTask(id);
+    const task = tasks.find((t) => t.id === id);
+    if (task?.portalTaskId) {
+      syncTaskStatusToPortal(task.portalTaskId, "done");
+    }
+  }, [completeTask, tasks, syncTaskStatusToPortal]);
+
   const handleSave = () => {
     if (!title.trim()) { Alert.alert("Title required", "Please enter a task title."); return; }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -358,7 +397,7 @@ export default function TasksScreen() {
       estimatedHours: estHours ? parseFloat(estHours) : null,
       hourlyRate: hourlyRate ? parseFloat(hourlyRate) : null,
     };
-    if (editingTask) { updateTask(editingTask.id, taskData); }
+    if (editingTask) { updateTaskWithSync(editingTask.id, taskData); }
     else { addTask(taskData); }
     setShowAdd(false);
     resetForm();
@@ -370,7 +409,7 @@ export default function TasksScreen() {
     const client = clients.find((c) => c.id === task.clientId);
     const rate = task.hourlyRate ?? client?.hourlyRate ?? settings.defaultHourlyRate;
     startTimer({ clientId: task.clientId, projectId: "", taskId: task.id, description: task.title, hourlyRate: rate, billable: true });
-    updateTask(task.id, { status: "in_progress" });
+    updateTaskWithSync(task.id, { status: "in_progress" });
     router.push("/work");
   };
 
@@ -482,7 +521,7 @@ export default function TasksScreen() {
                   </View>
                   {groupTasks.map((task) => (
                     <TaskCard key={task.id} task={task}
-                      onComplete={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); completeTask(task.id); }}
+                      onComplete={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); completeTaskWithSync(task.id); }}
                       onDelete={() => handleDelete(task.id)}
                       onEdit={() => openEdit(task)}
                       onStartTimer={() => handleStartTimer(task)}
@@ -590,7 +629,7 @@ export default function TasksScreen() {
                   <Text style={[styles.calSectionLabel, { color: colors.mutedForeground }]}>TO DO</Text>
                   {tasksForDate.filter(t => t.status !== "done").map((task) => (
                     <TaskCard key={task.id} task={task} showDate={false}
-                      onComplete={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); completeTask(task.id); }}
+                      onComplete={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); completeTaskWithSync(task.id); }}
                       onDelete={() => handleDelete(task.id)}
                       onEdit={() => openEdit(task)}
                       onStartTimer={() => handleStartTimer(task)}
@@ -610,7 +649,7 @@ export default function TasksScreen() {
                   </View>
                   {tasksForDate.filter(t => t.status === "done").map((task) => (
                     <TaskCard key={task.id} task={task} showDate={false}
-                      onComplete={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); completeTask(task.id); }}
+                      onComplete={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); completeTaskWithSync(task.id); }}
                       onDelete={() => handleDelete(task.id)}
                       onEdit={() => openEdit(task)}
                       onStartTimer={() => handleStartTimer(task)}
@@ -727,34 +766,38 @@ export default function TasksScreen() {
             </TouchableOpacity>
           )}
 
-          {pendingTasks.length > 0 && (
-            <View style={{ gap: 8, marginTop: 8 }}>
-              <View style={portalStyles.pendingHeader}>
-                <Text style={[portalStyles.pendingTitle, { color: colors.foreground }]}>Incoming Tasks</Text>
-                <View style={[portalStyles.pendingBadge, { backgroundColor: "#ef444420" }]}>
-                  <Text style={[portalStyles.pendingBadgeText, { color: "#ef4444" }]}>{pendingTasks.length} new</Text>
-                </View>
+          {portalCode && (
+            <View style={[portalStyles.infoCard, { backgroundColor: "#10b98110", borderColor: "#10b98130" }]}>
+              <AppIcon name="checkmark-circle" size={20} color="#10b981" />
+              <View style={{ flex: 1 }}>
+                <Text style={[portalStyles.infoTitle, { color: colors.foreground }]}>Auto-import enabled</Text>
+                <Text style={[portalStyles.infoDesc, { color: colors.mutedForeground }]}>
+                  Tasks submitted by your clients appear in your task list automatically. Only clients you've added to the app can access this portal.
+                </Text>
               </View>
-              {pendingTasks.map((task) => (
-                <View key={task.id} style={[portalStyles.pendingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[portalStyles.pendingTaskTitle, { color: colors.foreground }]}>{task.title}</Text>
-                    <Text style={[portalStyles.pendingTaskMeta, { color: colors.mutedForeground }]}>
-                      From {task.fromUser} · {task.priority}
-                    </Text>
-                    {task.description ? (
-                      <Text style={[portalStyles.pendingTaskDesc, { color: colors.mutedForeground }]} numberOfLines={2}>{task.description}</Text>
-                    ) : null}
+            </View>
+          )}
+
+          {portalCode && tasks.filter((t) => t.portalTaskId).length > 0 && (
+            <View style={{ gap: 6 }}>
+              <Text style={[portalStyles.pendingTitle, { color: colors.foreground }]}>
+                Portal Tasks ({tasks.filter((t) => t.portalTaskId).length})
+              </Text>
+              {tasks.filter((t) => t.portalTaskId).slice(0, 5).map((task) => {
+                const client = clients.find((c) => c.id === task.clientId);
+                const statusColors: Record<string, string> = { todo: colors.mutedForeground, in_progress: "#3b82f6", done: "#10b981" };
+                const statusLabels: Record<string, string> = { todo: "To Do", in_progress: "In Progress", done: "Done" };
+                return (
+                  <View key={task.id} style={[portalStyles.pendingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[portalStyles.pendingTaskTitle, { color: colors.foreground }]}>{task.title}</Text>
+                      <Text style={[portalStyles.pendingTaskMeta, { color: colors.mutedForeground }]}>
+                        {client ? `From ${client.name}` : "From portal"} · <Text style={{ color: statusColors[task.status] }}>{statusLabels[task.status]}</Text>
+                      </Text>
+                    </View>
                   </View>
-                  <TouchableOpacity
-                    style={[portalStyles.claimBtn, { backgroundColor: colors.primary }]}
-                    onPress={() => claimPortalTask(task.id, task)}
-                  >
-                    <AppIcon name="add" size={16} color="#fff" />
-                    <Text style={portalStyles.claimBtnText}>Add</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
         </View>

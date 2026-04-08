@@ -25,14 +25,28 @@ export async function getWorkspace(code: string): Promise<WorkspaceInfo | null> 
   return res.json();
 }
 
-export async function joinWorkspace(code: string, name: string, email: string): Promise<WorkspaceInfo | null> {
+export type JoinResult =
+  | { ok: true; workspace: WorkspaceInfo }
+  | { ok: false; reason: "not_allowed" | "not_found" | "error"; message: string };
+
+export async function joinWorkspace(code: string, name: string, email: string): Promise<JoinResult> {
   const res = await fetch(`${API_BASE}/workspaces/${code}/join`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ memberName: name, email }),
   });
-  if (!res.ok) return null;
-  return res.json();
+  if (res.ok) {
+    const ws = await res.json();
+    return { ok: true, workspace: ws };
+  }
+  if (res.status === 403) {
+    const body = await res.json().catch(() => ({}));
+    return { ok: false, reason: "not_allowed", message: body.message || "Your email is not recognised. Please check with the freelancer." };
+  }
+  if (res.status === 404) {
+    return { ok: false, reason: "not_found", message: "This portal no longer exists." };
+  }
+  return { ok: false, reason: "error", message: "Could not connect. Please try again." };
 }
 
 export async function getTasks(code: string, email?: string): Promise<SharedTask[]> {

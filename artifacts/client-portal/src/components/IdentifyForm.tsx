@@ -25,12 +25,12 @@ export function IdentifyForm({ workspace, portalCode, onIdentify }: Props) {
     }
     setLoading(true);
     setError("");
-    const ws = await joinWorkspace(portalCode, name.trim(), email.trim());
+    const result = await joinWorkspace(portalCode, name.trim(), email.trim());
     setLoading(false);
-    if (ws) {
+    if (result.ok) {
       onIdentify(name.trim(), email.trim());
     } else {
-      setError("Could not connect. Please try again.");
+      setError(result.message);
     }
   };
 
@@ -73,7 +73,9 @@ export function IdentifyForm({ workspace, portalCode, onIdentify }: Props) {
           </div>
 
           {error && (
-            <p className="text-destructive text-sm">{error}</p>
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+              <p className="text-destructive text-sm">{error}</p>
+            </div>
           )}
 
           <button
@@ -81,11 +83,11 @@ export function IdentifyForm({ workspace, portalCode, onIdentify }: Props) {
             disabled={loading}
             className="w-full h-10 bg-primary text-primary-foreground font-medium text-sm rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
           >
-            {loading ? "Connecting..." : "Continue"}
+            {loading ? "Verifying..." : "Continue"}
           </button>
 
           <p className="text-xs text-muted-foreground text-center">
-            Your info is only shared with {workspace.ownerName} to identify your tasks.
+            Only clients registered by {workspace.ownerName} can access this portal.
           </p>
         </form>
       </div>
