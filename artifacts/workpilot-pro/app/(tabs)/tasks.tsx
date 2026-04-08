@@ -262,6 +262,39 @@ export default function TasksScreen() {
     return () => clearInterval(interval);
   }, [portalCode, tasks, clients, addTask]);
 
+  useEffect(() => {
+    if (!portalCode) return;
+    const pushUnsynced = async () => {
+      const unsynced = tasks.filter((t) => t.clientId && !t.portalTaskId);
+      for (const task of unsynced) {
+        const client = clients.find((c) => c.id === task.clientId);
+        if (!client) continue;
+        try {
+          const res = await fetch(`${API_BASE}/workspaces/${portalCode}/tasks`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: task.title,
+              description: task.description || "",
+              priority: task.priority,
+              fromUser: settings.name || "Freelancer",
+              fromEmail: "",
+              forEmail: client.email,
+              dueDate: task.dueDate || null,
+              source: "freelancer",
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            updateTask(task.id, { portalTaskId: data.id });
+          }
+        } catch {}
+      }
+    };
+    const interval = setInterval(pushUnsynced, 15000);
+    return () => clearInterval(interval);
+  }, [portalCode, tasks, clients, settings.name, updateTask]);
+
   const syncClientsToApi = useCallback(async (code: string) => {
     if (clients.length === 0) {
       setClientCredentials([]);
@@ -461,6 +494,34 @@ export default function TasksScreen() {
     }
   }, [getPortalUrl]);
 
+  const pushSingleTaskToPortal = useCallback(async (task: { id: string; title: string; description: string; priority: string; clientId: string; dueDate: string | null; portalTaskId?: string | null }) => {
+    if (!portalCode || !task.clientId || task.portalTaskId) return;
+    const client = clients.find((c) => c.id === task.clientId);
+    if (!client) return;
+    try {
+      const check = await fetch(`${API_BASE}/workspaces/${portalCode}`);
+      if (!check.ok) return;
+      const res = await fetch(`${API_BASE}/workspaces/${portalCode}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: task.title,
+          description: task.description || "",
+          priority: task.priority,
+          fromUser: settings.name || "Freelancer",
+          fromEmail: "",
+          forEmail: client.email,
+          dueDate: task.dueDate || null,
+          source: "freelancer",
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        updateTask(task.id, { portalTaskId: data.id });
+      }
+    } catch {}
+  }, [portalCode, clients, settings.name, updateTask]);
+
   const resetForm = () => {
     setTitle(""); setDesc(""); setPriority("medium"); setStatus("todo");
     setClientId(""); setDueDate(null); setEstHours(""); setHourlyRate("");
@@ -509,8 +570,14 @@ export default function TasksScreen() {
       estimatedHours: estHours ? parseFloat(estHours) : null,
       hourlyRate: hourlyRate ? parseFloat(hourlyRate) : null,
     };
-    if (editingTask) { updateTaskWithSync(editingTask.id, taskData); }
-    else { addTask(taskData); }
+    if (editingTask) {
+      updateTaskWithSync(editingTask.id, taskData);
+    } else {
+      const newTask = addTask(taskData);
+      if (newTask && clientId) {
+        pushSingleTaskToPortal({ ...taskData, id: newTask.id, portalTaskId: null });
+      }
+    }
     setShowAdd(false);
     resetForm();
   };

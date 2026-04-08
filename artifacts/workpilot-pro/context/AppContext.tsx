@@ -266,7 +266,7 @@ type AppContextType = {
   addMeeting: (meeting: Omit<Meeting, "id">) => void;
   deleteMeeting: (id: string) => void;
 
-  addTask: (task: Omit<Task, "id" | "createdAt" | "completedAt">) => void;
+  addTask: (task: Omit<Task, "id" | "createdAt" | "completedAt">) => Task;
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   completeTask: (id: string) => void;
@@ -622,12 +622,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [save]);
 
   // Tasks
-  const addTask = useCallback((task: Omit<Task, "id" | "createdAt" | "completedAt">) => {
+  const addTask = useCallback((task: Omit<Task, "id" | "createdAt" | "completedAt">): Task => {
+    const newTask: Task = { ...task, id: genId(), createdAt: new Date().toISOString(), completedAt: null };
     setTasks((prev) => {
-      const next = [{ ...task, id: genId(), createdAt: new Date().toISOString(), completedAt: null }, ...prev];
+      const next = [newTask, ...prev];
       save("tasks", next);
       return next;
     });
+    return newTask;
   }, [save]);
 
   const updateTask = useCallback((id: string, updates: Partial<Task>) => {
