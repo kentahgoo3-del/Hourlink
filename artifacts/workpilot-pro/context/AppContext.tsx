@@ -40,6 +40,7 @@ export type TimeEntry = {
   hourlyRate: number;
   billable: boolean;
   invoiceId: string | null;
+  resumeEntryId?: string | null;
 };
 
 export type QuoteItem = {
@@ -237,7 +238,7 @@ type AppContextType = {
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
 
-  startTimer: (entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId"> & { taskId?: string | null }) => void;
+  startTimer: (entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId" | "resumeEntryId"> & { taskId?: string | null; resumeEntryId?: string | null }) => void;
   stopTimer: () => TimeEntry | null;
   addTimeEntry: (entry: Omit<TimeEntry, "id">) => void;
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
@@ -398,9 +399,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [save]);
 
   // Timers
-  const startTimer = useCallback((entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId"> & { taskId?: string | null }) => {
+  const startTimer = useCallback((entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId" | "resumeEntryId"> & { taskId?: string | null; resumeEntryId?: string | null }) => {
     const timer: TimeEntry = {
-      ...entry, taskId: entry.taskId ?? null, id: genId(), startTime: new Date().toISOString(),
+      ...entry, taskId: entry.taskId ?? null, resumeEntryId: entry.resumeEntryId ?? null, id: genId(), startTime: new Date().toISOString(),
       endTime: null, durationSeconds: 0, invoiceId: null,
     };
     setActiveTimer(timer);
@@ -412,15 +413,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActiveTimer((prev) => {
       if (!prev) return null;
       const endTime = new Date().toISOString();
-      const durationSeconds = Math.floor(
+      const sessionSeconds = Math.floor(
         (new Date(endTime).getTime() - new Date(prev.startTime).getTime()) / 1000
       );
-      completed = { ...prev, endTime, durationSeconds };
-      setTimeEntries((entries) => {
-        const next = [completed!, ...entries];
-        save("timeEntries", next);
-        return next;
-      });
+
+      if (prev.resumeEntryId) {
+        setTimeEntries((entries) => {
+          const idx = entries.findIndex((e) => e.id === prev.resumeEntryId);
+          if (idx >= 0) {
+            const original = entries[idx];
+            const updated = {
+              ...original,
+              durationSeconds: original.durationSeconds + sessionSeconds,
+              endTime,
+            };
+            completed = updated;
+            const next = [...entries];
+            next[idx] = updated;
+            save("timeEntries", next);
+            return next;
+          }
+          completed = { ...prev, endTime, durationSeconds: sessionSeconds, resumeEntryId: null };
+          const next = [completed!, ...entries];
+          save("timeEntries", next);
+          return next;
+        });
+      } else {
+        completed = { ...prev, endTime, durationSeconds: sessionSeconds, resumeEntryId: null };
+        setTimeEntries((entries) => {
+          const next = [completed!, ...entries];
+          save("timeEntries", next);
+          return next;
+        });
+      }
+
       save("activeTimer", null);
       return null;
     });

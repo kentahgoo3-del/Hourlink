@@ -157,12 +157,16 @@ export default function WorkScreen() {
 
   const handleStop = () => {
     const timer = activeTimer;
-    stopTimer();
+    const completed = stopTimer();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (timer && timer.billable) {
-      const now = Date.now();
-      const durationSeconds = Math.floor((now - new Date(timer.startTime).getTime()) / 1000);
-      setStoppedEntry({ ...timer, endTime: new Date().toISOString(), durationSeconds });
+      if (completed) {
+        setStoppedEntry(completed);
+      } else {
+        const now = Date.now();
+        const durationSeconds = Math.floor((now - new Date(timer.startTime).getTime()) / 1000);
+        setStoppedEntry({ ...timer, endTime: new Date().toISOString(), durationSeconds });
+      }
       setShowQuickInvoice(true);
     }
   };
@@ -249,6 +253,7 @@ export default function WorkScreen() {
       description: stoppedEntry.description,
       hourlyRate: stoppedEntry.hourlyRate,
       billable: stoppedEntry.billable,
+      resumeEntryId: stoppedEntry.id,
     });
     setShowQuickInvoice(false);
     setStoppedEntry(null);
@@ -550,6 +555,7 @@ export default function WorkScreen() {
                   description: selectedEntry.description,
                   hourlyRate: selectedEntry.hourlyRate,
                   billable: selectedEntry.billable,
+                  resumeEntryId: selectedEntry.id,
                 });
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 setShowEntrySheet(false);

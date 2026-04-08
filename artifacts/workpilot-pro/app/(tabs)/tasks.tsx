@@ -197,7 +197,7 @@ function TaskCard({ task, onComplete, onDelete, onEdit, onStartTimer, showDate =
 export default function TasksScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { clients, tasks, addTask, updateTask, deleteTask, completeTask, startTimer, activeTimer, settings } = useApp();
+  const { clients, tasks, addTask, updateTask, deleteTask, completeTask, startTimer, activeTimer, settings, timeEntries } = useApp();
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [filter, setFilter] = useState<FilterType>("all");
@@ -599,7 +599,8 @@ export default function TasksScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const client = clients.find((c) => c.id === task.clientId);
     const rate = task.hourlyRate ?? client?.hourlyRate ?? settings.defaultHourlyRate;
-    startTimer({ clientId: task.clientId, projectId: "", taskId: task.id, description: task.title, hourlyRate: rate, billable: true });
+    const existingEntry = timeEntries.find((e) => e.taskId === task.id && e.endTime);
+    startTimer({ clientId: task.clientId, projectId: "", taskId: task.id, description: task.title, hourlyRate: rate, billable: true, resumeEntryId: existingEntry?.id ?? null });
     updateTaskWithSync(task.id, { status: "in_progress" });
     router.push("/work");
   };
