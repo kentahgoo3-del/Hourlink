@@ -19,34 +19,47 @@ export type WorkspaceInfo = {
   members: { name: string; email: string; joinedAt: string }[];
 };
 
+export type LoginResult =
+  | { ok: true; name: string; email: string; firstLogin: boolean }
+  | { ok: false; message: string };
+
 export async function getWorkspace(code: string): Promise<WorkspaceInfo | null> {
   const res = await fetch(`${API_BASE}/workspaces/${code}`);
   if (!res.ok) return null;
   return res.json();
 }
 
-export type JoinResult =
-  | { ok: true; workspace: WorkspaceInfo }
-  | { ok: false; reason: "not_allowed" | "not_found" | "error"; message: string };
-
-export async function joinWorkspace(code: string, name: string, email: string): Promise<JoinResult> {
-  const res = await fetch(`${API_BASE}/workspaces/${code}/join`, {
+export async function loginClient(code: string, email: string, password: string): Promise<LoginResult> {
+  const res = await fetch(`${API_BASE}/workspaces/${code}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ memberName: name, email }),
+    body: JSON.stringify({ email, password }),
   });
   if (res.ok) {
-    const ws = await res.json();
-    return { ok: true, workspace: ws };
+    const data = await res.json();
+    return { ok: true, name: data.name, email: data.email, firstLogin: data.firstLogin };
   }
-  if (res.status === 403) {
-    const body = await res.json().catch(() => ({}));
-    return { ok: false, reason: "not_allowed", message: body.message || "Your email is not recognised. Please check with the freelancer." };
-  }
-  if (res.status === 404) {
-    return { ok: false, reason: "not_found", message: "This portal no longer exists." };
-  }
-  return { ok: false, reason: "error", message: "Could not connect. Please try again." };
+  const body = await res.json().catch(() => ({}));
+  return { ok: false, message: body.message || "Login failed. Please try again." };
+}
+
+export async function changePassword(code: string, email: string, oldPassword: string, newPassword: string): Promise<{ ok: boolean; message?: string }> {
+  const res = await fetch(`${API_BASE}/workspaces/${code}/change-password`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, oldPassword, newPassword }),
+  });
+  if (res.ok) return { ok: true };
+  const body = await res.json().catch(() => ({}));
+  return { ok: false, message: body.error || "Could not change password." };
+}
+
+export async function keepPassword(code: string, email: string): Promise<void> {
+  await fetch(`${API_BASE}/workspaces/${code}/keep-password`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  }).catch(() => {});
 }
 
 export async function getTasks(code: string, email?: string): Promise<SharedTask[]> {

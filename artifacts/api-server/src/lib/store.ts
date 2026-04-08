@@ -16,6 +16,8 @@ export type SharedTask = {
 export type AllowedClient = {
   name: string;
   email: string;
+  password: string;
+  firstLogin: boolean;
 };
 
 export type WorkspaceMember = {
@@ -54,6 +56,11 @@ function genId(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
+function genPassword(): string {
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
 export const store = {
   createWorkspace(ownerName: string): Workspace {
     const data = load();
@@ -70,11 +77,77 @@ export const store = {
     return data[code.toUpperCase()] ?? null;
   },
 
-  setAllowedClients(code: string, clients: AllowedClient[]): boolean {
+  setAllowedClients(code: string, clients: { name: string; email: string }[]): { ok: boolean; credentials: { name: string; email: string; password: string; isNew: boolean }[] } {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return { ok: false, credentials: [] };
+
+    const existingMap = new Map<string, AllowedClient>();
+    for (const c of ws.allowedClients) {
+      existingMap.set(c.email.toLowerCase(), c);
+    }
+
+    const credentials: { name: string; email: string; password: string; isNew: boolean }[] = [];
+    const newAllowed: AllowedClient[] = [];
+
+    for (const c of clients) {
+      const existing = existingMap.get(c.email.toLowerCase());
+      if (existing) {
+        existing.name = c.name;
+        newAllowed.push(existing);
+        credentials.push({ name: c.name, email: c.email, password: existing.password, isNew: false });
+      } else {
+        const password = genPassword();
+        newAllowed.push({ name: c.name, email: c.email, password, firstLogin: true });
+        credentials.push({ name: c.name, email: c.email, password, isNew: true });
+      }
+    }
+
+    ws.allowedClients = newAllowed;
+    save(data);
+    return { ok: true, credentials };
+  },
+
+  loginClient(code: string, email: string, password: string): { ok: boolean; reason?: string; name?: string; firstLogin?: boolean } {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return { ok: false, reason: "not_found" };
+
+    const client = ws.allowedClients.find((c) => c.email.toLowerCase() === email.toLowerCase());
+    if (!client) return { ok: false, reason: "not_allowed" };
+    if (client.password !== password) return { ok: false, reason: "wrong_password" };
+
+    const existing = ws.members.find((m) => m.email?.toLowerCase() === email.toLowerCase());
+    if (!existing) {
+      ws.members.push({ name: client.name, email: client.email, joinedAt: new Date().toISOString() });
+      save(data);
+    }
+
+    return { ok: true, name: client.name, firstLogin: client.firstLogin };
+  },
+
+  changePassword(code: string, email: string, oldPassword: string, newPassword: string): { ok: boolean; reason?: string } {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return { ok: false, reason: "not_found" };
+
+    const client = ws.allowedClients.find((c) => c.email.toLowerCase() === email.toLowerCase());
+    if (!client) return { ok: false, reason: "not_found" };
+    if (client.password !== oldPassword) return { ok: false, reason: "wrong_password" };
+
+    client.password = newPassword;
+    client.firstLogin = false;
+    save(data);
+    return { ok: true };
+  },
+
+  markFirstLoginDone(code: string, email: string): boolean {
     const data = load();
     const ws = data[code.toUpperCase()];
     if (!ws) return false;
-    ws.allowedClients = clients;
+    const client = ws.allowedClients.find((c) => c.email.toLowerCase() === email.toLowerCase());
+    if (!client) return false;
+    client.firstLogin = false;
     save(data);
     return true;
   },

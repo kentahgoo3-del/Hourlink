@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { IdentifyForm } from "./components/IdentifyForm";
+import { LoginForm } from "./components/LoginForm";
+import { ChangePasswordModal } from "./components/ChangePasswordModal";
 import { TaskBoard } from "./components/TaskBoard";
 import { getWorkspace, type WorkspaceInfo } from "./lib/api";
 
@@ -9,6 +10,8 @@ function App() {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -27,7 +30,10 @@ function App() {
         const saved = localStorage.getItem(`hourlink_portal_${portalCode}`);
         if (saved) {
           try {
-            setUser(JSON.parse(saved));
+            const parsed = JSON.parse(saved);
+            if (parsed.name && parsed.email) {
+              setUser(parsed);
+            }
           } catch {}
         }
       } else {
@@ -38,10 +44,21 @@ function App() {
     });
   }, [portalCode]);
 
-  const handleIdentify = useCallback((name: string, email: string) => {
+  const handleLogin = useCallback((name: string, email: string, password: string, firstLogin: boolean) => {
     if (!portalCode) return;
     setUser({ name, email });
+    setCurrentPassword(password);
     localStorage.setItem(`hourlink_portal_${portalCode}`, JSON.stringify({ name, email }));
+    if (firstLogin) {
+      setShowChangePassword(true);
+    }
+  }, [portalCode]);
+
+  const handleLogout = useCallback(() => {
+    if (!portalCode) return;
+    setUser(null);
+    setCurrentPassword("");
+    localStorage.removeItem(`hourlink_portal_${portalCode}`);
   }, [portalCode]);
 
   if (loading) {
@@ -96,13 +113,23 @@ function App() {
   }
 
   if (!user) {
-    return <IdentifyForm workspace={workspace} portalCode={portalCode} onIdentify={handleIdentify} />;
+    return <LoginForm workspace={workspace} portalCode={portalCode} onLogin={handleLogin} />;
   }
 
-  return <TaskBoard workspace={workspace} portalCode={portalCode} user={user} onLogout={() => {
-    setUser(null);
-    localStorage.removeItem(`hourlink_portal_${portalCode}`);
-  }} />;
+  return (
+    <>
+      <TaskBoard workspace={workspace} portalCode={portalCode} user={user} onLogout={handleLogout} />
+      {showChangePassword && (
+        <ChangePasswordModal
+          workspace={workspace}
+          portalCode={portalCode}
+          email={user.email}
+          currentPassword={currentPassword}
+          onDone={() => setShowChangePassword(false)}
+        />
+      )}
+    </>
+  );
 }
 
 export default App;

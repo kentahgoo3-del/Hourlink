@@ -209,6 +209,8 @@ export default function TasksScreen() {
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalCopied, setPortalCopied] = useState(false);
   const [pendingTasks, setPendingTasks] = useState<any[]>([]);
+  const [clientCredentials, setClientCredentials] = useState<{ name: string; email: string; password: string; isNew: boolean }[]>([]);
+  const [credsCopied, setCredsCopied] = useState<string | null>(null);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -230,13 +232,19 @@ export default function TasksScreen() {
   const syncClientsToApi = useCallback(async (code: string) => {
     if (clients.length === 0) return;
     try {
-      await fetch(`${API_BASE}/workspaces/${code}/clients`, {
+      const res = await fetch(`${API_BASE}/workspaces/${code}/clients`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clients: clients.map((c) => ({ name: c.name, email: c.email })),
         }),
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.credentials) {
+          setClientCredentials(data.credentials);
+        }
+      }
     } catch {}
   }, [clients]);
 
@@ -347,6 +355,21 @@ export default function TasksScreen() {
         url,
       });
     } catch {}
+  }, [getPortalUrl]);
+
+  const shareClientCredentials = useCallback(async (cred: { name: string; email: string; password: string }) => {
+    const url = getPortalUrl();
+    const msg = `Hi ${cred.name},\n\nYou've been invited to the HourLink Task Portal.\n\nPortal: ${url}\nEmail: ${cred.email}\nPassword: ${cred.password}\n\nYou can change your password on first login.`;
+    if (Platform.OS === "web") {
+      await Clipboard.setStringAsync(msg);
+      setCredsCopied(cred.email);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => setCredsCopied(null), 2000);
+    } else {
+      try {
+        await Share.share({ message: msg });
+      } catch {}
+    }
   }, [getPortalUrl]);
 
   const resetForm = () => {
@@ -766,38 +789,50 @@ export default function TasksScreen() {
             </TouchableOpacity>
           )}
 
-          {portalCode && (
-            <View style={[portalStyles.infoCard, { backgroundColor: "#10b98110", borderColor: "#10b98130" }]}>
-              <AppIcon name="checkmark-circle" size={20} color="#10b981" />
-              <View style={{ flex: 1 }}>
-                <Text style={[portalStyles.infoTitle, { color: colors.foreground }]}>Auto-import enabled</Text>
-                <Text style={[portalStyles.infoDesc, { color: colors.mutedForeground }]}>
-                  Tasks submitted by your clients appear in your task list automatically. Only clients you've added to the app can access this portal.
-                </Text>
+          {clientCredentials.length > 0 && (
+            <View style={{ gap: 8 }}>
+              <View style={portalStyles.pendingHeader}>
+                <Text style={[portalStyles.pendingTitle, { color: colors.foreground }]}>Client Login Details</Text>
+                <View style={[portalStyles.pendingBadge, { backgroundColor: colors.primary + "20" }]}>
+                  <Text style={[portalStyles.pendingBadgeText, { color: colors.primary }]}>{clientCredentials.length}</Text>
+                </View>
               </View>
+              <Text style={[portalStyles.infoDesc, { color: colors.mutedForeground, marginBottom: 4 }]}>
+                Share these login details with your clients so they can access the portal.
+              </Text>
+              {clientCredentials.map((cred) => (
+                <View key={cred.email} style={[portalStyles.credCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[portalStyles.pendingTaskTitle, { color: colors.foreground }]}>{cred.name}</Text>
+                    <Text style={[portalStyles.pendingTaskMeta, { color: colors.mutedForeground }]}>
+                      {cred.email}
+                    </Text>
+                    <View style={[portalStyles.passwordRow, { backgroundColor: colors.muted }]}>
+                      <Text style={[portalStyles.passwordLabel, { color: colors.mutedForeground }]}>Password:</Text>
+                      <Text style={[portalStyles.passwordValue, { color: colors.foreground }]}>{cred.password}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={[portalStyles.sendBtn, { backgroundColor: credsCopied === cred.email ? "#10b981" : colors.primary }]}
+                    onPress={() => shareClientCredentials(cred)}
+                  >
+                    <AppIcon name={credsCopied === cred.email ? "checkmark" : "send"} size={14} color="#fff" />
+                    <Text style={portalStyles.sendBtnText}>{credsCopied === cred.email ? "Copied" : "Send"}</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
             </View>
           )}
 
-          {portalCode && tasks.filter((t) => t.portalTaskId).length > 0 && (
-            <View style={{ gap: 6 }}>
-              <Text style={[portalStyles.pendingTitle, { color: colors.foreground }]}>
-                Portal Tasks ({tasks.filter((t) => t.portalTaskId).length})
-              </Text>
-              {tasks.filter((t) => t.portalTaskId).slice(0, 5).map((task) => {
-                const client = clients.find((c) => c.id === task.clientId);
-                const statusColors: Record<string, string> = { todo: colors.mutedForeground, in_progress: "#3b82f6", done: "#10b981" };
-                const statusLabels: Record<string, string> = { todo: "To Do", in_progress: "In Progress", done: "Done" };
-                return (
-                  <View key={task.id} style={[portalStyles.pendingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[portalStyles.pendingTaskTitle, { color: colors.foreground }]}>{task.title}</Text>
-                      <Text style={[portalStyles.pendingTaskMeta, { color: colors.mutedForeground }]}>
-                        {client ? `From ${client.name}` : "From portal"} · <Text style={{ color: statusColors[task.status] }}>{statusLabels[task.status]}</Text>
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
+          {clientCredentials.length === 0 && portalCode && (
+            <View style={[portalStyles.infoCard, { backgroundColor: "#f59e0b10", borderColor: "#f59e0b30" }]}>
+              <AppIcon name="information-circle-outline" size={20} color="#f59e0b" />
+              <View style={{ flex: 1 }}>
+                <Text style={[portalStyles.infoTitle, { color: colors.foreground }]}>No clients yet</Text>
+                <Text style={[portalStyles.infoDesc, { color: colors.mutedForeground }]}>
+                  Add clients in the Clients tab first. Their login details will appear here so you can share them.
+                </Text>
+              </View>
             </View>
           )}
         </View>
@@ -835,6 +870,12 @@ const portalStyles = StyleSheet.create({
   pendingTaskDesc: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 4, lineHeight: 16 },
   claimBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   claimBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  credCard: { borderRadius: 12, borderWidth: 1, padding: 12, flexDirection: "row", alignItems: "center", gap: 12 },
+  passwordRow: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, marginTop: 6 },
+  passwordLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  passwordValue: { fontSize: 13, fontFamily: "Inter_600SemiBold", letterSpacing: 1 },
+  sendBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  sendBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });
 
 const styles = StyleSheet.create({

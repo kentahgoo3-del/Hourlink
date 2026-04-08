@@ -23,9 +23,58 @@ router.put("/workspaces/:code/clients", (req, res) => {
   const valid = clients.filter(
     (c: any) => c && typeof c.name === "string" && typeof c.email === "string" && c.email.includes("@")
   );
-  const ok = store.setAllowedClients(code, valid.map((c: any) => ({ name: c.name.trim(), email: c.email.trim() })));
-  if (!ok) { res.status(404).json({ error: "Workspace not found" }); return; }
-  res.json({ ok: true, count: valid.length });
+  const result = store.setAllowedClients(code, valid.map((c: any) => ({ name: c.name.trim(), email: c.email.trim() })));
+  if (!result.ok) { res.status(404).json({ error: "Workspace not found" }); return; }
+  res.json({ ok: true, count: valid.length, credentials: result.credentials });
+});
+
+router.post("/workspaces/:code/login", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const { email, password } = req.body;
+  if (!email || !password) {
+    res.status(400).json({ error: "email and password are required" });
+    return;
+  }
+  const result = store.loginClient(code, String(email).trim(), String(password));
+  if (!result.ok) {
+    if (result.reason === "not_found") {
+      res.status(404).json({ error: "not_found", message: "Portal not found." });
+    } else if (result.reason === "not_allowed") {
+      res.status(403).json({ error: "not_allowed", message: "This email is not registered. Contact your freelancer." });
+    } else {
+      res.status(401).json({ error: "wrong_password", message: "Incorrect password. Please try again." });
+    }
+    return;
+  }
+  res.json({ ok: true, name: result.name, email: String(email).trim(), firstLogin: result.firstLogin });
+});
+
+router.patch("/workspaces/:code/change-password", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const { email, oldPassword, newPassword } = req.body;
+  if (!email || !oldPassword || !newPassword) {
+    res.status(400).json({ error: "email, oldPassword, and newPassword are required" });
+    return;
+  }
+  if (String(newPassword).length < 4) {
+    res.status(400).json({ error: "Password must be at least 4 characters." });
+    return;
+  }
+  const result = store.changePassword(code, String(email).trim(), String(oldPassword), String(newPassword));
+  if (!result.ok) {
+    res.status(result.reason === "wrong_password" ? 401 : 404).json({ error: result.reason });
+    return;
+  }
+  res.json({ ok: true });
+});
+
+router.patch("/workspaces/:code/keep-password", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const { email } = req.body;
+  if (!email) { res.status(400).json({ error: "email is required" }); return; }
+  const ok = store.markFirstLoginDone(code, String(email).trim());
+  if (!ok) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ ok: true });
 });
 
 router.post("/workspaces/:code/join", (req, res) => {
@@ -41,7 +90,7 @@ router.post("/workspaces/:code/join", (req, res) => {
   }
   const result = store.joinWorkspace(code, memberName.trim(), email.trim());
   if (result === "not_allowed" as any) {
-    res.status(403).json({ error: "not_allowed", message: "Your email is not recognised. Please check with the freelancer that your details are correct." });
+    res.status(403).json({ error: "not_allowed", message: "Your email is not recognised." });
     return;
   }
   if (!result) { res.status(404).json({ error: "Workspace not found" }); return; }
