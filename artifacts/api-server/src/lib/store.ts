@@ -8,9 +8,12 @@ export type SharedTask = {
   priority: "low" | "medium" | "high";
   fromUser: string;
   fromEmail: string;
+  forEmail: string;
+  dueDate: string | null;
   sentAt: string;
   claimed: boolean;
   status: "pending" | "in_progress" | "done";
+  source: "client" | "freelancer";
 };
 
 export type AllowedClient = {
@@ -45,6 +48,11 @@ function load(): Record<string, Workspace> {
       if (!data[key].allowedClients) data[key].allowedClients = [];
       if (!data[key].tasks) data[key].tasks = [];
       if (!data[key].members) data[key].members = [];
+      for (const t of data[key].tasks) {
+        if (!t.forEmail) t.forEmail = "";
+        if (t.dueDate === undefined) t.dueDate = null;
+        if (!t.source) t.source = "client";
+      }
     }
     return data;
   }
@@ -192,7 +200,16 @@ export const store = {
     const data = load();
     const ws = data[code.toUpperCase()];
     if (!ws) return null;
-    const t: SharedTask = { ...task, id: genId(), sentAt: new Date().toISOString(), claimed: false, status: "pending" };
+    const t: SharedTask = {
+      ...task,
+      forEmail: task.forEmail || "",
+      dueDate: task.dueDate || null,
+      source: task.source || "client",
+      id: genId(),
+      sentAt: new Date().toISOString(),
+      claimed: false,
+      status: "pending",
+    };
     ws.tasks.push(t);
     save(data);
     return t;
@@ -209,7 +226,10 @@ export const store = {
     const data = load();
     const ws = data[code.toUpperCase()];
     if (!ws) return [];
-    return ws.tasks.filter((t) => t.fromEmail.toLowerCase() === email.toLowerCase());
+    const e = email.toLowerCase();
+    return ws.tasks.filter((t) =>
+      t.fromEmail.toLowerCase() === e || (t.forEmail && t.forEmail.toLowerCase() === e)
+    );
   },
 
   getPendingTasks(code: string): SharedTask[] {

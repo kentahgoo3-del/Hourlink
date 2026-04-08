@@ -7,9 +7,12 @@ export type SharedTask = {
   priority: "low" | "medium" | "high";
   fromUser: string;
   fromEmail: string;
+  forEmail: string;
+  dueDate: string | null;
   sentAt: string;
   claimed: boolean;
   status: "pending" | "in_progress" | "done";
+  source: "client" | "freelancer";
 };
 
 export type WorkspaceInfo = {
@@ -73,7 +76,7 @@ export async function getTasks(code: string, email?: string): Promise<SharedTask
 
 export async function addTask(
   code: string,
-  task: { title: string; description: string; priority: string; fromUser: string; fromEmail: string },
+  task: { title: string; description: string; priority: string; fromUser: string; fromEmail: string; dueDate?: string | null },
 ): Promise<SharedTask | null> {
   const res = await fetch(`${API_BASE}/workspaces/${code}/tasks`, {
     method: "POST",

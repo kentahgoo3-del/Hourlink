@@ -106,7 +106,7 @@ router.get("/workspaces/:code", (req, res) => {
 
 router.post("/workspaces/:code/tasks", (req, res) => {
   const code = req.params.code?.toUpperCase();
-  const { title, description, priority, fromUser, fromEmail } = req.body;
+  const { title, description, priority, fromUser, fromEmail, forEmail, dueDate, source } = req.body;
   if (!title || !fromUser) { res.status(400).json({ error: "title and fromUser are required" }); return; }
   const task = store.addTask(code, {
     title: String(title),
@@ -114,6 +114,9 @@ router.post("/workspaces/:code/tasks", (req, res) => {
     priority: (["low","medium","high"].includes(priority) ? priority : "medium") as "low" | "medium" | "high",
     fromUser: String(fromUser),
     fromEmail: String(fromEmail || ""),
+    forEmail: String(forEmail || ""),
+    dueDate: dueDate ? String(dueDate) : null,
+    source: source === "freelancer" ? "freelancer" : "client",
   });
   if (!task) { res.status(404).json({ error: "Workspace not found" }); return; }
   res.status(201).json(task);

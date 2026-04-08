@@ -20,12 +20,35 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   done: { label: "Done", color: "text-emerald-600" },
 };
 
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("en-ZA", {
+    day: "numeric", month: "short", year: "numeric",
+  });
+}
+
+function isDueSoon(dateStr: string | null) {
+  if (!dateStr) return false;
+  const due = new Date(dateStr);
+  const now = new Date();
+  const diff = due.getTime() - now.getTime();
+  return diff >= 0 && diff < 2 * 24 * 60 * 60 * 1000;
+}
+
+function isOverdue(dateStr: string | null) {
+  if (!dateStr) return false;
+  const due = new Date(dateStr);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return due < now;
+}
+
 export function TaskBoard({ workspace, portalCode, user, onLogout }: Props) {
   const [tasks, setTasks] = useState<SharedTask[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
+  const [dueDate, setDueDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState<"all" | "pending" | "in_progress" | "done">("all");
 
@@ -50,12 +73,14 @@ export function TaskBoard({ workspace, portalCode, user, onLogout }: Props) {
       priority,
       fromUser: user.name,
       fromEmail: user.email,
+      dueDate: dueDate || null,
     });
     setSubmitting(false);
     if (task) {
       setTitle("");
       setDescription("");
       setPriority("medium");
+      setDueDate("");
       setShowForm(false);
       loadTasks();
     }
@@ -68,6 +93,8 @@ export function TaskBoard({ workspace, portalCode, user, onLogout }: Props) {
     in_progress: tasks.filter((t) => t.status === "in_progress").length,
     done: tasks.filter((t) => t.status === "done").length,
   };
+
+  const today = new Date().toISOString().split("T")[0];
 
   return (
     <div className="min-h-screen bg-background">
@@ -88,7 +115,7 @@ export function TaskBoard({ workspace, portalCode, user, onLogout }: Props) {
             <button
               onClick={onLogout}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              title="Switch user"
+              title="Sign out"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -139,6 +166,16 @@ export function TaskBoard({ workspace, portalCode, user, onLogout }: Props) {
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
                 className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Due Date (optional)</label>
+              <input
+                type="date"
+                value={dueDate}
+                min={today}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
             <div>
@@ -214,15 +251,29 @@ export function TaskBoard({ workspace, portalCode, user, onLogout }: Props) {
             {filteredTasks.map((task) => {
               const pColor = PRIORITY_COLORS[task.priority];
               const sLabel = STATUS_LABELS[task.status] || STATUS_LABELS.pending;
+              const isFromFreelancer = task.source === "freelancer";
+              const overdue = task.status !== "done" && isOverdue(task.dueDate);
+              const dueSoon = task.status !== "done" && !overdue && isDueSoon(task.dueDate);
               return (
                 <div
                   key={task.id}
-                  className={`bg-card border border-border rounded-xl p-4 transition-all ${
-                    task.status === "done" ? "opacity-60" : ""
+                  className={`bg-card border rounded-xl p-4 transition-all ${
+                    task.status === "done" ? "opacity-60 border-border" : overdue ? "border-red-200" : "border-border"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        {isFromFreelancer && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                              <circle cx="12" cy="7" r="4" />
+                            </svg>
+                            From {workspace.ownerName}
+                          </span>
+                        )}
+                      </div>
                       <h3 className={`text-sm font-medium text-foreground ${
                         task.status === "done" ? "line-through" : ""
                       }`}>
@@ -243,11 +294,25 @@ export function TaskBoard({ workspace, portalCode, user, onLogout }: Props) {
                     <span className={`text-xs font-medium ${sLabel.color}`}>
                       {sLabel.label}
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(task.sentAt).toLocaleDateString("en-ZA", {
-                        day: "numeric", month: "short", year: "numeric",
-                      })}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      {task.dueDate && (
+                        <span className={`inline-flex items-center gap-1 text-xs font-medium ${
+                          overdue ? "text-red-600" : dueSoon ? "text-amber-600" : "text-muted-foreground"
+                        }`}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                            <line x1="16" y1="2" x2="16" y2="6" />
+                            <line x1="8" y1="2" x2="8" y2="6" />
+                            <line x1="3" y1="10" x2="21" y2="10" />
+                          </svg>
+                          {overdue ? "Overdue: " : dueSoon ? "Due soon: " : "Due: "}
+                          {formatDate(task.dueDate)}
+                        </span>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {formatDate(task.sentAt)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               );

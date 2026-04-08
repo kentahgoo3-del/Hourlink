@@ -318,7 +318,7 @@ export default function TasksScreen() {
           priority: task.priority || "medium",
           status: "todo",
           clientId: matchedClient?.id || "",
-          dueDate: null,
+          dueDate: task.dueDate || null,
           estimatedHours: null,
           hourlyRate: null,
           portalTaskId: task.id,
@@ -337,16 +337,45 @@ export default function TasksScreen() {
     }
   }, [tasks, clients, addTask]);
 
+  const pushLocalTasksToPortal = useCallback(async (code: string) => {
+    const clientTasks = tasks.filter((t) => t.clientId && !t.portalTaskId);
+    for (const task of clientTasks) {
+      const client = clients.find((c) => c.id === task.clientId);
+      if (!client) continue;
+      try {
+        const res = await fetch(`${API_BASE}/workspaces/${code}/tasks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: task.title,
+            description: task.description || "",
+            priority: task.priority,
+            fromUser: settings.name || "Freelancer",
+            fromEmail: "",
+            forEmail: client.email,
+            dueDate: task.dueDate || null,
+            source: "freelancer",
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          updateTask(task.id, { portalTaskId: data.id });
+        }
+      } catch {}
+    }
+  }, [tasks, clients, settings.name, updateTask]);
+
   const openPortalSheet = useCallback(async () => {
     const code = await createOrGetPortal();
     if (code) {
       await syncClientsToApi(code);
+      await pushLocalTasksToPortal(code);
       await fetchAndImportPendingTasks(code);
       setShowPortal(true);
     } else {
       Alert.alert("Connection Error", "Could not connect to the portal server. Please try again.");
     }
-  }, [createOrGetPortal, syncClientsToApi, fetchAndImportPendingTasks]);
+  }, [createOrGetPortal, syncClientsToApi, pushLocalTasksToPortal, fetchAndImportPendingTasks]);
 
   const syncTaskStatusToPortal = useCallback(async (portalTaskId: string, newStatus: "todo" | "in_progress" | "done") => {
     if (!portalCode) return;
