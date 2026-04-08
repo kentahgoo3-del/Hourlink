@@ -229,6 +229,39 @@ export default function TasksScreen() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!portalCode) return;
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/pending`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const existingPortalIds = new Set(tasks.filter((t) => t.portalTaskId).map((t) => t.portalTaskId));
+        const newTasks = data.filter((t: any) => !existingPortalIds.has(t.id));
+        for (const task of newTasks) {
+          const matchedClient = clients.find((c) => c.email.toLowerCase() === (task.fromEmail || "").toLowerCase());
+          try {
+            await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/${task.id}/claim`, { method: "PATCH" });
+          } catch {}
+          addTask({
+            title: task.title,
+            description: task.description || "",
+            priority: task.priority || "medium",
+            status: "todo",
+            clientId: matchedClient?.id || "",
+            dueDate: task.dueDate || null,
+            estimatedHours: null,
+            hourlyRate: null,
+            portalTaskId: task.id,
+          });
+        }
+      } catch {}
+    };
+    poll();
+    const interval = setInterval(poll, 15000);
+    return () => clearInterval(interval);
+  }, [portalCode, tasks, clients, addTask]);
+
   const syncClientsToApi = useCallback(async (code: string) => {
     if (clients.length === 0) {
       setClientCredentials([]);
