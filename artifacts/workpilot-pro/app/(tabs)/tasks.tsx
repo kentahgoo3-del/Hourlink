@@ -230,15 +230,37 @@ export default function TasksScreen() {
   }, []);
 
   const syncClientsToApi = useCallback(async (code: string) => {
-    if (clients.length === 0) return;
+    if (clients.length === 0) {
+      setClientCredentials([]);
+      return;
+    }
     try {
-      const res = await fetch(`${API_BASE}/workspaces/${code}/clients`, {
+      let res = await fetch(`${API_BASE}/workspaces/${code}/clients`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clients: clients.map((c) => ({ name: c.name, email: c.email })),
         }),
       });
+      if (res.status === 404) {
+        const createRes = await fetch(`${API_BASE}/workspaces`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ownerName: settings.name || "HourLink User" }),
+        });
+        if (createRes.ok) {
+          const ws = await createRes.json();
+          await AsyncStorage.setItem(PORTAL_KEY, ws.code);
+          setPortalCode(ws.code);
+          res = await fetch(`${API_BASE}/workspaces/${ws.code}/clients`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clients: clients.map((c) => ({ name: c.name, email: c.email })),
+            }),
+          });
+        }
+      }
       if (res.ok) {
         const data = await res.json();
         if (data.credentials) {
@@ -246,10 +268,15 @@ export default function TasksScreen() {
         }
       }
     } catch {}
-  }, [clients]);
+  }, [clients, settings.name]);
 
   const createOrGetPortal = useCallback(async () => {
-    if (portalCode) return portalCode;
+    if (portalCode) {
+      try {
+        const check = await fetch(`${API_BASE}/workspaces/${portalCode}`);
+        if (check.ok) return portalCode;
+      } catch {}
+    }
     setPortalLoading(true);
     try {
       const res = await fetch(`${API_BASE}/workspaces`, {
