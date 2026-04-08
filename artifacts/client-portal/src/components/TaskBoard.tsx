@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { getTasks, addTask, getTaskNotes, addTaskNote, type SharedTask, type WorkspaceInfo, type TaskNote } from "../lib/api";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { getTasks, addTask, getTaskNotes, addTaskNote, getAllNotes, type SharedTask, type WorkspaceInfo, type TaskNote } from "../lib/api";
 
 interface Props {
   workspace: WorkspaceInfo;
@@ -55,6 +55,30 @@ export function TaskBoard({ workspace, portalCode, user, onLogout }: Props) {
   const [notes, setNotes] = useState<Record<string, TaskNote[]>>({});
   const [noteText, setNoteText] = useState<Record<string, string>>({});
   const [noteSending, setNoteSending] = useState(false);
+  const [newComments, setNewComments] = useState<TaskNote[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const lastSeenRef = useRef<string>(new Date().toISOString());
+
+  useEffect(() => {
+    const pollNotifications = async () => {
+      const recent = await getAllNotes(portalCode, lastSeenRef.current, user.email);
+      const fromOthers = recent.filter((n) => n.authorEmail !== user.email);
+      if (fromOthers.length > 0) {
+        setNewComments((prev) => {
+          const ids = new Set(prev.map((p) => p.id));
+          return [...prev, ...fromOthers.filter((n) => !ids.has(n.id))];
+        });
+      }
+    };
+    const interval = setInterval(pollNotifications, 12000);
+    return () => clearInterval(interval);
+  }, [portalCode, user.email]);
+
+  const dismissNotifications = () => {
+    lastSeenRef.current = new Date().toISOString();
+    setNewComments([]);
+    setShowNotifications(false);
+  };
 
   const loadNotes = async (taskId: string) => {
     const n = await getTaskNotes(portalCode, taskId);
@@ -136,6 +160,62 @@ export function TaskBoard({ workspace, portalCode, user, onLogout }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative p-1.5 rounded-lg hover:bg-muted transition-colors"
+                title="Notifications"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                {newComments.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {newComments.length > 9 ? "9+" : newComments.length}
+                  </span>
+                )}
+              </button>
+              {showNotifications && (
+                <div className="absolute right-0 top-10 w-72 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                    <span className="text-xs font-semibold text-foreground">New Comments</span>
+                    {newComments.length > 0 && (
+                      <button onClick={dismissNotifications} className="text-[10px] text-primary font-medium">Mark all read</button>
+                    )}
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {newComments.length === 0 ? (
+                      <p className="text-xs text-muted-foreground p-3 text-center">No new comments</p>
+                    ) : (
+                      newComments.slice(0, 10).map((n) => {
+                        const task = tasks.find((t) => t.id === n.taskId);
+                        return (
+                          <div key={n.id} className="px-3 py-2 border-b border-border last:border-b-0 hover:bg-muted/50 cursor-pointer"
+                            onClick={() => {
+                              setShowNotifications(false);
+                              if (n.taskId) {
+                                setExpandedComments(n.taskId);
+                                loadNotes(n.taskId);
+                              }
+                            }}
+                          >
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-xs font-semibold text-foreground">{n.authorName}</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {new Date(n.createdAt).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                            <p className="text-xs text-foreground line-clamp-2">{n.text}</p>
+                            {task && <p className="text-[10px] text-muted-foreground mt-0.5">on: {task.title}</p>}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="text-right">
               <p className="text-xs font-medium text-foreground">{user.name}</p>
               <p className="text-xs text-muted-foreground">{user.email}</p>

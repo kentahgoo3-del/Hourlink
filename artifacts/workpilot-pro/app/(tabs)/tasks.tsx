@@ -199,7 +199,7 @@ function TaskCard({ task, onComplete, onDelete, onEdit, onStartTimer, showDate =
 export default function TasksScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { clients, tasks, addTask, updateTask, deleteTask, completeTask, startTimer, activeTimer, settings, timeEntries } = useApp();
+  const { clients, tasks, addTask, updateTask, deleteTask, completeTask, startTimer, activeTimer, settings, timeEntries, addTaskComment, getTaskComments, taskComments, markCommentsSynced } = useApp();
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [filter, setFilter] = useState<FilterType>("all");
@@ -215,7 +215,7 @@ export default function TasksScreen() {
   const [clientCredentials, setClientCredentials] = useState<{ name: string; email: string; password: string; isNew: boolean }[]>([]);
   const [credsCopied, setCredsCopied] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [taskComments, setTaskComments] = useState<{ id: string; taskId: string; authorName: string; authorEmail: string; text: string; createdAt: string }[]>([]);
+  const [portalComments, setPortalComments] = useState<{ id: string; taskId: string; authorName: string; authorEmail: string; text: string; createdAt: string }[]>([]);
   const [commentText, setCommentText] = useState("");
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentSending, setCommentSending] = useState(false);
@@ -302,6 +302,34 @@ export default function TasksScreen() {
     const interval = setInterval(pushUnsynced, 15000);
     return () => clearInterval(interval);
   }, [portalCode, tasks, clients, settings.name, updateTask]);
+
+  useEffect(() => {
+    if (!portalCode) return;
+    const syncComments = async () => {
+      const unsynced = taskComments.filter((c) => !c.synced);
+      const syncedIds: string[] = [];
+      for (const comment of unsynced) {
+        const task = tasks.find((t) => t.id === comment.taskId);
+        if (!task?.portalTaskId) continue;
+        try {
+          const res = await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/${task.portalTaskId}/notes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ authorName: comment.authorName, authorEmail: "", text: comment.text }),
+          });
+          if (res.ok) {
+            syncedIds.push(comment.id);
+          }
+        } catch {}
+      }
+      if (syncedIds.length > 0) {
+        markCommentsSynced(syncedIds);
+      }
+    };
+    const interval = setInterval(syncComments, 20000);
+    syncComments();
+    return () => clearInterval(interval);
+  }, [portalCode, taskComments, tasks, markCommentsSynced]);
 
   const syncClientsToApi = useCallback(async (code: string) => {
     if (clients.length === 0) {
@@ -546,35 +574,45 @@ export default function TasksScreen() {
     setEditingTask(null);
   };
 
-  const loadComments = useCallback(async (taskId: string) => {
+  const loadComments = useCallback(async (portalTaskId: string) => {
     if (!portalCode) return;
     setCommentsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/${taskId}/notes`);
+      const res = await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/${portalTaskId}/notes`);
       if (res.ok) {
         const notes = await res.json();
-        setTaskComments(notes);
+        setPortalComments(notes);
       }
     } catch {}
     setCommentsLoading(false);
   }, [portalCode]);
 
-  const postComment = useCallback(async (taskId: string) => {
-    if (!portalCode || !commentText.trim()) return;
+  const postComment = useCallback(async (taskId: string, portalTaskId?: string | null) => {
+    if (!commentText.trim()) return;
     setCommentSending(true);
-    try {
-      const res = await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/${taskId}/notes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ authorName: settings.name || "Freelancer", authorEmail: "", text: commentText.trim() }),
-      });
-      if (res.ok) {
-        setCommentText("");
-        loadComments(taskId);
-      }
-    } catch {}
+    const willSyncNow = !!(portalCode && portalTaskId);
+    const newComment = addTaskComment({
+      taskId,
+      authorName: settings.name || "Freelancer",
+      text: commentText.trim(),
+      synced: willSyncNow,
+    });
+    if (portalCode && portalTaskId) {
+      try {
+        const res = await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/${portalTaskId}/notes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ authorName: settings.name || "Freelancer", authorEmail: "", text: commentText.trim() }),
+        });
+        if (res.ok) {
+          markCommentsSynced([newComment.id]);
+          loadComments(portalTaskId);
+        }
+      } catch {}
+    }
+    setCommentText("");
     setCommentSending(false);
-  }, [portalCode, commentText, settings.name, loadComments]);
+  }, [portalCode, commentText, settings.name, loadComments, addTaskComment, markCommentsSynced]);
 
   const openAdd = (prefillDate?: string) => {
     resetForm();
@@ -593,7 +631,7 @@ export default function TasksScreen() {
     if (task.portalTaskId && portalCode) {
       loadComments(task.portalTaskId);
     } else {
-      setTaskComments([]);
+      setPortalComments([]);
     }
   };
 
@@ -961,67 +999,66 @@ export default function TasksScreen() {
           <Text style={styles.saveBtnText}>{editingTask ? "Save Changes" : "Add Task"}</Text>
         </TouchableOpacity>
 
-        {editingTask && portalCode && editingTask.portalTaskId && (
-          <View style={[styles.commentsSection, { borderTopColor: colors.border }]}>
-            <View style={styles.commentHeader}>
-              <AppIcon name="chatbubble-ellipses-outline" size={16} color={colors.foreground} />
-              <Text style={[styles.commentTitle, { color: colors.foreground }]}>Comments</Text>
-              <Text style={[styles.commentCount, { color: colors.mutedForeground }]}>({taskComments.length})</Text>
-            </View>
-
-            {commentsLoading ? (
-              <ActivityIndicator size="small" color={colors.primary} style={{ paddingVertical: 12 }} />
-            ) : taskComments.length === 0 ? (
-              <Text style={[styles.noComments, { color: colors.mutedForeground }]}>No comments yet. Start the conversation.</Text>
-            ) : (
-              <View style={{ gap: 8, marginBottom: 12 }}>
-                {taskComments.map((c) => (
-                  <View key={c.id} style={[styles.commentBubble, { backgroundColor: c.authorEmail === "" ? colors.primary + "12" : colors.muted }]}>
-                    <View style={styles.commentBubbleTop}>
-                      <Text style={[styles.commentAuthor, { color: colors.foreground }]}>{c.authorName}</Text>
-                      <Text style={[styles.commentTime, { color: colors.mutedForeground }]}>
-                        {new Date(c.createdAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}{" "}
-                        {new Date(c.createdAt).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
-                      </Text>
-                    </View>
-                    <Text style={[styles.commentBody, { color: colors.foreground }]}>{c.text}</Text>
-                  </View>
-                ))}
+        {editingTask && (() => {
+          const localComments = getTaskComments(editingTask.id);
+          const portalOnly = portalComments.filter(pc => !localComments.some(lc => lc.text === pc.text && Math.abs(new Date(lc.createdAt).getTime() - new Date(pc.createdAt).getTime()) < 60000));
+          const allComments = [
+            ...localComments.map(c => ({ ...c, authorEmail: "" })),
+            ...portalOnly,
+          ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          return (
+            <View style={[styles.commentsSection, { borderTopColor: colors.border }]}>
+              <View style={styles.commentHeader}>
+                <AppIcon name="chatbubble-ellipses-outline" size={16} color={colors.foreground} />
+                <Text style={[styles.commentTitle, { color: colors.foreground }]}>Comments</Text>
+                <Text style={[styles.commentCount, { color: colors.mutedForeground }]}>({allComments.length})</Text>
               </View>
-            )}
 
-            <View style={styles.commentInputRow}>
-              <TextInput
-                style={[styles.commentInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
-                placeholder="Write a comment..."
-                placeholderTextColor={colors.mutedForeground}
-                value={commentText}
-                onChangeText={setCommentText}
-                multiline
-              />
-              <TouchableOpacity
-                style={[styles.commentSendBtn, { backgroundColor: commentText.trim() ? colors.primary : colors.muted }]}
-                onPress={() => editingTask.portalTaskId && postComment(editingTask.portalTaskId)}
-                disabled={!commentText.trim() || commentSending}
-              >
-                {commentSending ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <AppIcon name="send" size={16} color={commentText.trim() ? "#fff" : colors.mutedForeground} />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+              {commentsLoading ? (
+                <ActivityIndicator size="small" color={colors.primary} style={{ paddingVertical: 12 }} />
+              ) : allComments.length === 0 ? (
+                <Text style={[styles.noComments, { color: colors.mutedForeground }]}>No comments yet. Start the conversation.</Text>
+              ) : (
+                <View style={{ gap: 8, marginBottom: 12 }}>
+                  {allComments.map((c) => (
+                    <View key={c.id} style={[styles.commentBubble, { backgroundColor: c.authorEmail === "" ? colors.primary + "12" : colors.muted }]}>
+                      <View style={styles.commentBubbleTop}>
+                        <Text style={[styles.commentAuthor, { color: colors.foreground }]}>{c.authorName}</Text>
+                        <Text style={[styles.commentTime, { color: colors.mutedForeground }]}>
+                          {new Date(c.createdAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}{" "}
+                          {new Date(c.createdAt).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+                        </Text>
+                      </View>
+                      <Text style={[styles.commentBody, { color: colors.foreground }]}>{c.text}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
 
-        {editingTask && !editingTask.portalTaskId && portalCode && (
-          <View style={[styles.commentsSection, { borderTopColor: colors.border }]}>
-            <View style={styles.commentHeader}>
-              <AppIcon name="chatbubble-ellipses-outline" size={16} color={colors.mutedForeground} />
-              <Text style={[styles.noComments, { color: colors.mutedForeground }]}>Comments available once task syncs to portal.</Text>
+              <View style={styles.commentInputRow}>
+                <TextInput
+                  style={[styles.commentInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
+                  placeholder="Write a comment..."
+                  placeholderTextColor={colors.mutedForeground}
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  multiline
+                />
+                <TouchableOpacity
+                  style={[styles.commentSendBtn, { backgroundColor: commentText.trim() ? colors.primary : colors.muted }]}
+                  onPress={() => postComment(editingTask.id, editingTask.portalTaskId)}
+                  disabled={!commentText.trim() || commentSending}
+                >
+                  {commentSending ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <AppIcon name="send" size={16} color={commentText.trim() ? "#fff" : colors.mutedForeground} />
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        )}
+          );
+        })()}
       </BottomSheet>
 
       <BottomSheet visible={showPortal} onClose={() => setShowPortal(false)} title="Client Task Portal">

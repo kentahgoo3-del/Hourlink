@@ -6,8 +6,10 @@ import {
   FlatList,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -106,8 +108,9 @@ export default function WorkScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const {
-    clients, timeEntries, activeTimer,
+    clients, timeEntries, activeTimer, tasks,
     startTimer, stopTimer, deleteTimeEntry, addInvoice, updateTimeEntry, settings, companyProfile,
+    addTaskComment, getTaskComments, getEntryComments,
   } = useApp();
 
   const [showStart, setShowStart] = useState(false);
@@ -121,6 +124,8 @@ export default function WorkScreen() {
   const [billable, setBillable] = useState(true);
   const [filter, setFilter] = useState<"all" | "billable" | "unbilled">("all");
   const [pendingDeleteEntryId, setPendingDeleteEntryId] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [entryCommentText, setEntryCommentText] = useState("");
 
   const filteredEntries = useMemo(() =>
     timeEntries.filter((e) => e.endTime).filter((e) => {
@@ -410,11 +415,35 @@ export default function WorkScreen() {
               </Text>
             ) : null}
 
+            <View style={[styles.noteInputBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <AppIcon name="create-outline" size={14} color={colors.mutedForeground} />
+              <TextInput
+                style={[styles.noteInput, { color: colors.foreground }]}
+                placeholder="Leave a note for next time..."
+                placeholderTextColor={colors.mutedForeground}
+                value={noteText}
+                onChangeText={setNoteText}
+                multiline
+              />
+            </View>
+
             <View style={styles.divider} />
 
             <TouchableOpacity
               style={[styles.actionRow, { backgroundColor: colors.primary }]}
-              onPress={handleQuickInvoice}
+              onPress={() => {
+                if (noteText.trim() && stoppedEntry) {
+                  const taskId = stoppedEntry.taskId || stoppedEntry.id;
+                  addTaskComment({
+                    taskId,
+                    timeEntryId: stoppedEntry.id,
+                    authorName: settings.name || "Me",
+                    text: noteText.trim(),
+                  });
+                  setNoteText("");
+                }
+                handleQuickInvoice();
+              }}
               testID="quick-invoice-now"
             >
               <AppIcon name="document-text-outline" size={18} color="#fff" />
@@ -423,7 +452,19 @@ export default function WorkScreen() {
 
             <TouchableOpacity
               style={[styles.actionRow, { backgroundColor: colors.muted }]}
-              onPress={handleResume}
+              onPress={() => {
+                if (noteText.trim() && stoppedEntry) {
+                  const taskId = stoppedEntry.taskId || stoppedEntry.id;
+                  addTaskComment({
+                    taskId,
+                    timeEntryId: stoppedEntry.id,
+                    authorName: settings.name || "Me",
+                    text: noteText.trim(),
+                  });
+                  setNoteText("");
+                }
+                handleResume();
+              }}
               testID="resume-timer"
             >
               <AppIcon name="play-outline" size={18} color={colors.foreground} />
@@ -432,7 +473,19 @@ export default function WorkScreen() {
 
             <TouchableOpacity
               style={[styles.actionRowOutline, { borderColor: colors.border }]}
-              onPress={handleInvoiceLater}
+              onPress={() => {
+                if (noteText.trim() && stoppedEntry) {
+                  const taskId = stoppedEntry.taskId || stoppedEntry.id;
+                  addTaskComment({
+                    taskId,
+                    timeEntryId: stoppedEntry.id,
+                    authorName: settings.name || "Me",
+                    text: noteText.trim(),
+                  });
+                  setNoteText("");
+                }
+                handleInvoiceLater();
+              }}
               testID="invoice-later"
             >
               <AppIcon name="time-outline" size={18} color={colors.mutedForeground} />
@@ -542,6 +595,68 @@ export default function WorkScreen() {
                 )}
               </>
             )}
+
+            {(() => {
+              const taskId = selectedEntry.taskId || selectedEntry.id;
+              const comments = getTaskComments(taskId);
+              const entryNotes = getEntryComments(selectedEntry.id);
+              const allComments = [...new Map([...comments, ...entryNotes].map(c => [c.id, c])).values()]
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+              return (
+                <View style={[cStyles.commentsSection, { borderTopColor: colors.border }]}>
+                  <View style={cStyles.commentHeader}>
+                    <AppIcon name="chatbubble-ellipses-outline" size={16} color={colors.foreground} />
+                    <Text style={[cStyles.commentTitle, { color: colors.foreground }]}>Notes & Comments</Text>
+                    <Text style={[cStyles.commentCount, { color: colors.mutedForeground }]}>({allComments.length})</Text>
+                  </View>
+                  {allComments.length === 0 ? (
+                    <Text style={[cStyles.noComments, { color: colors.mutedForeground }]}>No notes yet. Add one to track your progress.</Text>
+                  ) : (
+                    <ScrollView style={{ maxHeight: 160, marginBottom: 8 }}>
+                      {allComments.map((c) => (
+                        <View key={c.id} style={[cStyles.commentBubble, { backgroundColor: colors.primary + "10" }]}>
+                          <View style={cStyles.commentBubbleTop}>
+                            <Text style={[cStyles.commentAuthor, { color: colors.foreground }]}>{c.authorName}</Text>
+                            <Text style={[cStyles.commentTime, { color: colors.mutedForeground }]}>
+                              {new Date(c.createdAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}{" "}
+                              {new Date(c.createdAt).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+                            </Text>
+                          </View>
+                          <Text style={[cStyles.commentBody, { color: colors.foreground }]}>{c.text}</Text>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  )}
+                  <View style={cStyles.commentInputRow}>
+                    <TextInput
+                      style={[cStyles.commentInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
+                      placeholder="Add a note..."
+                      placeholderTextColor={colors.mutedForeground}
+                      value={entryCommentText}
+                      onChangeText={setEntryCommentText}
+                      multiline
+                    />
+                    <TouchableOpacity
+                      style={[cStyles.commentSendBtn, { backgroundColor: entryCommentText.trim() ? colors.primary : colors.muted }]}
+                      onPress={() => {
+                        if (entryCommentText.trim()) {
+                          addTaskComment({
+                            taskId,
+                            timeEntryId: selectedEntry.id,
+                            authorName: settings.name || "Me",
+                            text: entryCommentText.trim(),
+                          });
+                          setEntryCommentText("");
+                        }
+                      }}
+                      disabled={!entryCommentText.trim()}
+                    >
+                      <AppIcon name="send" size={14} color={entryCommentText.trim() ? "#fff" : colors.mutedForeground} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })()}
 
             <TouchableOpacity
               style={[styles.sheetBtn, { backgroundColor: colors.muted }]}
@@ -735,4 +850,22 @@ const styles = StyleSheet.create({
   batchClientAmount: { fontSize: 16, fontFamily: "Inter_700Bold" },
   batchInvoiceBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 10, paddingVertical: 11 },
   batchInvoiceBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  noteInputBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, width: "100%", marginTop: 2 },
+  noteInput: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", minHeight: 36, maxHeight: 60, textAlignVertical: "top" },
+});
+
+const cStyles = StyleSheet.create({
+  commentsSection: { borderTopWidth: 1, paddingTop: 14, marginTop: 6, marginBottom: 12 },
+  commentHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  commentTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  commentCount: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  noComments: { fontSize: 12, fontFamily: "Inter_400Regular", marginBottom: 10 },
+  commentBubble: { borderRadius: 10, padding: 10, marginBottom: 6 },
+  commentBubbleTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  commentAuthor: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  commentTime: { fontSize: 10, fontFamily: "Inter_400Regular" },
+  commentBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  commentInputRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  commentInput: { flex: 1, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, fontFamily: "Inter_400Regular", minHeight: 36, maxHeight: 70, textAlignVertical: "top" },
+  commentSendBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
 });

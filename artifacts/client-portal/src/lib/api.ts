@@ -188,3 +188,13 @@ export async function getTaskNotes(code: string, taskId: string): Promise<TaskNo
   if (!res.ok) return [];
   return res.json();
 }
+
+export async function getAllNotes(code: string, since?: string, email?: string): Promise<TaskNote[]> {
+  const params = new URLSearchParams();
+  if (since) params.set("since", since);
+  if (email) params.set("email", email);
+  const qs = params.toString();
+  const res = await fetch(`${API_BASE}/workspaces/${code}/notes${qs ? `?${qs}` : ""}`);
+  if (!res.ok) return [];
+  return res.json();
+}

@@ -75,7 +75,7 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - Team auth: PUT /api/workspaces/:code/team-members, POST /api/workspaces/:code/team-login
   - Tasks: GET/POST /api/workspaces/:code/tasks, GET team-tasks?email=X, GET pending, PATCH claim, PATCH status
   - Time tracking: POST /api/workspaces/:code/time-entries/start, PATCH stop, GET time-entries, GET running
-  - Notes: POST/GET /api/workspaces/:code/tasks/:id/notes
+  - Notes: POST/GET /api/workspaces/:code/tasks/:id/notes, GET /api/workspaces/:code/notes?since=X&email=Y (all notes, scoped by user visibility)
 - **Types**: SharedTask (with assignedTo, source: client|freelancer|team), TeamMember, TimeEntry, TaskNote
 - **Storage**: In-memory JSON file (store.ts)
 
@@ -84,7 +84,16 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - **Kind**: React + Vite web app
 - **Preview path**: /client-portal
 - **Description**: Unified web portal for clients AND team members. Accessed via shareable link (?code=XXXXXX, optional &mode=team for team login).
-  - **Client mode**: Submit tasks, view task status with due date tracking
-  - **Team mode**: View assigned tasks, start/stop timers, update task status, add notes, see time logs
+  - **Client mode**: Submit tasks, view task status with due date tracking, comment notifications
+  - **Team mode**: View assigned tasks, start/stop timers, update task status, add notes, see time logs, comment notifications
   - Login form has a "Switch to team/client" toggle at the bottom
+  - **Notification bell**: Both portals poll for new comments (12s interval), show badge count, dropdown with recent comments, "Mark all read" dismiss
 - **Key components**: TaskBoard.tsx (client), TeamTaskBoard.tsx (team), LoginForm.tsx (dual-mode), ChangePasswordModal.tsx
+
+### Comments System
+- **Local storage**: `TaskComment` type in AppContext with `taskComments` array persisted to AsyncStorage
+- **Mobile app**: Comments available on ALL tasks (Tasks tab) and ALL time entries (Work tab)
+  - Tasks tab: comment section inside task edit BottomSheet, works for both portal-synced and local-only tasks
+  - Work tab: "Leave a note" field in Timer Stopped modal, notes & comments section in Entry Detail sheet
+- **Sync**: Background interval (20s) pushes unsynced local comments to portal API when task has `portalTaskId`; `markCommentsSynced(ids)` prevents duplicates
+- **Portals**: Notification bell with badge polls `/workspaces/:code/notes?email=X&since=Y`, scoped to user-visible tasks only

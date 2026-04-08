@@ -134,6 +134,16 @@ export type Task = {
   portalTaskId?: string | null;
 };
 
+export type TaskComment = {
+  id: string;
+  taskId: string;
+  timeEntryId?: string | null;
+  authorName: string;
+  text: string;
+  createdAt: string;
+  synced?: boolean;
+};
+
 export type CompanyProfile = {
   name: string;
   tagline: string;
@@ -272,6 +282,12 @@ type AppContextType = {
   deleteTask: (id: string) => void;
   completeTask: (id: string) => void;
 
+  taskComments: TaskComment[];
+  addTaskComment: (comment: Omit<TaskComment, "id" | "createdAt" | "synced"> & { synced?: boolean }) => TaskComment;
+  getTaskComments: (taskId: string) => TaskComment[];
+  getEntryComments: (timeEntryId: string) => TaskComment[];
+  markCommentsSynced: (ids: string[]) => void;
+
   updateSettings: (updates: Partial<UserSettings>) => void;
   updateCompanyProfile: (updates: Partial<CompanyProfile>) => void;
 
@@ -299,6 +315,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [clientNotes, setClientNotes] = useState<ClientNote[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(DEFAULT_COMPANY);
   const [activeTimer, setActiveTimer] = useState<TimeEntry | null>(null);
@@ -310,7 +327,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const loadData = async () => {
     try {
-      const keys = ["clients","projects","timeEntries","quotes","invoices","expenses","quoteTemplates","clientNotes","meetings","tasks","settings","companyProfile","activeTimer"];
+      const keys = ["clients","projects","timeEntries","quotes","invoices","expenses","quoteTemplates","clientNotes","meetings","tasks","taskComments","settings","companyProfile","activeTimer"];
       const results = await AsyncStorage.multiGet(keys);
       const map: Record<string, string | null> = {};
       results.forEach(([k, v]) => { map[k] = v; });
@@ -335,6 +352,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (map.clientNotes) setClientNotes(JSON.parse(map.clientNotes));
       if (map.meetings) setMeetings(JSON.parse(map.meetings));
       if (map.tasks) setTasks(JSON.parse(map.tasks));
+      if (map.taskComments) setTaskComments(JSON.parse(map.taskComments));
       if (map.settings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(map.settings) });
       if (map.companyProfile) setCompanyProfile({ ...DEFAULT_COMPANY, ...JSON.parse(map.companyProfile) });
       if (map.activeTimer) setActiveTimer(JSON.parse(map.activeTimer));
@@ -682,6 +700,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [save]);
 
+  const addTaskComment = useCallback((comment: Omit<TaskComment, "id" | "createdAt" | "synced"> & { synced?: boolean }) => {
+    const newComment: TaskComment = {
+      ...comment,
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      createdAt: new Date().toISOString(),
+      synced: comment.synced ?? false,
+    };
+    setTaskComments((prev) => {
+      const next = [...prev, newComment];
+      save("taskComments", next);
+      return next;
+    });
+    return newComment;
+  }, [save]);
+
+  const getTaskComments = useCallback((taskId: string) => {
+    return taskComments.filter((c) => c.taskId === taskId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [taskComments]);
+
+  const getEntryComments = useCallback((timeEntryId: string) => {
+    return taskComments.filter((c) => c.timeEntryId === timeEntryId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [taskComments]);
+
+  const markCommentsSynced = useCallback((ids: string[]) => {
+    setTaskComments((prev) => {
+      const next = prev.map((c) => ids.includes(c.id) ? { ...c, synced: true } : c);
+      save("taskComments", next);
+      return next;
+    });
+  }, [save]);
+
   // Settings
   const updateSettings = useCallback((updates: Partial<UserSettings>) => {
     setSettings((prev) => {
@@ -812,6 +861,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addClientNote, deleteClientNote,
       addMeeting, deleteMeeting,
       addTask, updateTask, deleteTask, completeTask,
+      taskComments, addTaskComment, getTaskComments, getEntryComments, markCommentsSynced,
       updateSettings, updateCompanyProfile,
       getClientRevenue, getClientProfit, getTotalRevenue, getUnbilledAmount,
       getOutstandingAmount, getBillingAlerts, getCashFlowForecast,

@@ -258,4 +258,21 @@ router.get("/workspaces/:code/tasks/:taskId/notes", (req, res) => {
   res.json(notes);
 });
 
+router.get("/workspaces/:code/notes", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const since = req.query.since as string | undefined;
+  const email = req.query.email as string | undefined;
+  let notes = store.getAllTaskNotes(code, since);
+  if (email) {
+    const tasks = store.getAllTasks(code);
+    const visibleTaskIds = new Set(
+      tasks
+        .filter((t) => t.forEmail === email || t.fromEmail === email || t.assignedTo === email)
+        .map((t) => t.id)
+    );
+    notes = notes.filter((n) => visibleTaskIds.has(n.taskId));
+  }
+  res.json(notes);
+});
+
 export default router;

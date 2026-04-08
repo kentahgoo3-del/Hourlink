@@ -446,4 +446,16 @@ export const store = {
     if (!ws) return [];
     return ws.taskNotes.filter((n) => n.taskId === taskId).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   },
+
+  getAllTaskNotes(code: string, since?: string): TaskNote[] {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return [];
+    let notes = ws.taskNotes;
+    if (since) {
+      const sinceTime = new Date(since).getTime();
+      notes = notes.filter((n) => new Date(n.createdAt).getTime() > sinceTime);
+    }
+    return notes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
 };
