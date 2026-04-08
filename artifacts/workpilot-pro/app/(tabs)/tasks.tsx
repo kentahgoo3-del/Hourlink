@@ -5,6 +5,7 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Platform,
   ScrollView,
@@ -211,6 +212,7 @@ export default function TasksScreen() {
   const [pendingTasks, setPendingTasks] = useState<any[]>([]);
   const [clientCredentials, setClientCredentials] = useState<{ name: string; email: string; password: string; isNew: boolean }[]>([]);
   const [credsCopied, setCredsCopied] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -402,6 +404,16 @@ export default function TasksScreen() {
       setPendingTasks([]);
     }
   }, [tasks, clients, addTask]);
+
+  const handleManualRefresh = useCallback(async () => {
+    if (!portalCode || refreshing) return;
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await fetchAndImportPendingTasks(portalCode);
+    } catch {}
+    setRefreshing(false);
+  }, [portalCode, refreshing, fetchAndImportPendingTasks]);
 
   const pushLocalTasksToPortal = useCallback(async (code: string) => {
     const clientTasks = tasks.filter((t) => t.clientId && !t.portalTaskId);
@@ -638,6 +650,15 @@ export default function TasksScreen() {
           )}
         </View>
         <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: colors.muted }]}
+            onPress={handleManualRefresh}
+            disabled={refreshing}
+          >
+            {refreshing
+              ? <ActivityIndicator size="small" color={colors.primary} />
+              : <AppIcon name="refresh" size={18} color={colors.primary} />}
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.iconBtn, { backgroundColor: colors.muted }]}
             onPress={openPortalSheet}
