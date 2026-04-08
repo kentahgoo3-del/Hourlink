@@ -38,12 +38,7 @@ export function IdentifyForm({ workspace, portalCode, onIdentify }: Props) {
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-          </div>
+          <img src={`${import.meta.env.BASE_URL}hourlink_icon.png`} alt="HourLink" className="w-16 h-16 rounded-2xl mx-auto mb-4" />
           <h1 className="text-2xl font-semibold text-foreground mb-1">Task Portal</h1>
           <p className="text-muted-foreground text-sm">
             Submit tasks to <span className="font-medium text-foreground">{workspace.ownerName}</span>
