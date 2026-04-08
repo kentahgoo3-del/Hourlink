@@ -7,12 +7,15 @@ export type SharedTask = {
   description: string;
   priority: "low" | "medium" | "high";
   fromUser: string;
+  fromEmail: string;
   sentAt: string;
   claimed: boolean;
+  status: "pending" | "in_progress" | "done";
 };
 
 export type WorkspaceMember = {
   name: string;
+  email: string;
   joinedAt: string;
 };
 
@@ -61,25 +64,40 @@ export const store = {
     return data[code.toUpperCase()] ?? null;
   },
 
-  joinWorkspace(code: string, memberName: string): Workspace | null {
+  joinWorkspace(code: string, memberName: string, email?: string): Workspace | null {
     const data = load();
     const ws = data[code.toUpperCase()];
     if (!ws) return null;
-    if (!ws.members.find((m) => m.name === memberName)) {
-      ws.members.push({ name: memberName, joinedAt: new Date().toISOString() });
+    const existing = ws.members.find((m) => m.email === email || m.name === memberName);
+    if (!existing) {
+      ws.members.push({ name: memberName, email: email || "", joinedAt: new Date().toISOString() });
       save(data);
     }
     return ws;
   },
 
-  addTask(code: string, task: Omit<SharedTask, "id" | "sentAt" | "claimed">): SharedTask | null {
+  addTask(code: string, task: Omit<SharedTask, "id" | "sentAt" | "claimed" | "status">): SharedTask | null {
     const data = load();
     const ws = data[code.toUpperCase()];
     if (!ws) return null;
-    const t: SharedTask = { ...task, id: genId(), sentAt: new Date().toISOString(), claimed: false };
+    const t: SharedTask = { ...task, id: genId(), sentAt: new Date().toISOString(), claimed: false, status: "pending" };
     ws.tasks.push(t);
     save(data);
     return t;
+  },
+
+  getAllTasks(code: string): SharedTask[] {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return [];
+    return ws.tasks;
+  },
+
+  getTasksByEmail(code: string, email: string): SharedTask[] {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return [];
+    return ws.tasks.filter((t) => t.fromEmail === email);
   },
 
   getPendingTasks(code: string): SharedTask[] {
@@ -96,6 +114,18 @@ export const store = {
     const task = ws.tasks.find((t) => t.id === taskId);
     if (!task) return false;
     task.claimed = true;
+    save(data);
+    return true;
+  },
+
+  updateTaskStatus(code: string, taskId: string, status: "pending" | "in_progress" | "done"): boolean {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return false;
+    const task = ws.tasks.find((t) => t.id === taskId);
+    if (!task) return false;
+    task.status = status;
+    if (status === "done") task.claimed = true;
     save(data);
     return true;
   },

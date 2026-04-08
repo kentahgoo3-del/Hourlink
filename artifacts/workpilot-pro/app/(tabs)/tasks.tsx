@@ -1,11 +1,14 @@
 import { AppIcon } from "@/components/AppIcon";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -23,6 +26,11 @@ import { FormField } from "@/components/FormField";
 import { useApp } from "@/context/AppContext";
 import type { Task } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+
+const PORTAL_KEY = "@hourlink_portal_code";
+const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+  : "/api";
 
 type FilterType = "all" | "todo" | "in_progress" | "done";
 type ViewMode = "list" | "calendar";
@@ -196,6 +204,11 @@ export default function TasksScreen() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
+  const [showPortal, setShowPortal] = useState(false);
+  const [portalCode, setPortalCode] = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalCopied, setPortalCopied] = useState(false);
+  const [pendingTasks, setPendingTasks] = useState<any[]>([]);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -207,6 +220,113 @@ export default function TasksScreen() {
   const [estHours, setEstHours] = useState("");
   const [hourlyRate, setHourlyRate] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(PORTAL_KEY).then((code) => {
+      if (code) setPortalCode(code);
+    });
+  }, []);
+
+  const createOrGetPortal = useCallback(async () => {
+    if (portalCode) return portalCode;
+    setPortalLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/workspaces`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerName: settings.name || "HourLink User" }),
+      });
+      if (res.ok) {
+        const ws = await res.json();
+        await AsyncStorage.setItem(PORTAL_KEY, ws.code);
+        setPortalCode(ws.code);
+        return ws.code;
+      }
+    } catch (e) {
+      console.error("Portal creation failed:", e);
+    } finally {
+      setPortalLoading(false);
+    }
+    return null;
+  }, [portalCode, settings.name]);
+
+  const fetchPendingTasks = useCallback(async (code: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/workspaces/${code}/tasks/pending`);
+      if (res.ok) {
+        const data = await res.json();
+        setPendingTasks(data);
+      } else {
+        setPendingTasks([]);
+      }
+    } catch {
+      setPendingTasks([]);
+    }
+  }, []);
+
+  const claimPortalTask = useCallback(async (taskId: string, task: any) => {
+    if (!portalCode) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const claimRes = await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/${taskId}/claim`, { method: "PATCH" });
+      if (!claimRes.ok) {
+        Alert.alert("Error", "Could not claim this task. It may have already been claimed.");
+        return;
+      }
+      await fetch(`${API_BASE}/workspaces/${portalCode}/tasks/${taskId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "in_progress" }),
+      });
+      addTask({
+        title: task.title,
+        description: task.description || "",
+        priority: task.priority || "medium",
+        status: "todo",
+        clientId: "",
+        dueDate: null,
+        estimatedHours: null,
+        hourlyRate: null,
+      });
+      setPendingTasks((prev) => prev.filter((t) => t.id !== taskId));
+    } catch {
+      Alert.alert("Connection Error", "Could not reach the server. Please try again.");
+    }
+  }, [portalCode, addTask]);
+
+  const openPortalSheet = useCallback(async () => {
+    const code = await createOrGetPortal();
+    if (code) {
+      await fetchPendingTasks(code);
+      setShowPortal(true);
+    } else {
+      Alert.alert("Connection Error", "Could not connect to the portal server. Please try again.");
+    }
+  }, [createOrGetPortal, fetchPendingTasks]);
+
+  const getPortalUrl = useCallback(() => {
+    if (!portalCode) return "";
+    const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
+    return `https://${domain}/client-portal/?code=${portalCode}`;
+  }, [portalCode]);
+
+  const copyPortalLink = useCallback(async () => {
+    const url = getPortalUrl();
+    await Clipboard.setStringAsync(url);
+    setPortalCopied(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setTimeout(() => setPortalCopied(false), 2000);
+  }, [getPortalUrl]);
+
+  const sharePortalLink = useCallback(async () => {
+    const url = getPortalUrl();
+    try {
+      await Share.share({
+        message: `Submit tasks for me via HourLink:\n${url}`,
+        url,
+      });
+    } catch {}
+  }, [getPortalUrl]);
 
   const resetForm = () => {
     setTitle(""); setDesc(""); setPriority("medium"); setStatus("todo");
@@ -300,6 +420,12 @@ export default function TasksScreen() {
           )}
         </View>
         <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: colors.muted }]}
+            onPress={openPortalSheet}
+          >
+            <AppIcon name="share-outline" size={18} color={colors.foreground} />
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.iconBtn, { backgroundColor: viewMode === "calendar" ? colors.primary : colors.muted }]}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setViewMode(v => v === "list" ? "calendar" : "list"); }}
@@ -555,6 +681,85 @@ export default function TasksScreen() {
         </TouchableOpacity>
       </BottomSheet>
 
+      <BottomSheet visible={showPortal} onClose={() => setShowPortal(false)} title="Client Task Portal">
+        <View style={{ gap: 16 }}>
+          <View style={[portalStyles.infoCard, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "30" }]}>
+            <AppIcon name="link-outline" size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={[portalStyles.infoTitle, { color: colors.foreground }]}>Share this link with your clients</Text>
+              <Text style={[portalStyles.infoDesc, { color: colors.mutedForeground }]}>
+                They'll be able to submit tasks directly to your task list — no app install needed.
+              </Text>
+            </View>
+          </View>
+
+          {portalCode ? (
+            <>
+              <View style={[portalStyles.urlBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                <Text style={[portalStyles.urlText, { color: colors.foreground }]} numberOfLines={2} selectable>
+                  {getPortalUrl()}
+                </Text>
+              </View>
+              <View style={portalStyles.actionRow}>
+                <TouchableOpacity
+                  style={[portalStyles.actionBtn, { backgroundColor: portalCopied ? "#10b981" : colors.primary }]}
+                  onPress={copyPortalLink}
+                >
+                  <AppIcon name={portalCopied ? "checkmark" : "copy-outline"} size={16} color="#fff" />
+                  <Text style={portalStyles.actionBtnText}>{portalCopied ? "Copied!" : "Copy Link"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[portalStyles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
+                  onPress={sharePortalLink}
+                >
+                  <AppIcon name="share-outline" size={16} color={colors.foreground} />
+                  <Text style={[portalStyles.actionBtnText, { color: colors.foreground }]}>Share</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <TouchableOpacity
+              style={[portalStyles.actionBtn, { backgroundColor: colors.primary, alignSelf: "stretch" }]}
+              onPress={createOrGetPortal}
+              disabled={portalLoading}
+            >
+              <Text style={portalStyles.actionBtnText}>{portalLoading ? "Creating..." : "Generate Portal Link"}</Text>
+            </TouchableOpacity>
+          )}
+
+          {pendingTasks.length > 0 && (
+            <View style={{ gap: 8, marginTop: 8 }}>
+              <View style={portalStyles.pendingHeader}>
+                <Text style={[portalStyles.pendingTitle, { color: colors.foreground }]}>Incoming Tasks</Text>
+                <View style={[portalStyles.pendingBadge, { backgroundColor: "#ef444420" }]}>
+                  <Text style={[portalStyles.pendingBadgeText, { color: "#ef4444" }]}>{pendingTasks.length} new</Text>
+                </View>
+              </View>
+              {pendingTasks.map((task) => (
+                <View key={task.id} style={[portalStyles.pendingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[portalStyles.pendingTaskTitle, { color: colors.foreground }]}>{task.title}</Text>
+                    <Text style={[portalStyles.pendingTaskMeta, { color: colors.mutedForeground }]}>
+                      From {task.fromUser} · {task.priority}
+                    </Text>
+                    {task.description ? (
+                      <Text style={[portalStyles.pendingTaskDesc, { color: colors.mutedForeground }]} numberOfLines={2}>{task.description}</Text>
+                    ) : null}
+                  </View>
+                  <TouchableOpacity
+                    style={[portalStyles.claimBtn, { backgroundColor: colors.primary }]}
+                    onPress={() => claimPortalTask(task.id, task)}
+                  >
+                    <AppIcon name="add" size={16} color="#fff" />
+                    <Text style={portalStyles.claimBtnText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      </BottomSheet>
+
       <ConfirmDialog
         visible={!!pendingDeleteId}
         title="Delete Task"
@@ -567,6 +772,27 @@ export default function TasksScreen() {
     </View>
   );
 }
+
+const portalStyles = StyleSheet.create({
+  infoCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 12, borderWidth: 1 },
+  infoTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+  infoDesc: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
+  urlBox: { borderRadius: 10, borderWidth: 1, padding: 12 },
+  urlText: { fontSize: 12, fontFamily: "Inter_500Medium", lineHeight: 18 },
+  actionRow: { flexDirection: "row", gap: 10 },
+  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, paddingVertical: 12 },
+  actionBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  pendingHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  pendingTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  pendingBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  pendingBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  pendingCard: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, borderWidth: 1, padding: 12 },
+  pendingTaskTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+  pendingTaskMeta: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  pendingTaskDesc: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 4, lineHeight: 16 },
+  claimBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  claimBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

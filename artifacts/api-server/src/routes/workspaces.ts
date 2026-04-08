@@ -3,7 +3,6 @@ import { store } from "../lib/store";
 
 const router = Router();
 
-// Create a new workspace
 router.post("/workspaces", (req, res) => {
   const { ownerName } = req.body;
   if (!ownerName || typeof ownerName !== "string" || !ownerName.trim()) {
@@ -14,20 +13,18 @@ router.post("/workspaces", (req, res) => {
   res.status(201).json({ code: ws.code, ownerName: ws.ownerName, createdAt: ws.createdAt, members: ws.members });
 });
 
-// Get workspace info (join)
 router.post("/workspaces/:code/join", (req, res) => {
   const code = req.params.code?.toUpperCase();
-  const { memberName } = req.body;
+  const { memberName, email } = req.body;
   if (!memberName || typeof memberName !== "string" || !memberName.trim()) {
     res.status(400).json({ error: "memberName is required" });
     return;
   }
-  const ws = store.joinWorkspace(code, memberName.trim());
+  const ws = store.joinWorkspace(code, memberName.trim(), email?.trim());
   if (!ws) { res.status(404).json({ error: "Workspace not found" }); return; }
   res.json({ code: ws.code, ownerName: ws.ownerName, createdAt: ws.createdAt, members: ws.members });
 });
 
-// Get workspace info (read-only, for verifying code)
 router.get("/workspaces/:code", (req, res) => {
   const code = req.params.code?.toUpperCase();
   const ws = store.getWorkspace(code);
@@ -35,22 +32,33 @@ router.get("/workspaces/:code", (req, res) => {
   res.json({ code: ws.code, ownerName: ws.ownerName, createdAt: ws.createdAt, members: ws.members });
 });
 
-// Push a task to the workspace owner's to-do list
 router.post("/workspaces/:code/tasks", (req, res) => {
   const code = req.params.code?.toUpperCase();
-  const { title, description, priority, fromUser } = req.body;
+  const { title, description, priority, fromUser, fromEmail } = req.body;
   if (!title || !fromUser) { res.status(400).json({ error: "title and fromUser are required" }); return; }
   const task = store.addTask(code, {
     title: String(title),
     description: String(description || ""),
     priority: (["low","medium","high"].includes(priority) ? priority : "medium") as "low" | "medium" | "high",
     fromUser: String(fromUser),
+    fromEmail: String(fromEmail || ""),
   });
   if (!task) { res.status(404).json({ error: "Workspace not found" }); return; }
   res.status(201).json(task);
 });
 
-// Get pending (unclaimed) tasks for the workspace
+router.get("/workspaces/:code/tasks", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const ws = store.getWorkspace(code);
+  if (!ws) { res.status(404).json({ error: "Workspace not found" }); return; }
+  const email = req.query.email as string | undefined;
+  if (email) {
+    res.json(store.getTasksByEmail(code, email));
+  } else {
+    res.json(store.getAllTasks(code));
+  }
+});
+
 router.get("/workspaces/:code/tasks/pending", (req, res) => {
   const code = req.params.code?.toUpperCase();
   const ws = store.getWorkspace(code);
@@ -58,11 +66,23 @@ router.get("/workspaces/:code/tasks/pending", (req, res) => {
   res.json(store.getPendingTasks(code));
 });
 
-// Claim (acknowledge) a task — removes it from pending
 router.patch("/workspaces/:code/tasks/:taskId/claim", (req, res) => {
   const code = req.params.code?.toUpperCase();
   const { taskId } = req.params;
   const ok = store.claimTask(code, taskId);
+  if (!ok) { res.status(404).json({ error: "Task or workspace not found" }); return; }
+  res.json({ ok: true });
+});
+
+router.patch("/workspaces/:code/tasks/:taskId/status", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const { taskId } = req.params;
+  const { status } = req.body;
+  if (!["pending", "in_progress", "done"].includes(status)) {
+    res.status(400).json({ error: "status must be pending, in_progress, or done" });
+    return;
+  }
+  const ok = store.updateTaskStatus(code, taskId, status);
   if (!ok) { res.status(404).json({ error: "Task or workspace not found" }); return; }
   res.json({ ok: true });
 });

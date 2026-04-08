@@ -45,6 +45,7 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - Guided tour (10-step tooltip walkthrough for first-time users, auto-triggers after onboarding)
   - About HourLink screen (app info, features, version, contact)
   - Privacy Policy screen (comprehensive, all-local-data focused)
+  - **Client Task Portal**: Share button in Tasks header opens portal sheet. Creates a workspace via API, generates a shareable link to the Client Portal web app where clients can submit tasks. Incoming tasks appear as "pending" and can be claimed into local task list.
 - **Storage**: AsyncStorage (all data persisted locally)
 - **Icons**: All icons use `AppIcon` component (`components/AppIcon.tsx`) wrapping `lucide-react-native` SVG icons. Never use Ionicons/vector-icons.
 - **Key files**:
@@ -60,3 +61,16 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - `app/about.tsx` — About HourLink screen
   - `app/privacy.tsx` — Privacy Policy screen
   - `constants/colors.ts` — design tokens (blue/slate theme)
+
+### API Server
+- **Kind**: api (Express backend)
+- **Port**: 8080
+- **Description**: Shared backend for collaboration features (portal workspaces, tasks)
+- **Endpoints**: POST /api/workspaces, POST /api/workspaces/:code/join, GET /api/workspaces/:code, GET/POST /api/workspaces/:code/tasks, GET /api/workspaces/:code/tasks/pending, PATCH /api/workspaces/:code/tasks/:id/claim, PATCH /api/workspaces/:code/tasks/:id/status
+- **Storage**: In-memory (store.ts)
+
+### Client Task Portal (web)
+- **Slug**: client-portal
+- **Kind**: React + Vite web app
+- **Preview path**: /client-portal
+- **Description**: Web portal for clients to submit tasks to freelancers. Accessed via shareable link with workspace code (?code=XXXXXX). Clients identify with name+email, then can submit tasks and view their submitted tasks.
