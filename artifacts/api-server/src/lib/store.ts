@@ -39,7 +39,15 @@ const DATA_PATH = join("/tmp", "workpilot_workspaces.json");
 
 function load(): Record<string, Workspace> {
   if (!existsSync(DATA_PATH)) return {};
-  try { return JSON.parse(readFileSync(DATA_PATH, "utf8")); }
+  try {
+    const data = JSON.parse(readFileSync(DATA_PATH, "utf8"));
+    for (const key of Object.keys(data)) {
+      if (!data[key].allowedClients) data[key].allowedClients = [];
+      if (!data[key].tasks) data[key].tasks = [];
+      if (!data[key].members) data[key].members = [];
+    }
+    return data;
+  }
   catch { return {}; }
 }
 
