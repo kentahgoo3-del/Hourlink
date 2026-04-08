@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { loginClient, type WorkspaceInfo } from "../lib/api";
+import { loginClient, loginTeamMember, type WorkspaceInfo } from "../lib/api";
 
 interface Props {
   workspace: WorkspaceInfo;
   portalCode: string;
-  onLogin: (name: string, email: string, password: string, firstLogin: boolean) => void;
+  mode: "client" | "team";
+  onLogin: (name: string, email: string, password: string, firstLogin: boolean, userType: "client" | "team", role?: string) => void;
+  onSwitchMode: () => void;
 }
 
-export function LoginForm({ workspace, portalCode, onLogin }: Props) {
+export function LoginForm({ workspace, portalCode, mode, onLogin, onSwitchMode }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,22 +18,31 @@ export function LoginForm({ workspace, portalCode, onLogin }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) {
-      setError("Please enter your email address.");
-      return;
-    }
-    if (!password.trim()) {
-      setError("Please enter your password.");
-      return;
-    }
+    if (!email.trim()) { setError("Please enter your email address."); return; }
+    if (!password.trim()) { setError("Please enter your password."); return; }
     setLoading(true);
     setError("");
-    const result = await loginClient(portalCode, email.trim(), password.trim());
-    setLoading(false);
-    if (result.ok) {
-      onLogin(result.name, result.email, password.trim(), result.firstLogin);
-    } else {
-      setError(result.message);
+
+    try {
+      if (mode === "team") {
+        const result = await loginTeamMember(portalCode, email.trim(), password.trim());
+        if (result.ok) {
+          onLogin(result.name, result.email, password.trim(), result.firstLogin, "team", result.role);
+        } else {
+          setError(result.message);
+        }
+      } else {
+        const result = await loginClient(portalCode, email.trim(), password.trim());
+        if (result.ok) {
+          onLogin(result.name, result.email, password.trim(), result.firstLogin, "client");
+        } else {
+          setError(result.message);
+        }
+      }
+    } catch {
+      setError("Could not connect to the server. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -40,9 +51,14 @@ export function LoginForm({ workspace, portalCode, onLogin }: Props) {
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <img src={`${import.meta.env.BASE_URL}hourlink_icon.png`} alt="HourLink" className="w-16 h-16 rounded-2xl mx-auto mb-4" />
-          <h1 className="text-2xl font-semibold text-foreground mb-1">Task Portal</h1>
+          <h1 className="text-2xl font-semibold text-foreground mb-1">
+            {mode === "team" ? "Team Portal" : "Task Portal"}
+          </h1>
           <p className="text-muted-foreground text-sm">
-            Sign in to submit tasks to <span className="font-medium text-foreground">{workspace.ownerName}</span>
+            {mode === "team"
+              ? <>Sign in to view your assigned tasks from <span className="font-medium text-foreground">{workspace.ownerName}</span></>
+              : <>Sign in to submit tasks to <span className="font-medium text-foreground">{workspace.ownerName}</span></>
+            }
           </p>
         </div>
 
@@ -107,6 +123,12 @@ export function LoginForm({ workspace, portalCode, onLogin }: Props) {
             Your login details were provided by {workspace.ownerName}.
           </p>
         </form>
+
+        <div className="mt-4 text-center">
+          <button onClick={onSwitchMode} className="text-xs text-primary font-medium hover:underline">
+            {mode === "team" ? "Sign in as a client instead" : "Sign in as a team member instead"}
+          </button>
+        </div>
       </div>
     </div>
   );

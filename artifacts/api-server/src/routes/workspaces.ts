@@ -84,11 +84,8 @@ router.post("/workspaces/:code/join", (req, res) => {
     res.status(400).json({ error: "memberName is required" });
     return;
   }
-  if (!email || typeof email !== "string" || !email.includes("@")) {
-    res.status(400).json({ error: "A valid email is required" });
-    return;
-  }
-  const result = store.joinWorkspace(code, memberName.trim(), email.trim());
+  const validEmail = email && typeof email === "string" && email.includes("@") ? email.trim() : "";
+  const result = store.joinWorkspace(code, memberName.trim(), validEmail);
   if (result === "not_allowed" as any) {
     res.status(403).json({ error: "not_allowed", message: "Your email is not recognised." });
     return;
@@ -106,8 +103,9 @@ router.get("/workspaces/:code", (req, res) => {
 
 router.post("/workspaces/:code/tasks", (req, res) => {
   const code = req.params.code?.toUpperCase();
-  const { title, description, priority, fromUser, fromEmail, forEmail, dueDate, source } = req.body;
+  const { title, description, priority, fromUser, fromEmail, forEmail, assignedTo, dueDate, source } = req.body;
   if (!title || !fromUser) { res.status(400).json({ error: "title and fromUser are required" }); return; }
+  const validSources = ["client", "freelancer", "team"];
   const task = store.addTask(code, {
     title: String(title),
     description: String(description || ""),
@@ -115,8 +113,9 @@ router.post("/workspaces/:code/tasks", (req, res) => {
     fromUser: String(fromUser),
     fromEmail: String(fromEmail || ""),
     forEmail: String(forEmail || ""),
+    assignedTo: String(assignedTo || ""),
     dueDate: dueDate ? String(dueDate) : null,
-    source: source === "freelancer" ? "freelancer" : "client",
+    source: validSources.includes(source) ? source : "client",
   });
   if (!task) { res.status(404).json({ error: "Workspace not found" }); return; }
   res.status(201).json(task);
@@ -160,6 +159,103 @@ router.patch("/workspaces/:code/tasks/:taskId/status", (req, res) => {
   const ok = store.updateTaskStatus(code, taskId, status);
   if (!ok) { res.status(404).json({ error: "Task or workspace not found" }); return; }
   res.json({ ok: true });
+});
+
+router.put("/workspaces/:code/team-members", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const { members } = req.body;
+  if (!Array.isArray(members)) {
+    res.status(400).json({ error: "members must be an array" });
+    return;
+  }
+  const valid = members.filter(
+    (m: any) => m && typeof m.name === "string" && typeof m.email === "string" && m.email.includes("@")
+  );
+  const result = store.setTeamMembers(code, valid.map((m: any) => ({ name: m.name.trim(), email: m.email.trim(), role: m.role || "member" })));
+  if (!result.ok) { res.status(404).json({ error: "Workspace not found" }); return; }
+  res.json({ ok: true, count: valid.length, credentials: result.credentials });
+});
+
+router.post("/workspaces/:code/team-login", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const { email, password } = req.body;
+  if (!email || !password) {
+    res.status(400).json({ error: "email and password are required" });
+    return;
+  }
+  const result = store.loginTeamMember(code, String(email).trim(), String(password));
+  if (!result.ok) {
+    if (result.reason === "not_found") {
+      res.status(404).json({ error: "not_found", message: "Portal not found." });
+    } else if (result.reason === "not_allowed") {
+      res.status(403).json({ error: "not_allowed", message: "This email is not registered as a team member." });
+    } else {
+      res.status(401).json({ error: "wrong_password", message: "Incorrect password. Please try again." });
+    }
+    return;
+  }
+  res.json({ ok: true, name: result.name, email: String(email).trim(), role: result.role, firstLogin: result.firstLogin, userType: "team" });
+});
+
+router.get("/workspaces/:code/team-tasks", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const email = req.query.email as string;
+  if (!email) { res.status(400).json({ error: "email query param required" }); return; }
+  const tasks = store.getTeamTasks(code, email);
+  res.json(tasks);
+});
+
+router.post("/workspaces/:code/time-entries/start", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const { taskId, memberEmail, memberName } = req.body;
+  if (!taskId || !memberEmail || !memberName) {
+    res.status(400).json({ error: "taskId, memberEmail, and memberName are required" });
+    return;
+  }
+  const entry = store.startTimeEntry(code, taskId, String(memberEmail), String(memberName));
+  if (!entry) { res.status(400).json({ error: "Timer already running or workspace not found" }); return; }
+  res.status(201).json(entry);
+});
+
+router.patch("/workspaces/:code/time-entries/:entryId/stop", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const { entryId } = req.params;
+  const entry = store.stopTimeEntry(code, entryId);
+  if (!entry) { res.status(404).json({ error: "Entry not found or already stopped" }); return; }
+  res.json(entry);
+});
+
+router.get("/workspaces/:code/time-entries", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const email = req.query.email as string | undefined;
+  const taskId = req.query.taskId as string | undefined;
+  const entries = store.getTimeEntries(code, email, taskId);
+  res.json(entries);
+});
+
+router.get("/workspaces/:code/time-entries/running", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const email = req.query.email as string;
+  if (!email) { res.status(400).json({ error: "email query param required" }); return; }
+  const entry = store.getRunningEntry(code, email);
+  res.json(entry);
+});
+
+router.post("/workspaces/:code/tasks/:taskId/notes", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const { taskId } = req.params;
+  const { authorName, authorEmail, text } = req.body;
+  if (!text || !authorName) { res.status(400).json({ error: "text and authorName are required" }); return; }
+  const note = store.addTaskNote(code, taskId, String(authorName), String(authorEmail || ""), String(text));
+  if (!note) { res.status(404).json({ error: "Task or workspace not found" }); return; }
+  res.status(201).json(note);
+});
+
+router.get("/workspaces/:code/tasks/:taskId/notes", (req, res) => {
+  const code = req.params.code?.toUpperCase();
+  const { taskId } = req.params;
+  const notes = store.getTaskNotes(code, taskId);
+  res.json(notes);
 });
 
 export default router;

@@ -9,11 +9,31 @@ export type SharedTask = {
   fromUser: string;
   fromEmail: string;
   forEmail: string;
+  assignedTo: string;
   dueDate: string | null;
   sentAt: string;
   claimed: boolean;
   status: "pending" | "in_progress" | "done";
-  source: "client" | "freelancer";
+  source: "client" | "freelancer" | "team";
+};
+
+export type TaskNote = {
+  id: string;
+  taskId: string;
+  authorName: string;
+  authorEmail: string;
+  text: string;
+  createdAt: string;
+};
+
+export type TimeEntry = {
+  id: string;
+  taskId: string;
+  memberEmail: string;
+  memberName: string;
+  startedAt: string;
+  stoppedAt: string | null;
+  duration: number | null;
 };
 
 export type AllowedClient = {
@@ -21,6 +41,14 @@ export type AllowedClient = {
   email: string;
   password: string;
   firstLogin: boolean;
+};
+
+export type TeamMember = {
+  name: string;
+  email: string;
+  password: string;
+  firstLogin: boolean;
+  role: string;
 };
 
 export type WorkspaceMember = {
@@ -36,6 +64,9 @@ export type Workspace = {
   members: WorkspaceMember[];
   tasks: SharedTask[];
   allowedClients: AllowedClient[];
+  teamMembers: TeamMember[];
+  timeEntries: TimeEntry[];
+  taskNotes: TaskNote[];
 };
 
 const DATA_PATH = join("/tmp", "workpilot_workspaces.json");
@@ -48,8 +79,12 @@ function load(): Record<string, Workspace> {
       if (!data[key].allowedClients) data[key].allowedClients = [];
       if (!data[key].tasks) data[key].tasks = [];
       if (!data[key].members) data[key].members = [];
+      if (!data[key].teamMembers) data[key].teamMembers = [];
+      if (!data[key].timeEntries) data[key].timeEntries = [];
+      if (!data[key].taskNotes) data[key].taskNotes = [];
       for (const t of data[key].tasks) {
         if (!t.forEmail) t.forEmail = "";
+        if (!t.assignedTo) t.assignedTo = "";
         if (t.dueDate === undefined) t.dueDate = null;
         if (!t.source) t.source = "client";
       }
@@ -82,7 +117,11 @@ export const store = {
     const data = load();
     let code = genCode();
     while (data[code]) code = genCode();
-    const ws: Workspace = { code, ownerName, createdAt: new Date().toISOString(), members: [], tasks: [], allowedClients: [] };
+    const ws: Workspace = {
+      code, ownerName, createdAt: new Date().toISOString(),
+      members: [], tasks: [], allowedClients: [],
+      teamMembers: [], timeEntries: [], taskNotes: [],
+    };
     data[code] = ws;
     save(data);
     return ws;
@@ -124,6 +163,39 @@ export const store = {
     return { ok: true, credentials };
   },
 
+  setTeamMembers(code: string, members: { name: string; email: string; role?: string }[]): { ok: boolean; credentials: { name: string; email: string; password: string; role: string; isNew: boolean }[] } {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return { ok: false, credentials: [] };
+
+    const existingMap = new Map<string, TeamMember>();
+    for (const m of ws.teamMembers) {
+      existingMap.set(m.email.toLowerCase(), m);
+    }
+
+    const credentials: { name: string; email: string; password: string; role: string; isNew: boolean }[] = [];
+    const newTeam: TeamMember[] = [];
+
+    for (const m of members) {
+      const existing = existingMap.get(m.email.toLowerCase());
+      if (existing) {
+        existing.name = m.name;
+        if (m.role) existing.role = m.role;
+        newTeam.push(existing);
+        credentials.push({ name: m.name, email: m.email, password: existing.password, role: existing.role, isNew: false });
+      } else {
+        const password = genPassword();
+        const role = m.role || "member";
+        newTeam.push({ name: m.name, email: m.email, password, firstLogin: true, role });
+        credentials.push({ name: m.name, email: m.email, password, role, isNew: true });
+      }
+    }
+
+    ws.teamMembers = newTeam;
+    save(data);
+    return { ok: true, credentials };
+  },
+
   loginClient(code: string, email: string, password: string): { ok: boolean; reason?: string; name?: string; firstLogin?: boolean } {
     const data = load();
     const ws = data[code.toUpperCase()];
@@ -142,19 +214,48 @@ export const store = {
     return { ok: true, name: client.name, firstLogin: client.firstLogin };
   },
 
+  loginTeamMember(code: string, email: string, password: string): { ok: boolean; reason?: string; name?: string; role?: string; firstLogin?: boolean } {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return { ok: false, reason: "not_found" };
+
+    const member = ws.teamMembers.find((m) => m.email.toLowerCase() === email.toLowerCase());
+    if (!member) return { ok: false, reason: "not_allowed" };
+    if (member.password !== password) return { ok: false, reason: "wrong_password" };
+
+    const existing = ws.members.find((m) => m.email?.toLowerCase() === email.toLowerCase());
+    if (!existing) {
+      ws.members.push({ name: member.name, email: member.email, joinedAt: new Date().toISOString() });
+      save(data);
+    }
+
+    return { ok: true, name: member.name, role: member.role, firstLogin: member.firstLogin };
+  },
+
   changePassword(code: string, email: string, oldPassword: string, newPassword: string): { ok: boolean; reason?: string } {
     const data = load();
     const ws = data[code.toUpperCase()];
     if (!ws) return { ok: false, reason: "not_found" };
 
     const client = ws.allowedClients.find((c) => c.email.toLowerCase() === email.toLowerCase());
-    if (!client) return { ok: false, reason: "not_found" };
-    if (client.password !== oldPassword) return { ok: false, reason: "wrong_password" };
+    if (client) {
+      if (client.password !== oldPassword) return { ok: false, reason: "wrong_password" };
+      client.password = newPassword;
+      client.firstLogin = false;
+      save(data);
+      return { ok: true };
+    }
 
-    client.password = newPassword;
-    client.firstLogin = false;
-    save(data);
-    return { ok: true };
+    const member = ws.teamMembers.find((m) => m.email.toLowerCase() === email.toLowerCase());
+    if (member) {
+      if (member.password !== oldPassword) return { ok: false, reason: "wrong_password" };
+      member.password = newPassword;
+      member.firstLogin = false;
+      save(data);
+      return { ok: true };
+    }
+
+    return { ok: false, reason: "not_found" };
   },
 
   markFirstLoginDone(code: string, email: string): boolean {
@@ -162,10 +263,10 @@ export const store = {
     const ws = data[code.toUpperCase()];
     if (!ws) return false;
     const client = ws.allowedClients.find((c) => c.email.toLowerCase() === email.toLowerCase());
-    if (!client) return false;
-    client.firstLogin = false;
-    save(data);
-    return true;
+    if (client) { client.firstLogin = false; save(data); return true; }
+    const member = ws.teamMembers.find((m) => m.email.toLowerCase() === email.toLowerCase());
+    if (member) { member.firstLogin = false; save(data); return true; }
+    return false;
   },
 
   isClientAllowed(code: string, name: string, email: string): boolean {
@@ -203,6 +304,7 @@ export const store = {
     const t: SharedTask = {
       ...task,
       forEmail: task.forEmail || "",
+      assignedTo: task.assignedTo || "",
       dueDate: task.dueDate || null,
       source: task.source || "client",
       id: genId(),
@@ -230,6 +332,14 @@ export const store = {
     return ws.tasks.filter((t) =>
       t.fromEmail.toLowerCase() === e || (t.forEmail && t.forEmail.toLowerCase() === e)
     );
+  },
+
+  getTeamTasks(code: string, email: string): SharedTask[] {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return [];
+    const e = email.toLowerCase();
+    return ws.tasks.filter((t) => t.assignedTo && t.assignedTo.toLowerCase() === e);
   },
 
   getPendingTasks(code: string): SharedTask[] {
@@ -260,5 +370,80 @@ export const store = {
     if (status === "done") task.claimed = true;
     save(data);
     return true;
+  },
+
+  startTimeEntry(code: string, taskId: string, memberEmail: string, memberName: string): TimeEntry | null {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return null;
+    const running = ws.timeEntries.find((e) => e.memberEmail.toLowerCase() === memberEmail.toLowerCase() && !e.stoppedAt);
+    if (running) return null;
+    const entry: TimeEntry = {
+      id: genId(),
+      taskId,
+      memberEmail,
+      memberName,
+      startedAt: new Date().toISOString(),
+      stoppedAt: null,
+      duration: null,
+    };
+    ws.timeEntries.push(entry);
+    save(data);
+    return entry;
+  },
+
+  stopTimeEntry(code: string, entryId: string): TimeEntry | null {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return null;
+    const entry = ws.timeEntries.find((e) => e.id === entryId);
+    if (!entry || entry.stoppedAt) return null;
+    entry.stoppedAt = new Date().toISOString();
+    entry.duration = Math.round((new Date(entry.stoppedAt).getTime() - new Date(entry.startedAt).getTime()) / 1000);
+    save(data);
+    return entry;
+  },
+
+  getTimeEntries(code: string, email?: string, taskId?: string): TimeEntry[] {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return [];
+    let entries = ws.timeEntries;
+    if (email) entries = entries.filter((e) => e.memberEmail.toLowerCase() === email.toLowerCase());
+    if (taskId) entries = entries.filter((e) => e.taskId === taskId);
+    return entries;
+  },
+
+  getRunningEntry(code: string, email: string): TimeEntry | null {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return null;
+    return ws.timeEntries.find((e) => e.memberEmail.toLowerCase() === email.toLowerCase() && !e.stoppedAt) || null;
+  },
+
+  addTaskNote(code: string, taskId: string, authorName: string, authorEmail: string, text: string): TaskNote | null {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return null;
+    const task = ws.tasks.find((t) => t.id === taskId);
+    if (!task) return null;
+    const note: TaskNote = {
+      id: genId(),
+      taskId,
+      authorName,
+      authorEmail,
+      text,
+      createdAt: new Date().toISOString(),
+    };
+    ws.taskNotes.push(note);
+    save(data);
+    return note;
+  },
+
+  getTaskNotes(code: string, taskId: string): TaskNote[] {
+    const data = load();
+    const ws = data[code.toUpperCase()];
+    if (!ws) return [];
+    return ws.taskNotes.filter((n) => n.taskId === taskId).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   },
 };

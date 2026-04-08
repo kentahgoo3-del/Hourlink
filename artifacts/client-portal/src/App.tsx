@@ -2,12 +2,17 @@ import { useState, useEffect, useCallback } from "react";
 import { LoginForm } from "./components/LoginForm";
 import { ChangePasswordModal } from "./components/ChangePasswordModal";
 import { TaskBoard } from "./components/TaskBoard";
+import { TeamTaskBoard } from "./components/TeamTaskBoard";
 import { getWorkspace, type WorkspaceInfo } from "./lib/api";
+
+type UserType = "client" | "team";
 
 function App() {
   const [portalCode, setPortalCode] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; role?: string } | null>(null);
+  const [userType, setUserType] = useState<UserType>("client");
+  const [loginMode, setLoginMode] = useState<UserType>("client");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -16,8 +21,12 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
+    const mode = params.get("mode");
     if (code) {
       setPortalCode(code.toUpperCase());
+    }
+    if (mode === "team") {
+      setLoginMode("team");
     }
     setLoading(false);
   }, []);
@@ -33,6 +42,7 @@ function App() {
             const parsed = JSON.parse(saved);
             if (parsed.name && parsed.email) {
               setUser(parsed);
+              setUserType(parsed.userType || "client");
             }
           } catch {}
         }
@@ -44,11 +54,13 @@ function App() {
     });
   }, [portalCode]);
 
-  const handleLogin = useCallback((name: string, email: string, password: string, firstLogin: boolean) => {
+  const handleLogin = useCallback((name: string, email: string, password: string, firstLogin: boolean, type: UserType, role?: string) => {
     if (!portalCode) return;
-    setUser({ name, email });
+    const userData = { name, email, userType: type, role: role || "" };
+    setUser(userData);
+    setUserType(type);
     setCurrentPassword(password);
-    localStorage.setItem(`hourlink_portal_${portalCode}`, JSON.stringify({ name, email }));
+    localStorage.setItem(`hourlink_portal_${portalCode}`, JSON.stringify(userData));
     if (firstLogin) {
       setShowChangePassword(true);
     }
@@ -74,12 +86,12 @@ function App() {
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
         <div className="max-w-md w-full text-center">
           <img src={`${import.meta.env.BASE_URL}hourlink_icon.png`} alt="HourLink" className="w-16 h-16 rounded-2xl mx-auto mb-6" />
-          <h1 className="text-2xl font-semibold text-foreground mb-2">HourLink Task Portal</h1>
+          <h1 className="text-2xl font-semibold text-foreground mb-2">HourLink Portal</h1>
           <p className="text-muted-foreground mb-6">
-            This portal lets you submit tasks to your freelancer. You need a valid portal link to continue.
+            This portal lets clients and team members collaborate. You need a valid portal link to continue.
           </p>
           <p className="text-sm text-muted-foreground">
-            Ask your freelancer to share their portal link with you.
+            Ask the project owner to share their portal link with you.
           </p>
         </div>
       </div>
@@ -113,12 +125,29 @@ function App() {
   }
 
   if (!user) {
-    return <LoginForm workspace={workspace} portalCode={portalCode} onLogin={handleLogin} />;
+    return (
+      <LoginForm
+        workspace={workspace}
+        portalCode={portalCode}
+        mode={loginMode}
+        onLogin={handleLogin}
+        onSwitchMode={() => setLoginMode((m) => m === "client" ? "team" : "client")}
+      />
+    );
   }
 
   return (
     <>
-      <TaskBoard workspace={workspace} portalCode={portalCode} user={user} onLogout={handleLogout} />
+      {userType === "team" ? (
+        <TeamTaskBoard
+          workspace={workspace}
+          portalCode={portalCode}
+          user={{ name: user.name, email: user.email, role: user.role || "member" }}
+          onLogout={handleLogout}
+        />
+      ) : (
+        <TaskBoard workspace={workspace} portalCode={portalCode} user={user} onLogout={handleLogout} />
+      )}
       {showChangePassword && (
         <ChangePasswordModal
           workspace={workspace}

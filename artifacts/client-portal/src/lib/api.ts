@@ -8,11 +8,31 @@ export type SharedTask = {
   fromUser: string;
   fromEmail: string;
   forEmail: string;
+  assignedTo: string;
   dueDate: string | null;
   sentAt: string;
   claimed: boolean;
   status: "pending" | "in_progress" | "done";
-  source: "client" | "freelancer";
+  source: "client" | "freelancer" | "team";
+};
+
+export type TimeEntry = {
+  id: string;
+  taskId: string;
+  memberEmail: string;
+  memberName: string;
+  startedAt: string;
+  stoppedAt: string | null;
+  duration: number | null;
+};
+
+export type TaskNote = {
+  id: string;
+  taskId: string;
+  authorName: string;
+  authorEmail: string;
+  text: string;
+  createdAt: string;
 };
 
 export type WorkspaceInfo = {
@@ -84,5 +104,87 @@ export async function addTask(
     body: JSON.stringify(task),
   });
   if (!res.ok) return null;
+  return res.json();
+}
+
+export type TeamLoginResult =
+  | { ok: true; name: string; email: string; role: string; firstLogin: boolean; userType: "team" }
+  | { ok: false; message: string };
+
+export async function loginTeamMember(code: string, email: string, password: string): Promise<TeamLoginResult> {
+  const res = await fetch(`${API_BASE}/workspaces/${code}/team-login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (res.ok) {
+    const data = await res.json();
+    return { ok: true, name: data.name, email: data.email, role: data.role, firstLogin: data.firstLogin, userType: "team" };
+  }
+  const body = await res.json().catch(() => ({}));
+  return { ok: false, message: body.message || "Login failed. Please try again." };
+}
+
+export async function getTeamTasks(code: string, email: string): Promise<SharedTask[]> {
+  const res = await fetch(`${API_BASE}/workspaces/${code}/team-tasks?email=${encodeURIComponent(email)}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function startTimeEntry(code: string, taskId: string, memberEmail: string, memberName: string): Promise<TimeEntry | null> {
+  const res = await fetch(`${API_BASE}/workspaces/${code}/time-entries/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ taskId, memberEmail, memberName }),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function stopTimeEntry(code: string, entryId: string): Promise<TimeEntry | null> {
+  const res = await fetch(`${API_BASE}/workspaces/${code}/time-entries/${entryId}/stop`, {
+    method: "PATCH",
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function getTimeEntries(code: string, email?: string, taskId?: string): Promise<TimeEntry[]> {
+  const params = new URLSearchParams();
+  if (email) params.set("email", email);
+  if (taskId) params.set("taskId", taskId);
+  const res = await fetch(`${API_BASE}/workspaces/${code}/time-entries?${params.toString()}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function getRunningEntry(code: string, email: string): Promise<TimeEntry | null> {
+  const res = await fetch(`${API_BASE}/workspaces/${code}/time-entries/running?email=${encodeURIComponent(email)}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function updateTaskStatus(code: string, taskId: string, status: string): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/workspaces/${code}/tasks/${taskId}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  return res.ok;
+}
+
+export async function addTaskNote(code: string, taskId: string, authorName: string, authorEmail: string, text: string): Promise<TaskNote | null> {
+  const res = await fetch(`${API_BASE}/workspaces/${code}/tasks/${taskId}/notes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ authorName, authorEmail, text }),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function getTaskNotes(code: string, taskId: string): Promise<TaskNote[]> {
+  const res = await fetch(`${API_BASE}/workspaces/${code}/tasks/${taskId}/notes`);
+  if (!res.ok) return [];
   return res.json();
 }

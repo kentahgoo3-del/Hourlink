@@ -62,15 +62,29 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - `app/privacy.tsx` — Privacy Policy screen
   - `constants/colors.ts` — design tokens (blue/slate theme)
 
+- `app/team.tsx` — Team & Delegation screen (workspace create/join, member management, task delegation, time logs)
+  - `services/teamSync.ts` — API client for team workspace operations
+
 ### API Server
 - **Kind**: api (Express backend)
 - **Port**: 8080
-- **Description**: Shared backend for collaboration features (portal workspaces, tasks)
-- **Endpoints**: POST /api/workspaces, POST /api/workspaces/:code/join, GET /api/workspaces/:code, GET/POST /api/workspaces/:code/tasks, GET /api/workspaces/:code/tasks/pending, PATCH /api/workspaces/:code/tasks/:id/claim, PATCH /api/workspaces/:code/tasks/:id/status
-- **Storage**: In-memory (store.ts)
+- **Description**: Shared backend for collaboration features (portal workspaces, tasks, team management, time tracking)
+- **Endpoints**:
+  - Workspaces: POST /api/workspaces, POST /api/workspaces/:code/join, GET /api/workspaces/:code
+  - Client auth: POST /api/workspaces/:code/login, PUT /api/workspaces/:code/clients, PATCH change-password, PATCH keep-password
+  - Team auth: PUT /api/workspaces/:code/team-members, POST /api/workspaces/:code/team-login
+  - Tasks: GET/POST /api/workspaces/:code/tasks, GET team-tasks?email=X, GET pending, PATCH claim, PATCH status
+  - Time tracking: POST /api/workspaces/:code/time-entries/start, PATCH stop, GET time-entries, GET running
+  - Notes: POST/GET /api/workspaces/:code/tasks/:id/notes
+- **Types**: SharedTask (with assignedTo, source: client|freelancer|team), TeamMember, TimeEntry, TaskNote
+- **Storage**: In-memory JSON file (store.ts)
 
-### Client Task Portal (web)
+### Client & Team Portal (web)
 - **Slug**: client-portal
 - **Kind**: React + Vite web app
 - **Preview path**: /client-portal
-- **Description**: Web portal for clients to submit tasks to freelancers. Accessed via shareable link with workspace code (?code=XXXXXX). Clients identify with name+email, then can submit tasks and view their submitted tasks.
+- **Description**: Unified web portal for clients AND team members. Accessed via shareable link (?code=XXXXXX, optional &mode=team for team login).
+  - **Client mode**: Submit tasks, view task status with due date tracking
+  - **Team mode**: View assigned tasks, start/stop timers, update task status, add notes, see time logs
+  - Login form has a "Switch to team/client" toggle at the bottom
+- **Key components**: TaskBoard.tsx (client), TeamTaskBoard.tsx (team), LoginForm.tsx (dual-mode), ChangePasswordModal.tsx
