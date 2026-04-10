@@ -1,7 +1,5 @@
 import { pool } from "./db";
 
-/* ================= TYPES ================= */
-
 export type WorkspaceMember = {
   name: string;
   email: string;
@@ -23,8 +21,6 @@ export type TeamMemberCredential = {
   isNew: boolean;
 };
 
-/* ================= HELPERS ================= */
-
 function genCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from(
@@ -40,8 +36,6 @@ function genPassword(): string {
     () => chars[Math.floor(Math.random() * chars.length)],
   ).join("");
 }
-
-/* ================= STORE ================= */
 
 export const store = {
   async createWorkspace(ownerName: string): Promise<Workspace> {
@@ -194,85 +188,92 @@ export const store = {
       }
     }
 
-    const existingMember = await pool.query(
+    if (trimmedEmail) {
+      const existingMember = await pool.query(
+        `SELECT id
+         FROM workspace_members
+         WHERE workspace_code = $1 AND lower(email) = $2`,
+        [normalizedCode, trimmedEmail],
+      );
+
+      if (existingMember.rowCount === 0) {
+        await pool.query(
+          `INSERT INTO workspace_members (workspace_code, name, email, joined_at)
+           VALUES ($1, $2, $3, NOW())`,
+          [normalizedCode, trimmedName, trimmedEmail],
+        );
+      }
+    }
+
+    return await this.getWorkspace(normalizedCode);
+  },
+
+  async loginTeamMember(
+    code: string,
+    email: string,
+    password: string,
+  ): Promise<{
+    ok: boolean;
+    reason?: string;
+    name?: string;
+    role?: string;
+    firstLogin?: boolean;
+  }> {
+    const normalizedCode = code.toUpperCase();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const workspaceCheck = await pool.query(
+      `SELECT code
+       FROM workspaces
+       WHERE code = $1`,
+      [normalizedCode],
+    );
+
+    if (workspaceCheck.rowCount === 0) {
+      return { ok: false, reason: "not_found" };
+    }
+
+    const result = await pool.query(
+      `SELECT name, email, password, role, first_login AS "firstLogin"
+       FROM team_members
+       WHERE workspace_code = $1 AND lower(email) = $2`,
+      [normalizedCode, normalizedEmail],
+    );
+
+    if (result.rowCount === 0) {
+      return { ok: false, reason: "not_allowed" };
+    }
+
+    const member = result.rows[0];
+
+    if (member.password !== password) {
+      return { ok: false, reason: "wrong_password" };
+    }
+
+    const existingWorkspaceMember = await pool.query(
       `SELECT id
        FROM workspace_members
        WHERE workspace_code = $1 AND lower(email) = $2`,
-      [normalizedCode, trimmedEmail],
+      [normalizedCode, normalizedEmail],
     );
 
-    if (trimmedEmail && existingMember.rowCount === 0) {
+    if (existingWorkspaceMember.rowCount === 0) {
       await pool.query(
         `INSERT INTO workspace_members (workspace_code, name, email, joined_at)
          VALUES ($1, $2, $3, NOW())`,
-        [normalizedCode, trimmedName, trimmedEmail],
+        [normalizedCode, member.name, member.email],
       );
     }
 
-    return this.getWorkspace(normalizedCode);
+    return {
+      ok: true,
+      name: member.name,
+      role: member.role,
+      firstLogin: member.firstLogin,
+    };
   },
 
-async loginTeamMember(
-  code: string,
-  email: string,
-  password: string,
-): Promise<{
-  ok: boolean;
-  reason?: string;
-  name?: string;
-  role?: string;
-  firstLogin?: boolean;
-}> {
-  const normalizedCode = code.toUpperCase();
-  const normalizedEmail = email.trim().toLowerCase();
-
-  const workspaceCheck = await pool.query(
-    `SELECT code
-     FROM workspaces
-     WHERE code = $1`,
-    [normalizedCode],
-  );
-
-  if (workspaceCheck.rowCount === 0) {
-    return { ok: false, reason: "not_found" };
-  }
-
-  const result = await pool.query(
-    `SELECT name, email, password, role, first_login AS "firstLogin"
-     FROM team_members
-     WHERE workspace_code = $1 AND lower(email) = $2`,
-    [normalizedCode, normalizedEmail],
-  );
-
-  if (result.rowCount === 0) {
-    return { ok: false, reason: "not_allowed" };
-  }
-
-  const member = result.rows[0];
-
-  if (member.password !== password) {
-    return { ok: false, reason: "wrong_password" };
-  }
-
-  const existingWorkspaceMember = await pool.query(
-    `SELECT id
-     FROM workspace_members
-     WHERE workspace_code = $1 AND lower(email) = $2`,
-    [normalizedCode, normalizedEmail],
-  );
-
-  if (existingWorkspaceMember.rowCount === 0) {
-    await pool.query(
-      `INSERT INTO workspace_members (workspace_code, name, email, joined_at)
-       VALUES ($1, $2, $3, NOW())`,
-      [normalizedCode, member.name, member.email],
-    );
-  }
-
-  return {
-    ok: true,
-    name: member.name,
-    role: member.role,
-    firstLogin: member.firstLogin,
-  };
-},
+  getAllTasks(): [] {
+    return [];
+  },
+};
