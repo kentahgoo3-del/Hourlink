@@ -16,7 +16,9 @@
     "ios": {
       "supportsTablet": false
     },
-    "android": {},
+    "android": {
+      "package": "com.kentahgoo.workpilotpro"
+    },
     "web": {
       "favicon": "./assets/images/hourlink_icon.png"
     },
@@ -33,6 +35,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "906623b8-8013-4120-acb7-9eb388087ed4"
+      }
     }
   }
 }
