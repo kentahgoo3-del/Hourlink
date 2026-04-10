@@ -25,10 +25,17 @@ app.use(
     },
   }),
 );
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ✅ ADD THIS HERE
+app.get("/", (_req, res) => {
+  res.send("Hourlink API is running");
+});
+
+// Your API routes
 app.use("/api", router);
 
 export default app;
