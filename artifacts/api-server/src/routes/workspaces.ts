@@ -171,7 +171,7 @@ router.post("/workspaces/:code/join", async (req, res) => {
       ? email.trim()
       : "";
 
-  const result = store.joinWorkspace(code, memberName.trim(), validEmail);
+  const result = await store.joinWorkspace(code, memberName.trim(), validEmail);
 
   if (result === ("not_allowed" as any)) {
     res.status(403).json({
@@ -357,7 +357,7 @@ router.put("/workspaces/:code/team-members", async (req, res) => {
       m.email.includes("@"),
   );
 
-  const result = store.setTeamMembers(
+  const result = await store.setTeamMembers(
     code,
     valid.map((m: any) => ({
       name: m.name.trim(),
@@ -383,7 +383,7 @@ router.post("/workspaces/:code/team-login", async (req, res) => {
     return;
   }
 
-  const result = store.loginTeamMember(
+  const result = await store.loginTeamMember(
     code,
     String(email).trim(),
     String(password),

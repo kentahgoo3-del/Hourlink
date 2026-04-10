@@ -25,6 +25,30 @@ async function initDB() {
     );
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS team_members (
+      id SERIAL PRIMARY KEY,
+      workspace_code TEXT NOT NULL REFERENCES workspaces(code) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      first_login BOOLEAN NOT NULL DEFAULT TRUE,
+      UNIQUE (workspace_code, email)
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS workspace_members (
+      id SERIAL PRIMARY KEY,
+      workspace_code TEXT NOT NULL REFERENCES workspaces(code) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (workspace_code, email)
+    );
+  `);
+
   logger.info("DB initialized");
 }
 
