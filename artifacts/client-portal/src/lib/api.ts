@@ -1,4 +1,4 @@
-const API_BASE = "https://hourlink-api.onrender.com";
+const API_BASE = "https://hourlink-api.onrender.com/api";
 
 export type SharedTask = {
   id: string;
@@ -59,12 +59,20 @@ export type TeamLoginResult =
 
 export type JoinWorkspaceResult = { ok: true } | { ok: false; message: string };
 
+async function parseJsonSafe<T>(res: Response): Promise<T | null> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export async function getWorkspace(
   code: string,
 ): Promise<WorkspaceInfo | null> {
   const res = await fetch(`${API_BASE}/workspaces/${code}`);
   if (!res.ok) return null;
-  return res.json();
+  return parseJsonSafe<WorkspaceInfo>(res);
 }
 
 export async function joinWorkspace(
@@ -82,10 +90,10 @@ export async function joinWorkspace(
     return { ok: true };
   }
 
-  const body = await res.json().catch(() => ({}));
+  const body = await parseJsonSafe<{ message?: string }>(res);
   return {
     ok: false,
-    message: body.message || "Unable to verify your access.",
+    message: body?.message || "Unable to verify your access.",
   };
 }
 
@@ -101,7 +109,16 @@ export async function loginClient(
   });
 
   if (res.ok) {
-    const data = await res.json();
+    const data = await parseJsonSafe<{
+      name: string;
+      email: string;
+      firstLogin: boolean;
+    }>(res);
+
+    if (!data) {
+      return { ok: false, message: "Invalid server response." };
+    }
+
     return {
       ok: true,
       name: data.name,
@@ -110,10 +127,10 @@ export async function loginClient(
     };
   }
 
-  const body = await res.json().catch(() => ({}));
+  const body = await parseJsonSafe<{ message?: string }>(res);
   return {
     ok: false,
-    message: body.message || "Login failed. Please try again.",
+    message: body?.message || "Login failed. Please try again.",
   };
 }
 
@@ -131,8 +148,11 @@ export async function changePassword(
 
   if (res.ok) return { ok: true };
 
-  const body = await res.json().catch(() => ({}));
-  return { ok: false, message: body.error || "Could not change password." };
+  const body = await parseJsonSafe<{ error?: string; message?: string }>(res);
+  return {
+    ok: false,
+    message: body?.error || body?.message || "Could not change password.",
+  };
 }
 
 export async function keepPassword(code: string, email: string): Promise<void> {
@@ -153,7 +173,7 @@ export async function getTasks(
 
   const res = await fetch(url);
   if (!res.ok) return [];
-  return res.json();
+  return (await parseJsonSafe<SharedTask[]>(res)) ?? [];
 }
 
 export async function addTask(
@@ -174,7 +194,7 @@ export async function addTask(
   });
 
   if (!res.ok) return null;
-  return res.json();
+  return parseJsonSafe<SharedTask>(res);
 }
 
 export async function loginTeamMember(
@@ -189,7 +209,17 @@ export async function loginTeamMember(
   });
 
   if (res.ok) {
-    const data = await res.json();
+    const data = await parseJsonSafe<{
+      name: string;
+      email: string;
+      role: string;
+      firstLogin: boolean;
+    }>(res);
+
+    if (!data) {
+      return { ok: false, message: "Invalid server response." };
+    }
+
     return {
       ok: true,
       name: data.name,
@@ -200,10 +230,10 @@ export async function loginTeamMember(
     };
   }
 
-  const body = await res.json().catch(() => ({}));
+  const body = await parseJsonSafe<{ message?: string }>(res);
   return {
     ok: false,
-    message: body.message || "Login failed. Please try again.",
+    message: body?.message || "Login failed. Please try again.",
   };
 }
 
@@ -215,7 +245,7 @@ export async function getTeamTasks(
     `${API_BASE}/workspaces/${code}/team-tasks?email=${encodeURIComponent(email)}`,
   );
   if (!res.ok) return [];
-  return res.json();
+  return (await parseJsonSafe<SharedTask[]>(res)) ?? [];
 }
 
 export async function startTimeEntry(
@@ -231,7 +261,7 @@ export async function startTimeEntry(
   });
 
   if (!res.ok) return null;
-  return res.json();
+  return parseJsonSafe<TimeEntry>(res);
 }
 
 export async function stopTimeEntry(
@@ -246,7 +276,7 @@ export async function stopTimeEntry(
   );
 
   if (!res.ok) return null;
-  return res.json();
+  return parseJsonSafe<TimeEntry>(res);
 }
 
 export async function getTimeEntries(
@@ -264,7 +294,7 @@ export async function getTimeEntries(
   );
 
   if (!res.ok) return [];
-  return res.json();
+  return (await parseJsonSafe<TimeEntry[]>(res)) ?? [];
 }
 
 export async function getRunningEntry(
@@ -275,7 +305,7 @@ export async function getRunningEntry(
     `${API_BASE}/workspaces/${code}/time-entries/running?email=${encodeURIComponent(email)}`,
   );
   if (!res.ok) return null;
-  return res.json();
+  return parseJsonSafe<TimeEntry>(res);
 }
 
 export async function updateTaskStatus(
@@ -312,7 +342,7 @@ export async function addTaskNote(
   );
 
   if (!res.ok) return null;
-  return res.json();
+  return parseJsonSafe<TaskNote>(res);
 }
 
 export async function getTaskNotes(
@@ -323,7 +353,7 @@ export async function getTaskNotes(
     `${API_BASE}/workspaces/${code}/tasks/${taskId}/notes`,
   );
   if (!res.ok) return [];
-  return res.json();
+  return (await parseJsonSafe<TaskNote[]>(res)) ?? [];
 }
 
 export async function getAllNotes(
@@ -341,5 +371,5 @@ export async function getAllNotes(
   );
 
   if (!res.ok) return [];
-  return res.json();
+  return (await parseJsonSafe<TaskNote[]>(res)) ?? [];
 }

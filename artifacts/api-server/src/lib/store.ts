@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, existsSync } from "fs";
-import { join } from "path";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { dirname, join } from "path";
 
 export type SharedTask = {
   id: string;
@@ -69,38 +69,81 @@ export type Workspace = {
   taskNotes: TaskNote[];
 };
 
-const DATA_PATH = join("/tmp", "workpilot_workspaces.json");
+const DATA_PATH =
+  process.env["DATA_PATH"] ||
+  join(process.cwd(), "data", "workpilot_workspaces.json");
+
+function ensureDataDir() {
+  const dir = dirname(DATA_PATH);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
+
+function normalizeWorkspace(ws: Partial<Workspace>): Workspace {
+  const tasks = Array.isArray(ws.tasks) ? ws.tasks : [];
+  const normalizedTasks = tasks.map((t) => ({
+    ...t,
+    forEmail: t.forEmail || "",
+    assignedTo: t.assignedTo || "",
+    dueDate: t.dueDate ?? null,
+    source: t.source || "client",
+    claimed: Boolean(t.claimed),
+    status: (["pending", "in_progress", "done"].includes(t.status)
+      ? t.status
+      : "pending") as "pending" | "in_progress" | "done",
+  }));
+
+  return {
+    code: String(ws.code || "").toUpperCase(),
+    ownerName: String(ws.ownerName || ""),
+    createdAt: String(ws.createdAt || new Date().toISOString()),
+    members: Array.isArray(ws.members) ? ws.members : [],
+    tasks: normalizedTasks,
+    allowedClients: Array.isArray(ws.allowedClients) ? ws.allowedClients : [],
+    teamMembers: Array.isArray(ws.teamMembers) ? ws.teamMembers : [],
+    timeEntries: Array.isArray(ws.timeEntries) ? ws.timeEntries : [],
+    taskNotes: Array.isArray(ws.taskNotes) ? ws.taskNotes : [],
+  };
+}
 
 function load(): Record<string, Workspace> {
+  ensureDataDir();
+
   if (!existsSync(DATA_PATH)) return {};
+
   try {
-    const data = JSON.parse(readFileSync(DATA_PATH, "utf8"));
-    for (const key of Object.keys(data)) {
-      if (!data[key].allowedClients) data[key].allowedClients = [];
-      if (!data[key].tasks) data[key].tasks = [];
-      if (!data[key].members) data[key].members = [];
-      if (!data[key].teamMembers) data[key].teamMembers = [];
-      if (!data[key].timeEntries) data[key].timeEntries = [];
-      if (!data[key].taskNotes) data[key].taskNotes = [];
-      for (const t of data[key].tasks) {
-        if (!t.forEmail) t.forEmail = "";
-        if (!t.assignedTo) t.assignedTo = "";
-        if (t.dueDate === undefined) t.dueDate = null;
-        if (!t.source) t.source = "client";
-      }
+    const raw = readFileSync(DATA_PATH, "utf8");
+    const parsed = JSON.parse(raw) as Record<string, Partial<Workspace>>;
+    const data: Record<string, Workspace> = {};
+
+    for (const key of Object.keys(parsed)) {
+      data[key.toUpperCase()] = normalizeWorkspace(parsed[key]);
     }
+
     return data;
+  } catch {
+    return {};
   }
-  catch { return {}; }
 }
 
 function save(data: Record<string, Workspace>) {
+  ensureDataDir();
   writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
+}
+
+function normalizeCode(code: string): string {
+  return String(code || "")
+    .trim()
+    .toUpperCase();
 }
 
 function genCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  return Array.from(
+    { length: 6 },
+    () => chars[Math.floor(Math.random() * chars.length)],
+  ).join("");
 }
 
 function genId(): string {
@@ -109,19 +152,33 @@ function genId(): string {
 
 function genPassword(): string {
   const chars = "abcdefghjkmnpqrstuvwxyz23456789";
-  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  return Array.from(
+    { length: 6 },
+    () => chars[Math.floor(Math.random() * chars.length)],
+  ).join("");
 }
 
 export const store = {
   createWorkspace(ownerName: string): Workspace {
     const data = load();
     let code = genCode();
-    while (data[code]) code = genCode();
+
+    while (data[code]) {
+      code = genCode();
+    }
+
     const ws: Workspace = {
-      code, ownerName, createdAt: new Date().toISOString(),
-      members: [], tasks: [], allowedClients: [],
-      teamMembers: [], timeEntries: [], taskNotes: [],
+      code,
+      ownerName,
+      createdAt: new Date().toISOString(),
+      members: [],
+      tasks: [],
+      allowedClients: [],
+      teamMembers: [],
+      timeEntries: [],
+      taskNotes: [],
     };
+
     data[code] = ws;
     save(data);
     return ws;
@@ -129,12 +186,23 @@ export const store = {
 
   getWorkspace(code: string): Workspace | null {
     const data = load();
-    return data[code.toUpperCase()] ?? null;
+    return data[normalizeCode(code)] ?? null;
   },
 
-  setAllowedClients(code: string, clients: { name: string; email: string }[]): { ok: boolean; credentials: { name: string; email: string; password: string; isNew: boolean }[] } {
+  setAllowedClients(
+    code: string,
+    clients: { name: string; email: string }[],
+  ): {
+    ok: boolean;
+    credentials: {
+      name: string;
+      email: string;
+      password: string;
+      isNew: boolean;
+    }[];
+  } {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return { ok: false, credentials: [] };
 
     const existingMap = new Map<string, AllowedClient>();
@@ -142,19 +210,42 @@ export const store = {
       existingMap.set(c.email.toLowerCase(), c);
     }
 
-    const credentials: { name: string; email: string; password: string; isNew: boolean }[] = [];
+    const credentials: {
+      name: string;
+      email: string;
+      password: string;
+      isNew: boolean;
+    }[] = [];
+
     const newAllowed: AllowedClient[] = [];
 
     for (const c of clients) {
-      const existing = existingMap.get(c.email.toLowerCase());
+      const email = c.email.trim().toLowerCase();
+      const existing = existingMap.get(email);
+
       if (existing) {
-        existing.name = c.name;
+        existing.name = c.name.trim();
         newAllowed.push(existing);
-        credentials.push({ name: c.name, email: c.email, password: existing.password, isNew: false });
+        credentials.push({
+          name: c.name.trim(),
+          email: c.email.trim(),
+          password: existing.password,
+          isNew: false,
+        });
       } else {
         const password = genPassword();
-        newAllowed.push({ name: c.name, email: c.email, password, firstLogin: true });
-        credentials.push({ name: c.name, email: c.email, password, isNew: true });
+        newAllowed.push({
+          name: c.name.trim(),
+          email: c.email.trim(),
+          password,
+          firstLogin: true,
+        });
+        credentials.push({
+          name: c.name.trim(),
+          email: c.email.trim(),
+          password,
+          isNew: true,
+        });
       }
     }
 
@@ -163,9 +254,21 @@ export const store = {
     return { ok: true, credentials };
   },
 
-  setTeamMembers(code: string, members: { name: string; email: string; role?: string }[]): { ok: boolean; credentials: { name: string; email: string; password: string; role: string; isNew: boolean }[] } {
+  setTeamMembers(
+    code: string,
+    members: { name: string; email: string; role?: string }[],
+  ): {
+    ok: boolean;
+    credentials: {
+      name: string;
+      email: string;
+      password: string;
+      role: string;
+      isNew: boolean;
+    }[];
+  } {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return { ok: false, credentials: [] };
 
     const existingMap = new Map<string, TeamMember>();
@@ -173,21 +276,48 @@ export const store = {
       existingMap.set(m.email.toLowerCase(), m);
     }
 
-    const credentials: { name: string; email: string; password: string; role: string; isNew: boolean }[] = [];
+    const credentials: {
+      name: string;
+      email: string;
+      password: string;
+      role: string;
+      isNew: boolean;
+    }[] = [];
+
     const newTeam: TeamMember[] = [];
 
     for (const m of members) {
-      const existing = existingMap.get(m.email.toLowerCase());
+      const email = m.email.trim().toLowerCase();
+      const existing = existingMap.get(email);
+
       if (existing) {
-        existing.name = m.name;
+        existing.name = m.name.trim();
         if (m.role) existing.role = m.role;
         newTeam.push(existing);
-        credentials.push({ name: m.name, email: m.email, password: existing.password, role: existing.role, isNew: false });
+        credentials.push({
+          name: m.name.trim(),
+          email: m.email.trim(),
+          password: existing.password,
+          role: existing.role,
+          isNew: false,
+        });
       } else {
         const password = genPassword();
         const role = m.role || "member";
-        newTeam.push({ name: m.name, email: m.email, password, firstLogin: true, role });
-        credentials.push({ name: m.name, email: m.email, password, role, isNew: true });
+        newTeam.push({
+          name: m.name.trim(),
+          email: m.email.trim(),
+          password,
+          firstLogin: true,
+          role,
+        });
+        credentials.push({
+          name: m.name.trim(),
+          email: m.email.trim(),
+          password,
+          role,
+          isNew: true,
+        });
       }
     }
 
@@ -196,59 +326,111 @@ export const store = {
     return { ok: true, credentials };
   },
 
-  loginClient(code: string, email: string, password: string): { ok: boolean; reason?: string; name?: string; firstLogin?: boolean } {
+  loginClient(
+    code: string,
+    email: string,
+    password: string,
+  ): { ok: boolean; reason?: string; name?: string; firstLogin?: boolean } {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return { ok: false, reason: "not_found" };
 
-    const client = ws.allowedClients.find((c) => c.email.toLowerCase() === email.toLowerCase());
+    const client = ws.allowedClients.find(
+      (c) => c.email.toLowerCase() === email.toLowerCase(),
+    );
     if (!client) return { ok: false, reason: "not_allowed" };
-    if (client.password !== password) return { ok: false, reason: "wrong_password" };
+    if (client.password !== password)
+      return { ok: false, reason: "wrong_password" };
 
-    const existing = ws.members.find((m) => m.email?.toLowerCase() === email.toLowerCase());
+    const existing = ws.members.find(
+      (m) => m.email?.toLowerCase() === email.toLowerCase(),
+    );
+
     if (!existing) {
-      ws.members.push({ name: client.name, email: client.email, joinedAt: new Date().toISOString() });
+      ws.members.push({
+        name: client.name,
+        email: client.email,
+        joinedAt: new Date().toISOString(),
+      });
       save(data);
     }
 
     return { ok: true, name: client.name, firstLogin: client.firstLogin };
   },
 
-  loginTeamMember(code: string, email: string, password: string): { ok: boolean; reason?: string; name?: string; role?: string; firstLogin?: boolean } {
+  loginTeamMember(
+    code: string,
+    email: string,
+    password: string,
+  ): {
+    ok: boolean;
+    reason?: string;
+    name?: string;
+    role?: string;
+    firstLogin?: boolean;
+  } {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return { ok: false, reason: "not_found" };
 
-    const member = ws.teamMembers.find((m) => m.email.toLowerCase() === email.toLowerCase());
+    const member = ws.teamMembers.find(
+      (m) => m.email.toLowerCase() === email.toLowerCase(),
+    );
     if (!member) return { ok: false, reason: "not_allowed" };
-    if (member.password !== password) return { ok: false, reason: "wrong_password" };
+    if (member.password !== password)
+      return { ok: false, reason: "wrong_password" };
 
-    const existing = ws.members.find((m) => m.email?.toLowerCase() === email.toLowerCase());
+    const existing = ws.members.find(
+      (m) => m.email?.toLowerCase() === email.toLowerCase(),
+    );
+
     if (!existing) {
-      ws.members.push({ name: member.name, email: member.email, joinedAt: new Date().toISOString() });
+      ws.members.push({
+        name: member.name,
+        email: member.email,
+        joinedAt: new Date().toISOString(),
+      });
       save(data);
     }
 
-    return { ok: true, name: member.name, role: member.role, firstLogin: member.firstLogin };
+    return {
+      ok: true,
+      name: member.name,
+      role: member.role,
+      firstLogin: member.firstLogin,
+    };
   },
 
-  changePassword(code: string, email: string, oldPassword: string, newPassword: string): { ok: boolean; reason?: string } {
+  changePassword(
+    code: string,
+    email: string,
+    oldPassword: string,
+    newPassword: string,
+  ): { ok: boolean; reason?: string } {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return { ok: false, reason: "not_found" };
 
-    const client = ws.allowedClients.find((c) => c.email.toLowerCase() === email.toLowerCase());
+    const client = ws.allowedClients.find(
+      (c) => c.email.toLowerCase() === email.toLowerCase(),
+    );
     if (client) {
-      if (client.password !== oldPassword) return { ok: false, reason: "wrong_password" };
+      if (client.password !== oldPassword) {
+        return { ok: false, reason: "wrong_password" };
+      }
       client.password = newPassword;
       client.firstLogin = false;
       save(data);
       return { ok: true };
     }
 
-    const member = ws.teamMembers.find((m) => m.email.toLowerCase() === email.toLowerCase());
+    const member = ws.teamMembers.find(
+      (m) => m.email.toLowerCase() === email.toLowerCase(),
+    );
     if (member) {
-      if (member.password !== oldPassword) return { ok: false, reason: "wrong_password" };
+      if (member.password !== oldPassword) {
+        return { ok: false, reason: "wrong_password" };
+      }
       member.password = newPassword;
       member.firstLogin = false;
       save(data);
@@ -260,47 +442,81 @@ export const store = {
 
   markFirstLoginDone(code: string, email: string): boolean {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return false;
-    const client = ws.allowedClients.find((c) => c.email.toLowerCase() === email.toLowerCase());
-    if (client) { client.firstLogin = false; save(data); return true; }
-    const member = ws.teamMembers.find((m) => m.email.toLowerCase() === email.toLowerCase());
-    if (member) { member.firstLogin = false; save(data); return true; }
+
+    const client = ws.allowedClients.find(
+      (c) => c.email.toLowerCase() === email.toLowerCase(),
+    );
+    if (client) {
+      client.firstLogin = false;
+      save(data);
+      return true;
+    }
+
+    const member = ws.teamMembers.find(
+      (m) => m.email.toLowerCase() === email.toLowerCase(),
+    );
+    if (member) {
+      member.firstLogin = false;
+      save(data);
+      return true;
+    }
+
     return false;
   },
 
-  isClientAllowed(code: string, name: string, email: string): boolean {
+  isClientAllowed(code: string, _name: string, email: string): boolean {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return false;
     if (ws.allowedClients.length === 0) return true;
+
     return ws.allowedClients.some(
-      (c) => c.email.toLowerCase() === email.toLowerCase()
+      (c) => c.email.toLowerCase() === email.toLowerCase(),
     );
   },
 
-  joinWorkspace(code: string, memberName: string, email?: string): Workspace | null {
+  joinWorkspace(
+    code: string,
+    memberName: string,
+    email?: string,
+  ): Workspace | null {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return null;
+
     if (email && ws.allowedClients.length > 0) {
       const allowed = ws.allowedClients.some(
-        (c) => c.email.toLowerCase() === email.toLowerCase()
+        (c) => c.email.toLowerCase() === email.toLowerCase(),
       );
       if (!allowed) return "not_allowed" as any;
     }
-    const existing = ws.members.find((m) => m.email === email || m.name === memberName);
+
+    const existing = ws.members.find(
+      (m) => m.email === email || m.name === memberName,
+    );
+
     if (!existing) {
-      ws.members.push({ name: memberName, email: email || "", joinedAt: new Date().toISOString() });
+      ws.members.push({
+        name: memberName,
+        email: email || "",
+        joinedAt: new Date().toISOString(),
+      });
       save(data);
     }
+
     return ws;
   },
 
-  addTask(code: string, task: Omit<SharedTask, "id" | "sentAt" | "claimed" | "status">): SharedTask | null {
+  addTask(
+    code: string,
+    task: Omit<SharedTask, "id" | "sentAt" | "claimed" | "status">,
+  ): SharedTask | null {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return null;
+
     const t: SharedTask = {
       ...task,
       forEmail: task.forEmail || "",
@@ -312,6 +528,7 @@ export const store = {
       claimed: false,
       status: "pending",
     };
+
     ws.tasks.push(t);
     save(data);
     return t;
@@ -319,65 +536,90 @@ export const store = {
 
   getAllTasks(code: string): SharedTask[] {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return [];
     return ws.tasks;
   },
 
   getTasksByEmail(code: string, email: string): SharedTask[] {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return [];
+
     const e = email.toLowerCase();
-    return ws.tasks.filter((t) =>
-      t.fromEmail.toLowerCase() === e || (t.forEmail && t.forEmail.toLowerCase() === e)
+    return ws.tasks.filter(
+      (t) =>
+        t.fromEmail.toLowerCase() === e ||
+        (t.forEmail && t.forEmail.toLowerCase() === e),
     );
   },
 
   getTeamTasks(code: string, email: string): SharedTask[] {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return [];
+
     const e = email.toLowerCase();
-    return ws.tasks.filter((t) => t.assignedTo && t.assignedTo.toLowerCase() === e);
+    return ws.tasks.filter(
+      (t) => t.assignedTo && t.assignedTo.toLowerCase() === e,
+    );
   },
 
   getPendingTasks(code: string): SharedTask[] {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return [];
     return ws.tasks.filter((t) => !t.claimed);
   },
 
   claimTask(code: string, taskId: string): boolean {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return false;
+
     const task = ws.tasks.find((t) => t.id === taskId);
     if (!task) return false;
+
     task.claimed = true;
     save(data);
     return true;
   },
 
-  updateTaskStatus(code: string, taskId: string, status: "pending" | "in_progress" | "done"): boolean {
+  updateTaskStatus(
+    code: string,
+    taskId: string,
+    status: "pending" | "in_progress" | "done",
+  ): boolean {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return false;
+
     const task = ws.tasks.find((t) => t.id === taskId);
     if (!task) return false;
+
     task.status = status;
     if (status === "done") task.claimed = true;
     save(data);
     return true;
   },
 
-  startTimeEntry(code: string, taskId: string, memberEmail: string, memberName: string): TimeEntry | null {
+  startTimeEntry(
+    code: string,
+    taskId: string,
+    memberEmail: string,
+    memberName: string,
+  ): TimeEntry | null {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return null;
-    const running = ws.timeEntries.find((e) => e.memberEmail.toLowerCase() === memberEmail.toLowerCase() && !e.stoppedAt);
+
+    const running = ws.timeEntries.find(
+      (e) =>
+        e.memberEmail.toLowerCase() === memberEmail.toLowerCase() &&
+        !e.stoppedAt,
+    );
     if (running) return null;
+
     const entry: TimeEntry = {
       id: genId(),
       taskId,
@@ -387,6 +629,7 @@ export const store = {
       stoppedAt: null,
       duration: null,
     };
+
     ws.timeEntries.push(entry);
     save(data);
     return entry;
@@ -394,39 +637,67 @@ export const store = {
 
   stopTimeEntry(code: string, entryId: string): TimeEntry | null {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return null;
+
     const entry = ws.timeEntries.find((e) => e.id === entryId);
     if (!entry || entry.stoppedAt) return null;
+
     entry.stoppedAt = new Date().toISOString();
-    entry.duration = Math.round((new Date(entry.stoppedAt).getTime() - new Date(entry.startedAt).getTime()) / 1000);
+    entry.duration = Math.round(
+      (new Date(entry.stoppedAt).getTime() -
+        new Date(entry.startedAt).getTime()) /
+        1000,
+    );
     save(data);
     return entry;
   },
 
   getTimeEntries(code: string, email?: string, taskId?: string): TimeEntry[] {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return [];
+
     let entries = ws.timeEntries;
-    if (email) entries = entries.filter((e) => e.memberEmail.toLowerCase() === email.toLowerCase());
-    if (taskId) entries = entries.filter((e) => e.taskId === taskId);
+    if (email) {
+      entries = entries.filter(
+        (e) => e.memberEmail.toLowerCase() === email.toLowerCase(),
+      );
+    }
+    if (taskId) {
+      entries = entries.filter((e) => e.taskId === taskId);
+    }
+
     return entries;
   },
 
   getRunningEntry(code: string, email: string): TimeEntry | null {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return null;
-    return ws.timeEntries.find((e) => e.memberEmail.toLowerCase() === email.toLowerCase() && !e.stoppedAt) || null;
+
+    return (
+      ws.timeEntries.find(
+        (e) =>
+          e.memberEmail.toLowerCase() === email.toLowerCase() && !e.stoppedAt,
+      ) || null
+    );
   },
 
-  addTaskNote(code: string, taskId: string, authorName: string, authorEmail: string, text: string): TaskNote | null {
+  addTaskNote(
+    code: string,
+    taskId: string,
+    authorName: string,
+    authorEmail: string,
+    text: string,
+  ): TaskNote | null {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return null;
+
     const task = ws.tasks.find((t) => t.id === taskId);
     if (!task) return null;
+
     const note: TaskNote = {
       id: genId(),
       taskId,
@@ -435,6 +706,7 @@ export const store = {
       text,
       createdAt: new Date().toISOString(),
     };
+
     ws.taskNotes.push(note);
     save(data);
     return note;
@@ -442,20 +714,31 @@ export const store = {
 
   getTaskNotes(code: string, taskId: string): TaskNote[] {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return [];
-    return ws.taskNotes.filter((n) => n.taskId === taskId).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    return ws.taskNotes
+      .filter((n) => n.taskId === taskId)
+      .sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
   },
 
   getAllTaskNotes(code: string, since?: string): TaskNote[] {
     const data = load();
-    const ws = data[code.toUpperCase()];
+    const ws = data[normalizeCode(code)];
     if (!ws) return [];
+
     let notes = ws.taskNotes;
     if (since) {
       const sinceTime = new Date(since).getTime();
       notes = notes.filter((n) => new Date(n.createdAt).getTime() > sinceTime);
     }
-    return notes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return notes.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
   },
 };
