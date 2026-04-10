@@ -46,12 +46,47 @@ export type LoginResult =
   | { ok: true; name: string; email: string; firstLogin: boolean }
   | { ok: false; message: string };
 
+export type TeamLoginResult =
+  | {
+      ok: true;
+      name: string;
+      email: string;
+      role: string;
+      firstLogin: boolean;
+      userType: "team";
+    }
+  | { ok: false; message: string };
+
+export type JoinWorkspaceResult = { ok: true } | { ok: false; message: string };
+
 export async function getWorkspace(
   code: string,
 ): Promise<WorkspaceInfo | null> {
   const res = await fetch(`${API_BASE}/workspaces/${code}`);
   if (!res.ok) return null;
   return res.json();
+}
+
+export async function joinWorkspace(
+  code: string,
+  name: string,
+  email: string,
+): Promise<JoinWorkspaceResult> {
+  const res = await fetch(`${API_BASE}/workspaces/${code}/join`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email }),
+  });
+
+  if (res.ok) {
+    return { ok: true };
+  }
+
+  const body = await res.json().catch(() => ({}));
+  return {
+    ok: false,
+    message: body.message || "Unable to verify your access.",
+  };
 }
 
 export async function loginClient(
@@ -64,6 +99,7 @@ export async function loginClient(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
+
   if (res.ok) {
     const data = await res.json();
     return {
@@ -73,6 +109,7 @@ export async function loginClient(
       firstLogin: data.firstLogin,
     };
   }
+
   const body = await res.json().catch(() => ({}));
   return {
     ok: false,
@@ -91,7 +128,9 @@ export async function changePassword(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, oldPassword, newPassword }),
   });
+
   if (res.ok) return { ok: true };
+
   const body = await res.json().catch(() => ({}));
   return { ok: false, message: body.error || "Could not change password." };
 }
@@ -111,6 +150,7 @@ export async function getTasks(
   const url = email
     ? `${API_BASE}/workspaces/${code}/tasks?email=${encodeURIComponent(email)}`
     : `${API_BASE}/workspaces/${code}/tasks`;
+
   const res = await fetch(url);
   if (!res.ok) return [];
   return res.json();
@@ -132,20 +172,10 @@ export async function addTask(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(task),
   });
+
   if (!res.ok) return null;
   return res.json();
 }
-
-export type TeamLoginResult =
-  | {
-      ok: true;
-      name: string;
-      email: string;
-      role: string;
-      firstLogin: boolean;
-      userType: "team";
-    }
-  | { ok: false; message: string };
 
 export async function loginTeamMember(
   code: string,
@@ -157,6 +187,7 @@ export async function loginTeamMember(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
+
   if (res.ok) {
     const data = await res.json();
     return {
@@ -168,6 +199,7 @@ export async function loginTeamMember(
       userType: "team",
     };
   }
+
   const body = await res.json().catch(() => ({}));
   return {
     ok: false,
@@ -197,6 +229,7 @@ export async function startTimeEntry(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ taskId, memberEmail, memberName }),
   });
+
   if (!res.ok) return null;
   return res.json();
 }
@@ -211,6 +244,7 @@ export async function stopTimeEntry(
       method: "PATCH",
     },
   );
+
   if (!res.ok) return null;
   return res.json();
 }
@@ -223,9 +257,12 @@ export async function getTimeEntries(
   const params = new URLSearchParams();
   if (email) params.set("email", email);
   if (taskId) params.set("taskId", taskId);
+
+  const qs = params.toString();
   const res = await fetch(
-    `${API_BASE}/workspaces/${code}/time-entries?${params.toString()}`,
+    `${API_BASE}/workspaces/${code}/time-entries${qs ? `?${qs}` : ""}`,
   );
+
   if (!res.ok) return [];
   return res.json();
 }
@@ -254,6 +291,7 @@ export async function updateTaskStatus(
       body: JSON.stringify({ status }),
     },
   );
+
   return res.ok;
 }
 
@@ -272,6 +310,7 @@ export async function addTaskNote(
       body: JSON.stringify({ authorName, authorEmail, text }),
     },
   );
+
   if (!res.ok) return null;
   return res.json();
 }
@@ -295,10 +334,12 @@ export async function getAllNotes(
   const params = new URLSearchParams();
   if (since) params.set("since", since);
   if (email) params.set("email", email);
+
   const qs = params.toString();
   const res = await fetch(
     `${API_BASE}/workspaces/${code}/notes${qs ? `?${qs}` : ""}`,
   );
+
   if (!res.ok) return [];
   return res.json();
 }
