@@ -1,4 +1,4 @@
-const BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`;
+const BASE = "https://hourlink-api.onrender.com/api";
 
 export type SharedTask = {
   id: string;
@@ -45,12 +45,21 @@ export type WorkspaceInfo = {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
   });
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error((body as any).error || `Request failed: ${res.status}`);
+    throw new Error(
+      (body as any).message ||
+        (body as any).error ||
+        `Request failed: ${res.status}`,
+    );
   }
+
   return res.json() as Promise<T>;
 }
 
@@ -62,7 +71,11 @@ export const teamSync = {
     });
   },
 
-  async joinWorkspace(code: string, memberName: string, email?: string): Promise<WorkspaceInfo> {
+  async joinWorkspace(
+    code: string,
+    memberName: string,
+    email?: string,
+  ): Promise<WorkspaceInfo> {
     return request<WorkspaceInfo>(`/workspaces/${code}/join`, {
       method: "POST",
       body: JSON.stringify({ memberName, email: email || "" }),
@@ -73,7 +86,16 @@ export const teamSync = {
     return request<WorkspaceInfo>(`/workspaces/${code}`);
   },
 
-  async pushTask(code: string, task: { title: string; description: string; priority: string; fromUser: string; assignedTo?: string }): Promise<SharedTask> {
+  async pushTask(
+    code: string,
+    task: {
+      title: string;
+      description: string;
+      priority: string;
+      fromUser: string;
+      assignedTo?: string;
+    },
+  ): Promise<SharedTask> {
     return request<SharedTask>(`/workspaces/${code}/tasks`, {
       method: "POST",
       body: JSON.stringify({ ...task, source: "team" }),
@@ -85,10 +107,15 @@ export const teamSync = {
   },
 
   async claimTask(code: string, taskId: string): Promise<void> {
-    await request(`/workspaces/${code}/tasks/${taskId}/claim`, { method: "PATCH" });
+    await request(`/workspaces/${code}/tasks/${taskId}/claim`, {
+      method: "PATCH",
+    });
   },
 
-  async setTeamMembers(code: string, members: { name: string; email: string; role?: string }[]): Promise<{ ok: boolean; credentials: TeamMemberCredential[] }> {
+  async setTeamMembers(
+    code: string,
+    members: { name: string; email: string; role?: string }[],
+  ): Promise<{ ok: boolean; credentials: TeamMemberCredential[] }> {
     return request(`/workspaces/${code}/team-members`, {
       method: "PUT",
       body: JSON.stringify({ members }),
@@ -96,7 +123,9 @@ export const teamSync = {
   },
 
   async getTeamTasks(code: string, email: string): Promise<SharedTask[]> {
-    return request<SharedTask[]>(`/workspaces/${code}/team-tasks?email=${encodeURIComponent(email)}`);
+    return request<SharedTask[]>(
+      `/workspaces/${code}/team-tasks?email=${encodeURIComponent(email)}`,
+    );
   },
 
   async getTimeEntries(code: string, email?: string): Promise<TimeEntry[]> {

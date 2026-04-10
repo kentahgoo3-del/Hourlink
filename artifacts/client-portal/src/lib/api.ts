@@ -67,6 +67,19 @@ async function parseJsonSafe<T>(res: Response): Promise<T | null> {
   }
 }
 
+export async function createWorkspace(
+  ownerName: string,
+): Promise<WorkspaceInfo | null> {
+  const res = await fetch(`${API_BASE}/workspaces`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ownerName }),
+  });
+
+  if (!res.ok) return null;
+  return parseJsonSafe<WorkspaceInfo>(res);
+}
+
 export async function getWorkspace(
   code: string,
 ): Promise<WorkspaceInfo | null> {
@@ -83,7 +96,7 @@ export async function joinWorkspace(
   const res = await fetch(`${API_BASE}/workspaces/${code}/join`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email }),
+    body: JSON.stringify({ memberName: name, email }),
   });
 
   if (res.ok) {
