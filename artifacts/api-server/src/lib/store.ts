@@ -21,6 +21,41 @@ export type TeamMemberCredential = {
   isNew: boolean;
 };
 
+export type SharedTask = {
+  id: string;
+  title: string;
+  description: string;
+  priority: "low" | "medium" | "high";
+  fromUser: string;
+  fromEmail: string;
+  forEmail: string;
+  assignedTo: string;
+  dueDate: string | null;
+  sentAt: string;
+  claimed: boolean;
+  status: "pending" | "in_progress" | "done";
+  source: "client" | "freelancer" | "team";
+};
+
+export type TimeEntry = {
+  id: string;
+  taskId: string;
+  memberEmail: string;
+  memberName: string;
+  startedAt: string;
+  stoppedAt: string | null;
+  duration: number | null;
+};
+
+export type TaskNote = {
+  id: string;
+  taskId: string;
+  authorName: string;
+  authorEmail: string;
+  text: string;
+  createdAt: string;
+};
+
 function genCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from(
@@ -35,6 +70,10 @@ function genPassword(): string {
     { length: 6 },
     () => chars[Math.floor(Math.random() * chars.length)],
   ).join("");
+}
+
+function genId(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
 export const store = {
@@ -273,7 +312,298 @@ export const store = {
     };
   },
 
-  getAllTasks(): [] {
+  async changePassword(
+    code: string,
+    email: string,
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<{ ok: boolean; reason?: string }> {
+    const normalizedCode = code.toUpperCase();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const result = await pool.query(
+      `SELECT password
+       FROM team_members
+       WHERE workspace_code = $1 AND lower(email) = $2`,
+      [normalizedCode, normalizedEmail],
+    );
+
+    if (result.rowCount === 0) {
+      return { ok: false, reason: "not_found" };
+    }
+
+    const member = result.rows[0];
+
+    if (member.password !== oldPassword) {
+      return { ok: false, reason: "wrong_password" };
+    }
+
+    await pool.query(
+      `UPDATE team_members
+       SET password = $3, first_login = FALSE
+       WHERE workspace_code = $1 AND lower(email) = $2`,
+      [normalizedCode, normalizedEmail, newPassword],
+    );
+
+    return { ok: true };
+  },
+
+  async addTask(
+    code: string,
+    task: Omit<SharedTask, "id" | "sentAt" | "claimed" | "status">,
+  ): Promise<SharedTask | null> {
+    const normalizedCode = code.toUpperCase();
+
+    const workspace = await pool.query(
+      `SELECT code FROM workspaces WHERE code = $1`,
+      [normalizedCode],
+    );
+
+    if (workspace.rowCount === 0) {
+      return null;
+    }
+
+    const id = genId();
+
+    const result = await pool.query(
+      `INSERT INTO tasks (
+        id, workspace_code, title, description, priority,
+        from_user, from_email, for_email, assigned_to, due_date,
+        claimed, status, source
+      )
+      VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9, $10,
+        FALSE, 'pending', $11
+      )
+      RETURNING
+        id,
+        title,
+        description,
+        priority,
+        from_user AS "fromUser",
+        from_email AS "fromEmail",
+        for_email AS "forEmail",
+        assigned_to AS "assignedTo",
+        due_date AS "dueDate",
+        sent_at AS "sentAt",
+        claimed,
+        status,
+        source`,
+      [
+        id,
+        normalizedCode,
+        task.title,
+        task.description || "",
+        task.priority,
+        task.fromUser,
+        task.fromEmail || "",
+        task.forEmail || "",
+        task.assignedTo || "",
+        task.dueDate || null,
+        task.source || "client",
+      ],
+    );
+
+    return result.rows[0];
+  },
+
+  async getAllTasks(code: string): Promise<SharedTask[]> {
+    const normalizedCode = code.toUpperCase();
+
+    const result = await pool.query(
+      `SELECT
+         id,
+         title,
+         description,
+         priority,
+         from_user AS "fromUser",
+         from_email AS "fromEmail",
+         for_email AS "forEmail",
+         assigned_to AS "assignedTo",
+         due_date AS "dueDate",
+         sent_at AS "sentAt",
+         claimed,
+         status,
+         source
+       FROM tasks
+       WHERE workspace_code = $1
+       ORDER BY sent_at DESC`,
+      [normalizedCode],
+    );
+
+    return result.rows;
+  },
+
+  async getTasksByEmail(code: string, email: string): Promise<SharedTask[]> {
+    const normalizedCode = code.toUpperCase();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const result = await pool.query(
+      `SELECT
+         id,
+         title,
+         description,
+         priority,
+         from_user AS "fromUser",
+         from_email AS "fromEmail",
+         for_email AS "forEmail",
+         assigned_to AS "assignedTo",
+         due_date AS "dueDate",
+         sent_at AS "sentAt",
+         claimed,
+         status,
+         source
+       FROM tasks
+       WHERE workspace_code = $1
+         AND (
+           lower(from_email) = $2
+           OR lower(for_email) = $2
+         )
+       ORDER BY sent_at DESC`,
+      [normalizedCode, normalizedEmail],
+    );
+
+    return result.rows;
+  },
+
+  async getTeamTasks(code: string, email: string): Promise<SharedTask[]> {
+    const normalizedCode = code.toUpperCase();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const result = await pool.query(
+      `SELECT
+         id,
+         title,
+         description,
+         priority,
+         from_user AS "fromUser",
+         from_email AS "fromEmail",
+         for_email AS "forEmail",
+         assigned_to AS "assignedTo",
+         due_date AS "dueDate",
+         sent_at AS "sentAt",
+         claimed,
+         status,
+         source
+       FROM tasks
+       WHERE workspace_code = $1
+         AND lower(assigned_to) = $2
+       ORDER BY sent_at DESC`,
+      [normalizedCode, normalizedEmail],
+    );
+
+    return result.rows;
+  },
+
+  async getPendingTasks(code: string): Promise<SharedTask[]> {
+    const normalizedCode = code.toUpperCase();
+
+    const result = await pool.query(
+      `SELECT
+         id,
+         title,
+         description,
+         priority,
+         from_user AS "fromUser",
+         from_email AS "fromEmail",
+         for_email AS "forEmail",
+         assigned_to AS "assignedTo",
+         due_date AS "dueDate",
+         sent_at AS "sentAt",
+         claimed,
+         status,
+         source
+       FROM tasks
+       WHERE workspace_code = $1 AND claimed = FALSE
+       ORDER BY sent_at DESC`,
+      [normalizedCode],
+    );
+
+    return result.rows;
+  },
+
+  async claimTask(code: string, taskId: string): Promise<boolean> {
+    const normalizedCode = code.toUpperCase();
+
+    const result = await pool.query(
+      `UPDATE tasks
+       SET claimed = TRUE
+       WHERE workspace_code = $1 AND id = $2`,
+      [normalizedCode, taskId],
+    );
+
+    return (result.rowCount ?? 0) > 0;
+  },
+
+  async updateTaskStatus(
+    code: string,
+    taskId: string,
+    status: "pending" | "in_progress" | "done",
+  ): Promise<boolean> {
+    const normalizedCode = code.toUpperCase();
+
+    const result = await pool.query(
+      `UPDATE tasks
+       SET status = $3,
+           claimed = CASE WHEN $3 = 'done' THEN TRUE ELSE claimed END
+       WHERE workspace_code = $1 AND id = $2`,
+      [normalizedCode, taskId, status],
+    );
+
+    return (result.rowCount ?? 0) > 0;
+  },
+
+  async setAllowedClients(): Promise<{
+    ok: boolean;
+    credentials: {
+      name: string;
+      email: string;
+      password: string;
+      isNew: boolean;
+    }[];
+  }> {
+    return { ok: true, credentials: [] };
+  },
+
+  loginClient(): {
+    ok: boolean;
+    reason?: string;
+    name?: string;
+    firstLogin?: boolean;
+  } {
+    return { ok: false, reason: "not_allowed" };
+  },
+
+  markFirstLoginDone(): boolean {
+    return true;
+  },
+
+  async startTimeEntry(): Promise<TimeEntry | null> {
+    return null;
+  },
+
+  async stopTimeEntry(): Promise<TimeEntry | null> {
+    return null;
+  },
+
+  async getTimeEntries(): Promise<TimeEntry[]> {
+    return [];
+  },
+
+  async getRunningEntry(): Promise<TimeEntry | null> {
+    return null;
+  },
+
+  async addTaskNote(): Promise<TaskNote | null> {
+    return null;
+  },
+
+  async getTaskNotes(): Promise<TaskNote[]> {
+    return [];
+  },
+
+  async getAllTaskNotes(): Promise<TaskNote[]> {
     return [];
   },
 };

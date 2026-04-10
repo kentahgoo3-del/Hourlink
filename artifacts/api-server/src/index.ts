@@ -49,6 +49,25 @@ async function initDB() {
     );
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id TEXT PRIMARY KEY,
+      workspace_code TEXT NOT NULL REFERENCES workspaces(code) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      priority TEXT NOT NULL DEFAULT 'medium',
+      from_user TEXT NOT NULL,
+      from_email TEXT NOT NULL DEFAULT '',
+      for_email TEXT NOT NULL DEFAULT '',
+      assigned_to TEXT NOT NULL DEFAULT '',
+      due_date TEXT,
+      sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      claimed BOOLEAN NOT NULL DEFAULT FALSE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      source TEXT NOT NULL DEFAULT 'client'
+    );
+  `);
+
   logger.info("DB initialized");
 }
 

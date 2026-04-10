@@ -116,7 +116,7 @@ router.patch("/workspaces/:code/change-password", async (req, res) => {
     return;
   }
 
-  const result = store.changePassword(
+  const result = await store.changePassword(
     code,
     String(email).trim(),
     String(oldPassword),
@@ -237,7 +237,7 @@ router.post("/workspaces/:code/tasks", async (req, res) => {
   }
 
   const validSources = ["client", "freelancer", "team"];
-  const task = store.addTask(code, {
+  const task = await store.addTask(code, {
     title: String(title),
     description: String(description || ""),
     priority: (["low", "medium", "high"].includes(priority)
@@ -270,9 +270,9 @@ router.get("/workspaces/:code/tasks", async (req, res) => {
 
   const email = req.query.email as string | undefined;
   if (email) {
-    res.json(store.getTasksByEmail(code, email));
+    res.json(await store.getTasksByEmail(code, email));
   } else {
-    res.json(store.getAllTasks(code));
+    res.json(await store.getAllTasks(code));
   }
 });
 
@@ -285,7 +285,7 @@ router.get("/workspaces/:code/tasks/pending", async (req, res) => {
     return;
   }
 
-  res.json(store.getPendingTasks(code));
+  res.json(await store.getPendingTasks(code));
 });
 
 router.patch("/workspaces/:code/tasks/:taskId/claim", async (req, res) => {
@@ -298,7 +298,7 @@ router.patch("/workspaces/:code/tasks/:taskId/claim", async (req, res) => {
     return;
   }
 
-  const ok = store.claimTask(code, taskId);
+  const ok = await store.claimTask(code, taskId);
   if (!ok) {
     res.status(404).json({ error: "Task or workspace not found" });
     return;
@@ -325,7 +325,7 @@ router.patch("/workspaces/:code/tasks/:taskId/status", async (req, res) => {
     return;
   }
 
-  const ok = store.updateTaskStatus(code, taskId, status);
+  const ok = await store.updateTaskStatus(code, taskId, status);
   if (!ok) {
     res.status(404).json({ error: "Task or workspace not found" });
     return;
@@ -433,7 +433,7 @@ router.get("/workspaces/:code/team-tasks", async (req, res) => {
     return;
   }
 
-  const tasks = store.getTeamTasks(code, email);
+  const tasks = await store.getTeamTasks(code, email);
   res.json(tasks);
 });
 
@@ -454,7 +454,7 @@ router.post("/workspaces/:code/time-entries/start", async (req, res) => {
     return;
   }
 
-  const entry = store.startTimeEntry(
+  const entry = await store.startTimeEntry(
     code,
     taskId,
     String(memberEmail),
@@ -483,7 +483,7 @@ router.patch(
       return;
     }
 
-    const entry = store.stopTimeEntry(code, entryId);
+    const entry = await store.stopTimeEntry(code, entryId);
     if (!entry) {
       res.status(404).json({ error: "Entry not found or already stopped" });
       return;
@@ -504,7 +504,7 @@ router.get("/workspaces/:code/time-entries", async (req, res) => {
     return;
   }
 
-  const entries = store.getTimeEntries(code, email, taskId);
+  const entries = await store.getTimeEntries(code, email, taskId);
   res.json(entries);
 });
 
@@ -523,7 +523,7 @@ router.get("/workspaces/:code/time-entries/running", async (req, res) => {
     return;
   }
 
-  const entry = store.getRunningEntry(code, email);
+  const entry = await store.getRunningEntry(code, email);
   res.json(entry);
 });
 
@@ -543,7 +543,7 @@ router.post("/workspaces/:code/tasks/:taskId/notes", async (req, res) => {
     return;
   }
 
-  const note = store.addTaskNote(
+  const note = await store.addTaskNote(
     code,
     taskId,
     String(authorName),
@@ -569,7 +569,7 @@ router.get("/workspaces/:code/tasks/:taskId/notes", async (req, res) => {
     return;
   }
 
-  const notes = store.getTaskNotes(code, taskId);
+  const notes = await store.getTaskNotes(code, taskId);
   res.json(notes);
 });
 
@@ -584,10 +584,10 @@ router.get("/workspaces/:code/notes", async (req, res) => {
     return;
   }
 
-  let notes = store.getAllTaskNotes(code, since);
+  let notes = await store.getAllTaskNotes(code, since);
 
   if (email) {
-    const tasks = store.getAllTasks(code);
+    const tasks = await store.getAllTasks(code);
     const visibleTaskIds = new Set(
       tasks
         .filter(
