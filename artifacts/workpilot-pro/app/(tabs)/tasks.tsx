@@ -898,19 +898,13 @@ You can change your password on first login.`;
 
   const postComment = useCallback(
     async (taskId: string, portalTaskId?: string | null) => {
-      if (!commentText.trim()) return;
+      const text = commentText.trim();
+      if (!text) return;
 
       setCommentSending(true);
 
-      const newComment = addTaskComment({
-        taskId,
-        authorName: settings.name || "Freelancer",
-        text: commentText.trim(),
-        synced: false,
-      });
-
-      if (portalCode && portalTaskId) {
-        try {
+      try {
+        if (portalCode && portalTaskId) {
           const res = await fetch(
             `${API_BASE}/workspaces/${portalCode}/tasks/${portalTaskId}/notes`,
             {
@@ -919,31 +913,34 @@ You can change your password on first login.`;
               body: JSON.stringify({
                 authorName: settings.name || "Freelancer",
                 authorEmail: "",
-                text: commentText.trim(),
+                text,
               }),
             },
           );
 
           if (res.ok) {
-            markCommentsSynced([newComment.id]);
             await loadComments(portalTaskId);
+          } else {
+            const body = await res.json().catch(() => ({}));
+            console.error("postComment failed:", body);
           }
-        } catch (e) {
-          console.error("postComment error:", e);
+        } else {
+          addTaskComment({
+            taskId,
+            authorName: settings.name || "Freelancer",
+            text,
+            synced: false,
+          });
         }
-      }
 
-      setCommentText("");
-      setCommentSending(false);
+        setCommentText("");
+      } catch (e) {
+        console.error("postComment error:", e);
+      } finally {
+        setCommentSending(false);
+      }
     },
-    [
-      portalCode,
-      commentText,
-      settings.name,
-      loadComments,
-      addTaskComment,
-      markCommentsSynced,
-    ],
+    [portalCode, commentText, settings.name, loadComments, addTaskComment],
   );
 
   const openAdd = (prefillDate?: string) => {
@@ -1746,26 +1743,37 @@ You can change your password on first login.`;
 
         {editingTask &&
           (() => {
-            const localComments = getTaskComments(editingTask.id);
-            const portalOnly = portalComments.filter(
-              (pc) =>
-                !localComments.some(
-                  (lc) =>
-                    lc.text === pc.text &&
-                    Math.abs(
-                      new Date(lc.createdAt).getTime() -
-                        new Date(pc.createdAt).getTime(),
-                    ) < 60000,
-                ),
-            );
-            const allComments = [
-              ...localComments.map((c) => ({ ...c, authorEmail: "" })),
-              ...portalOnly,
-            ].sort(
-              (a, b) =>
-                new Date(b.createdAt).getTime() -
-                new Date(a.createdAt).getTime(),
-            );
+            const localComments = getTaskComments(editingTask.id).map((c) => ({
+              id: c.id,
+              taskId: c.taskId,
+              authorName: c.authorName,
+              authorEmail: "",
+              text: c.text,
+              createdAt: c.createdAt,
+            }));
+
+            const mergedComments = [...localComments, ...portalComments];
+
+            const allComments = mergedComments
+              .filter((comment, index, arr) => {
+                return (
+                  index ===
+                  arr.findIndex(
+                    (x) =>
+                      x.authorName === comment.authorName &&
+                      x.text === comment.text &&
+                      Math.abs(
+                        new Date(x.createdAt).getTime() -
+                          new Date(comment.createdAt).getTime(),
+                      ) < 5000,
+                  )
+                );
+              })
+              .sort(
+                (a, b) =>
+                  new Date(b.createdAt).getTime() -
+                  new Date(a.createdAt).getTime(),
+              );
             return (
               <View
                 style={[
