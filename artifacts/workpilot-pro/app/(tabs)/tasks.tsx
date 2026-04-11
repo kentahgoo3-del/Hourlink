@@ -491,44 +491,41 @@ export default function TasksScreen() {
         setClientCredentials([]);
         return;
       }
+
       try {
-        let res = await fetch(`${API_BASE}/workspaces/${code}/clients`, {
+        const validClients = clients
+          .filter((c) => c.email?.trim())
+          .map((c) => ({
+            name: c.name,
+            email: c.email.trim(),
+          }));
+
+        if (validClients.length === 0) {
+          setClientCredentials([]);
+          return;
+        }
+
+        const res = await fetch(`${API_BASE}/workspaces/${code}/clients`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            clients: clients.map((c) => ({ name: c.name, email: c.email })),
-          }),
+          body: JSON.stringify({ clients: validClients }),
         });
-        if (res.status === 404) {
-          const createRes = await fetch(`${API_BASE}/workspaces`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ownerName: settings.name || "HourLink User",
-            }),
-          });
-          if (createRes.ok) {
-            const ws = await createRes.json();
-            await AsyncStorage.setItem(PORTAL_KEY, ws.code);
-            setPortalCode(ws.code);
-            res = await fetch(`${API_BASE}/workspaces/${ws.code}/clients`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                clients: clients.map((c) => ({ name: c.name, email: c.email })),
-              }),
-            });
-          }
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          console.error("syncClientsToApi failed:", body);
+          setClientCredentials([]);
+          return;
         }
-        if (res.ok) {
-          const data = await res.json();
-          if (data.credentials) {
-            setClientCredentials(data.credentials);
-          }
-        }
-      } catch {}
+
+        const data = await res.json();
+        setClientCredentials(data.credentials || []);
+      } catch (e) {
+        console.error("syncClientsToApi error:", e);
+        setClientCredentials([]);
+      }
     },
-    [clients, settings.name],
+    [clients],
   );
 
   const createOrGetPortal = useCallback(async () => {
@@ -538,25 +535,32 @@ export default function TasksScreen() {
         if (check.ok) return portalCode;
       } catch {}
     }
+
     setPortalLoading(true);
+
     try {
       const res = await fetch(`${API_BASE}/workspaces`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ownerName: settings.name || "HourLink User" }),
       });
-      if (res.ok) {
-        const ws = await res.json();
-        await AsyncStorage.setItem(PORTAL_KEY, ws.code);
-        setPortalCode(ws.code);
-        return ws.code;
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.error("Portal creation failed:", body);
+        return null;
       }
+
+      const ws = await res.json();
+      await AsyncStorage.setItem(PORTAL_KEY, ws.code);
+      setPortalCode(ws.code);
+      return ws.code;
     } catch (e) {
       console.error("Portal creation failed:", e);
+      return null;
     } finally {
       setPortalLoading(false);
     }
-    return null;
   }, [portalCode, settings.name]);
 
   const fetchAndImportPendingTasks = useCallback(
@@ -567,11 +571,12 @@ export default function TasksScreen() {
           setPendingTasks([]);
           return;
         }
-        const data = await res.json();
 
+        const data = await res.json();
         const existingPortalIds = new Set(
           tasks.filter((t) => t.portalTaskId).map((t) => t.portalTaskId),
         );
+
         const newTasks = data.filter((t: any) => !existingPortalIds.has(t.id));
 
         for (const task of newTasks) {
@@ -579,12 +584,16 @@ export default function TasksScreen() {
             (c) =>
               c.email.toLowerCase() === (task.fromEmail || "").toLowerCase(),
           );
+
           try {
             await fetch(
               `${API_BASE}/workspaces/${code}/tasks/${task.id}/claim`,
-              { method: "PATCH" },
+              {
+                method: "PATCH",
+              },
             );
           } catch {}
+
           addTask({
             title: task.title,
             description: task.description || "",
@@ -601,13 +610,15 @@ export default function TasksScreen() {
         const remainingRes = await fetch(
           `${API_BASE}/workspaces/${code}/tasks/pending`,
         );
+
         if (remainingRes.ok) {
           const remaining = await remainingRes.json();
           setPendingTasks(remaining);
         } else {
           setPendingTasks([]);
         }
-      } catch {
+      } catch (e) {
+        console.error("fetchAndImportPendingTasks error:", e);
         setPendingTasks([]);
       }
     },
@@ -627,9 +638,11 @@ export default function TasksScreen() {
   const pushLocalTasksToPortal = useCallback(
     async (code: string) => {
       const clientTasks = tasks.filter((t) => t.clientId && !t.portalTaskId);
+
       for (const task of clientTasks) {
         const client = clients.find((c) => c.id === task.clientId);
-        if (!client) continue;
+        if (!client?.email?.trim()) continue;
+
         try {
           const res = await fetch(`${API_BASE}/workspaces/${code}/tasks`, {
             method: "POST",
@@ -640,16 +653,23 @@ export default function TasksScreen() {
               priority: task.priority,
               fromUser: settings.name || "Freelancer",
               fromEmail: "",
-              forEmail: client.email,
+              forEmail: client.email.trim(),
+              assignedTo: "",
               dueDate: task.dueDate || null,
               source: "freelancer",
             }),
           });
+
           if (res.ok) {
             const data = await res.json();
             updateTask(task.id, { portalTaskId: data.id });
+          } else {
+            const body = await res.json().catch(() => ({}));
+            console.error("pushLocalTasksToPortal failed:", body);
           }
-        } catch {}
+        } catch (e) {
+          console.error("pushLocalTasksToPortal error:", e);
+        }
       }
     },
     [tasks, clients, settings.name, updateTask],
@@ -657,17 +677,19 @@ export default function TasksScreen() {
 
   const openPortalSheet = useCallback(async () => {
     const code = await createOrGetPortal();
-    if (code) {
-      await syncClientsToApi(code);
-      await pushLocalTasksToPortal(code);
-      await fetchAndImportPendingTasks(code);
-      setShowPortal(true);
-    } else {
+
+    if (!code) {
       Alert.alert(
         "Connection Error",
         "Could not connect to the portal server. Please try again.",
       );
+      return;
     }
+
+    await syncClientsToApi(code);
+    await pushLocalTasksToPortal(code);
+    await fetchAndImportPendingTasks(code);
+    setShowPortal(true);
   }, [
     createOrGetPortal,
     syncClientsToApi,
@@ -698,11 +720,14 @@ export default function TasksScreen() {
 
   const getPortalUrl = useCallback(() => {
     if (!portalCode) return "";
-    return `https://hourlink-api.onrender.com/client-portal/?code=${portalCode}`;
+    const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
+    return `https://${domain}/client-portal/?code=${portalCode}`;
   }, [portalCode]);
 
   const copyPortalLink = useCallback(async () => {
     const url = getPortalUrl();
+    if (!url) return;
+
     await Clipboard.setStringAsync(url);
     setPortalCopied(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -711,18 +736,31 @@ export default function TasksScreen() {
 
   const sharePortalLink = useCallback(async () => {
     const url = getPortalUrl();
+    if (!url) return;
+
     try {
       await Share.share({
         message: `Submit tasks for me via HourLink:\n${url}`,
         url,
       });
-    } catch {}
+    } catch (e) {
+      console.error("sharePortalLink error:", e);
+    }
   }, [getPortalUrl]);
 
   const shareClientCredentials = useCallback(
     async (cred: { name: string; email: string; password: string }) => {
       const url = getPortalUrl();
-      const msg = `Hi ${cred.name},\n\nYou've been invited to the HourLink Task Portal.\n\nPortal: ${url}\nEmail: ${cred.email}\nPassword: ${cred.password}\n\nYou can change your password on first login.`;
+      const msg = `Hi ${cred.name},
+
+You've been invited to the HourLink Task Portal.
+
+Portal: ${url}
+Email: ${cred.email}
+Password: ${cred.password}
+
+You can change your password on first login.`;
+
       if (Platform.OS === "web") {
         await Clipboard.setStringAsync(msg);
         setCredsCopied(cred.email);
@@ -731,7 +769,9 @@ export default function TasksScreen() {
       } else {
         try {
           await Share.share({ message: msg });
-        } catch {}
+        } catch (e) {
+          console.error("shareClientCredentials error:", e);
+        }
       }
     },
     [getPortalUrl],
@@ -748,11 +788,14 @@ export default function TasksScreen() {
       portalTaskId?: string | null;
     }) => {
       if (!portalCode || !task.clientId || task.portalTaskId) return;
+
       const client = clients.find((c) => c.id === task.clientId);
-      if (!client) return;
+      if (!client?.email?.trim()) return;
+
       try {
         const check = await fetch(`${API_BASE}/workspaces/${portalCode}`);
         if (!check.ok) return;
+
         const res = await fetch(`${API_BASE}/workspaces/${portalCode}/tasks`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -762,16 +805,23 @@ export default function TasksScreen() {
             priority: task.priority,
             fromUser: settings.name || "Freelancer",
             fromEmail: "",
-            forEmail: client.email,
+            forEmail: client.email.trim(),
+            assignedTo: "",
             dueDate: task.dueDate || null,
             source: "freelancer",
           }),
         });
+
         if (res.ok) {
           const data = await res.json();
           updateTask(task.id, { portalTaskId: data.id });
+        } else {
+          const body = await res.json().catch(() => ({}));
+          console.error("pushSingleTaskToPortal failed:", body);
         }
-      } catch {}
+      } catch (e) {
+        console.error("pushSingleTaskToPortal error:", e);
+      }
     },
     [portalCode, clients, settings.name, updateTask],
   );
@@ -791,16 +841,23 @@ export default function TasksScreen() {
   const loadComments = useCallback(
     async (portalTaskId: string) => {
       if (!portalCode) return;
+
       setCommentsLoading(true);
       try {
         const res = await fetch(
           `${API_BASE}/workspaces/${portalCode}/tasks/${portalTaskId}/notes`,
         );
+
         if (res.ok) {
           const notes = await res.json();
           setPortalComments(notes);
+        } else {
+          setPortalComments([]);
         }
-      } catch {}
+      } catch (e) {
+        console.error("loadComments error:", e);
+        setPortalComments([]);
+      }
       setCommentsLoading(false);
     },
     [portalCode],
@@ -809,14 +866,16 @@ export default function TasksScreen() {
   const postComment = useCallback(
     async (taskId: string, portalTaskId?: string | null) => {
       if (!commentText.trim()) return;
+
       setCommentSending(true);
-      const willSyncNow = !!(portalCode && portalTaskId);
+
       const newComment = addTaskComment({
         taskId,
         authorName: settings.name || "Freelancer",
         text: commentText.trim(),
-        synced: willSyncNow,
+        synced: false,
       });
+
       if (portalCode && portalTaskId) {
         try {
           const res = await fetch(
@@ -831,12 +890,16 @@ export default function TasksScreen() {
               }),
             },
           );
+
           if (res.ok) {
             markCommentsSynced([newComment.id]);
-            loadComments(portalTaskId);
+            await loadComments(portalTaskId);
           }
-        } catch {}
+        } catch (e) {
+          console.error("postComment error:", e);
+        }
       }
+
       setCommentText("");
       setCommentSending(false);
     },
