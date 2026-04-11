@@ -160,7 +160,7 @@ export const store = {
         [normalizedCode, email],
       );
 
-      if (existing.rowCount > 0) {
+      if ((existing.rowCount ?? 0) > 0) {
         await pool.query(
           `UPDATE team_members
            SET name = $3, role = $4
@@ -262,9 +262,7 @@ export const store = {
     const normalizedEmail = email.trim().toLowerCase();
 
     const workspaceCheck = await pool.query(
-      `SELECT code
-       FROM workspaces
-       WHERE code = $1`,
+      `SELECT code FROM workspaces WHERE code = $1`,
       [normalizedCode],
     );
 
@@ -554,6 +552,264 @@ export const store = {
     return (result.rowCount ?? 0) > 0;
   },
 
+  async startTimeEntry(
+    code: string,
+    taskId: string,
+    memberEmail: string,
+    memberName: string,
+  ): Promise<TimeEntry | null> {
+    const normalizedCode = code.toUpperCase();
+    const normalizedEmail = memberEmail.trim().toLowerCase();
+
+    const taskCheck = await pool.query(
+      `SELECT id
+       FROM tasks
+       WHERE workspace_code = $1 AND id = $2`,
+      [normalizedCode, taskId],
+    );
+
+    if (taskCheck.rowCount === 0) {
+      return null;
+    }
+
+    const running = await pool.query(
+      `SELECT id
+       FROM time_entries
+       WHERE workspace_code = $1
+         AND lower(member_email) = $2
+         AND stopped_at IS NULL`,
+      [normalizedCode, normalizedEmail],
+    );
+
+    if (running.rowCount > 0) {
+      return null;
+    }
+
+    const id = genId();
+
+    const result = await pool.query(
+      `INSERT INTO time_entries (
+        id, workspace_code, task_id, member_email, member_name
+      )
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING
+        id,
+        task_id AS "taskId",
+        member_email AS "memberEmail",
+        member_name AS "memberName",
+        started_at AS "startedAt",
+        stopped_at AS "stoppedAt",
+        duration`,
+      [id, normalizedCode, taskId, normalizedEmail, memberName],
+    );
+
+    return result.rows[0];
+  },
+
+  async stopTimeEntry(
+    code: string,
+    entryId: string,
+  ): Promise<TimeEntry | null> {
+    const normalizedCode = code.toUpperCase();
+
+    const current = await pool.query(
+      `SELECT started_at AS "startedAt"
+       FROM time_entries
+       WHERE workspace_code = $1
+         AND id = $2
+         AND stopped_at IS NULL`,
+      [normalizedCode, entryId],
+    );
+
+    if (current.rowCount === 0) {
+      return null;
+    }
+
+    const startedAt = new Date(current.rows[0].startedAt).getTime();
+    const stoppedAt = new Date();
+    const duration = Math.round((stoppedAt.getTime() - startedAt) / 1000);
+
+    const result = await pool.query(
+      `UPDATE time_entries
+       SET stopped_at = $3, duration = $4
+       WHERE workspace_code = $1 AND id = $2
+       RETURNING
+         id,
+         task_id AS "taskId",
+         member_email AS "memberEmail",
+         member_name AS "memberName",
+         started_at AS "startedAt",
+         stopped_at AS "stoppedAt",
+         duration`,
+      [normalizedCode, entryId, stoppedAt.toISOString(), duration],
+    );
+
+    return result.rows[0] ?? null;
+  },
+
+  async getTimeEntries(
+    code: string,
+    email?: string,
+    taskId?: string,
+  ): Promise<TimeEntry[]> {
+    const normalizedCode = code.toUpperCase();
+    const values: any[] = [normalizedCode];
+    const conditions = [`workspace_code = $1`];
+
+    if (email) {
+      values.push(email.trim().toLowerCase());
+      conditions.push(`lower(member_email) = $${values.length}`);
+    }
+
+    if (taskId) {
+      values.push(taskId);
+      conditions.push(`task_id = $${values.length}`);
+    }
+
+    const result = await pool.query(
+      `SELECT
+         id,
+         task_id AS "taskId",
+         member_email AS "memberEmail",
+         member_name AS "memberName",
+         started_at AS "startedAt",
+         stopped_at AS "stoppedAt",
+         duration
+       FROM time_entries
+       WHERE ${conditions.join(" AND ")}
+       ORDER BY started_at DESC`,
+      values,
+    );
+
+    return result.rows;
+  },
+
+  async getRunningEntry(
+    code: string,
+    email: string,
+  ): Promise<TimeEntry | null> {
+    const normalizedCode = code.toUpperCase();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const result = await pool.query(
+      `SELECT
+         id,
+         task_id AS "taskId",
+         member_email AS "memberEmail",
+         member_name AS "memberName",
+         started_at AS "startedAt",
+         stopped_at AS "stoppedAt",
+         duration
+       FROM time_entries
+       WHERE workspace_code = $1
+         AND lower(member_email) = $2
+         AND stopped_at IS NULL
+       ORDER BY started_at DESC
+       LIMIT 1`,
+      [normalizedCode, normalizedEmail],
+    );
+
+    return result.rows[0] ?? null;
+  },
+
+  async addTaskNote(
+    code: string,
+    taskId: string,
+    authorName: string,
+    authorEmail: string,
+    text: string,
+  ): Promise<TaskNote | null> {
+    const normalizedCode = code.toUpperCase();
+
+    const taskCheck = await pool.query(
+      `SELECT id
+       FROM tasks
+       WHERE workspace_code = $1 AND id = $2`,
+      [normalizedCode, taskId],
+    );
+
+    if (taskCheck.rowCount === 0) {
+      return null;
+    }
+
+    const id = genId();
+
+    const result = await pool.query(
+      `INSERT INTO task_notes (
+        id, workspace_code, task_id, author_name, author_email, text
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING
+        id,
+        task_id AS "taskId",
+        author_name AS "authorName",
+        author_email AS "authorEmail",
+        text,
+        created_at AS "createdAt"`,
+      [id, normalizedCode, taskId, authorName, authorEmail || "", text],
+    );
+
+    return result.rows[0];
+  },
+
+  async getTaskNotes(code: string, taskId: string): Promise<TaskNote[]> {
+    const normalizedCode = code.toUpperCase();
+
+    const result = await pool.query(
+      `SELECT
+         id,
+         task_id AS "taskId",
+         author_name AS "authorName",
+         author_email AS "authorEmail",
+         text,
+         created_at AS "createdAt"
+       FROM task_notes
+       WHERE workspace_code = $1 AND task_id = $2
+       ORDER BY created_at ASC`,
+      [normalizedCode, taskId],
+    );
+
+    return result.rows;
+  },
+
+  async getAllTaskNotes(code: string, since?: string): Promise<TaskNote[]> {
+    const normalizedCode = code.toUpperCase();
+
+    if (since) {
+      const result = await pool.query(
+        `SELECT
+           id,
+           task_id AS "taskId",
+           author_name AS "authorName",
+           author_email AS "authorEmail",
+           text,
+           created_at AS "createdAt"
+         FROM task_notes
+         WHERE workspace_code = $1 AND created_at > $2
+         ORDER BY created_at DESC`,
+        [normalizedCode, since],
+      );
+
+      return result.rows;
+    }
+
+    const result = await pool.query(
+      `SELECT
+         id,
+         task_id AS "taskId",
+         author_name AS "authorName",
+         author_email AS "authorEmail",
+         text,
+         created_at AS "createdAt"
+       FROM task_notes
+       WHERE workspace_code = $1
+       ORDER BY created_at DESC`,
+      [normalizedCode],
+    );
+
+    return result.rows;
+  },
+
   async setAllowedClients(): Promise<{
     ok: boolean;
     credentials: {
@@ -577,33 +833,5 @@ export const store = {
 
   markFirstLoginDone(): boolean {
     return true;
-  },
-
-  async startTimeEntry(): Promise<TimeEntry | null> {
-    return null;
-  },
-
-  async stopTimeEntry(): Promise<TimeEntry | null> {
-    return null;
-  },
-
-  async getTimeEntries(): Promise<TimeEntry[]> {
-    return [];
-  },
-
-  async getRunningEntry(): Promise<TimeEntry | null> {
-    return null;
-  },
-
-  async addTaskNote(): Promise<TaskNote | null> {
-    return null;
-  },
-
-  async getTaskNotes(): Promise<TaskNote[]> {
-    return [];
-  },
-
-  async getAllTaskNotes(): Promise<TaskNote[]> {
-    return [];
   },
 };

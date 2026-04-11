@@ -68,6 +68,31 @@ async function initDB() {
     );
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS time_entries (
+      id TEXT PRIMARY KEY,
+      workspace_code TEXT NOT NULL REFERENCES workspaces(code) ON DELETE CASCADE,
+      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      member_email TEXT NOT NULL,
+      member_name TEXT NOT NULL,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      stopped_at TIMESTAMPTZ,
+      duration INTEGER
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS task_notes (
+      id TEXT PRIMARY KEY,
+      workspace_code TEXT NOT NULL REFERENCES workspaces(code) ON DELETE CASCADE,
+      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      author_name TEXT NOT NULL,
+      author_email TEXT NOT NULL DEFAULT '',
+      text TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
   logger.info("DB initialized");
 }
 
