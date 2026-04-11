@@ -505,11 +505,43 @@ export default function TasksScreen() {
           return;
         }
 
-        const res = await fetch(`${API_BASE}/workspaces/${code}/clients`, {
+        let activeCode = code;
+        let res = await fetch(`${API_BASE}/workspaces/${activeCode}/clients`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ clients: validClients }),
         });
+
+        if (res.status === 404) {
+          await AsyncStorage.removeItem(PORTAL_KEY);
+          setPortalCode(null);
+
+          const createRes = await fetch(`${API_BASE}/workspaces`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ownerName: settings.name || "HourLink User",
+            }),
+          });
+
+          if (!createRes.ok) {
+            const body = await createRes.json().catch(() => ({}));
+            console.error("Workspace recreation failed:", body);
+            setClientCredentials([]);
+            return;
+          }
+
+          const ws = await createRes.json();
+          activeCode = ws.code;
+          await AsyncStorage.setItem(PORTAL_KEY, activeCode);
+          setPortalCode(activeCode);
+
+          res = await fetch(`${API_BASE}/workspaces/${activeCode}/clients`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clients: validClients }),
+          });
+        }
 
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -525,7 +557,7 @@ export default function TasksScreen() {
         setClientCredentials([]);
       }
     },
-    [clients],
+    [clients, settings.name],
   );
 
   const createOrGetPortal = useCallback(async () => {
@@ -740,7 +772,8 @@ export default function TasksScreen() {
 
     try {
       await Share.share({
-        message: `Submit tasks for me via HourLink:\n${url}`,
+        message: `Submit tasks for me via HourLink:
+${url}`,
         url,
       });
     } catch (e) {
