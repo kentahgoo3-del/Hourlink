@@ -21,6 +21,13 @@ export type TeamMemberCredential = {
   isNew: boolean;
 };
 
+export type ClientCredential = {
+  name: string;
+  email: string;
+  password: string;
+  isNew: boolean;
+};
+
 export type SharedTask = {
   id: string;
   title: string;
@@ -198,6 +205,81 @@ export const store = {
     return { ok: true, credentials };
   },
 
+  async setAllowedClients(
+    code: string,
+    clients: { name: string; email: string }[],
+  ): Promise<{
+    ok: boolean;
+    credentials: ClientCredential[];
+  }> {
+    const normalizedCode = code.toUpperCase();
+
+    const workspace = await pool.query(
+      "SELECT code FROM workspaces WHERE code = $1",
+      [normalizedCode],
+    );
+
+    if (workspace.rowCount === 0) {
+      return { ok: false, credentials: [] };
+    }
+
+    const credentials: ClientCredential[] = [];
+
+    for (const client of clients) {
+      const name = String(client.name || "").trim();
+      const email = String(client.email || "")
+        .trim()
+        .toLowerCase();
+
+      if (!name || !email) continue;
+
+      const existing = await pool.query(
+        `SELECT password, first_login AS "firstLogin"
+         FROM team_members
+         WHERE workspace_code = $1
+           AND lower(email) = $2
+           AND role = 'client'`,
+        [normalizedCode, email],
+      );
+
+      if ((existing.rowCount ?? 0) > 0) {
+        await pool.query(
+          `UPDATE team_members
+           SET name = $3
+           WHERE workspace_code = $1
+             AND lower(email) = $2
+             AND role = 'client'`,
+          [normalizedCode, email, name],
+        );
+
+        credentials.push({
+          name,
+          email,
+          password: existing.rows[0].password,
+          isNew: false,
+        });
+      } else {
+        const password = genPassword();
+
+        await pool.query(
+          `INSERT INTO team_members
+           (workspace_code, name, email, password, role, first_login)
+           VALUES ($1, $2, $3, $4, 'client', TRUE)`,
+          [normalizedCode, name, email, password],
+        );
+
+        credentials.push({
+          name,
+          email,
+          password,
+          isNew: true,
+        });
+      }
+    }
+
+    return { ok: true, credentials };
+  },
+
   async joinWorkspace(
     code: string,
     memberName: string,
@@ -308,6 +390,83 @@ export const store = {
       role: member.role,
       firstLogin: member.firstLogin,
     };
+  },
+
+  async loginClient(
+    code: string,
+    email: string,
+    password: string,
+  ): Promise<{
+    ok: boolean;
+    reason?: string;
+    name?: string;
+    firstLogin?: boolean;
+  }> {
+    const normalizedCode = code.toUpperCase();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const workspaceCheck = await pool.query(
+      `SELECT code FROM workspaces WHERE code = $1`,
+      [normalizedCode],
+    );
+
+    if (workspaceCheck.rowCount === 0) {
+      return { ok: false, reason: "not_found" };
+    }
+
+    const result = await pool.query(
+      `SELECT name, email, password, first_login AS "firstLogin"
+       FROM team_members
+       WHERE workspace_code = $1
+         AND lower(email) = $2
+         AND role = 'client'`,
+      [normalizedCode, normalizedEmail],
+    );
+
+    if (result.rowCount === 0) {
+      return { ok: false, reason: "not_allowed" };
+    }
+
+    const client = result.rows[0];
+
+    if (client.password !== password) {
+      return { ok: false, reason: "wrong_password" };
+    }
+
+    const existingWorkspaceMember = await pool.query(
+      `SELECT id
+       FROM workspace_members
+       WHERE workspace_code = $1 AND lower(email) = $2`,
+      [normalizedCode, normalizedEmail],
+    );
+
+    if (existingWorkspaceMember.rowCount === 0) {
+      await pool.query(
+        `INSERT INTO workspace_members (workspace_code, name, email, joined_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [normalizedCode, client.name, client.email],
+      );
+    }
+
+    return {
+      ok: true,
+      name: client.name,
+      firstLogin: client.firstLogin,
+    };
+  },
+
+  async markFirstLoginDone(code: string, email: string): Promise<boolean> {
+    const normalizedCode = code.toUpperCase();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const result = await pool.query(
+      `UPDATE team_members
+       SET first_login = FALSE
+       WHERE workspace_code = $1 AND lower(email) = $2`,
+      [normalizedCode, normalizedEmail],
+    );
+
+    return (result.rowCount ?? 0) > 0;
   },
 
   async changePassword(
@@ -808,30 +967,5 @@ export const store = {
     );
 
     return result.rows;
-  },
-
-  async setAllowedClients(): Promise<{
-    ok: boolean;
-    credentials: {
-      name: string;
-      email: string;
-      password: string;
-      isNew: boolean;
-    }[];
-  }> {
-    return { ok: true, credentials: [] };
-  },
-
-  loginClient(): {
-    ok: boolean;
-    reason?: string;
-    name?: string;
-    firstLogin?: boolean;
-  } {
-    return { ok: false, reason: "not_allowed" };
-  },
-
-  markFirstLoginDone(): boolean {
-    return true;
   },
 };
