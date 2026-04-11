@@ -59,6 +59,43 @@ export type TeamLoginResult =
 
 export type JoinWorkspaceResult = { ok: true } | { ok: false; message: string };
 
+export type ClientCredential = {
+  name: string;
+  email: string;
+  password: string;
+  isNew: boolean;
+};
+
+export type SetClientsResult =
+  | {
+      ok: true;
+      count: number;
+      credentials: ClientCredential[];
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
+export type TeamMemberCredential = {
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+  isNew: boolean;
+};
+
+export type SetTeamMembersResult =
+  | {
+      ok: true;
+      count: number;
+      credentials: TeamMemberCredential[];
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
 async function parseJsonSafe<T>(res: Response): Promise<T | null> {
   try {
     return (await res.json()) as T;
@@ -107,6 +144,68 @@ export async function joinWorkspace(
   return {
     ok: false,
     message: body?.message || "Unable to verify your access.",
+  };
+}
+
+export async function setAllowedClients(
+  code: string,
+  clients: { name: string; email: string }[],
+): Promise<SetClientsResult> {
+  const res = await fetch(`${API_BASE}/workspaces/${code}/clients`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ clients }),
+  });
+
+  if (res.ok) {
+    const data = await parseJsonSafe<{
+      ok: true;
+      count: number;
+      credentials: ClientCredential[];
+    }>(res);
+
+    if (!data) {
+      return { ok: false, message: "Invalid server response." };
+    }
+
+    return data;
+  }
+
+  const body = await parseJsonSafe<{ error?: string; message?: string }>(res);
+  return {
+    ok: false,
+    message: body?.message || body?.error || "Unable to save client access.",
+  };
+}
+
+export async function setTeamMembers(
+  code: string,
+  members: { name: string; email: string; role?: string }[],
+): Promise<SetTeamMembersResult> {
+  const res = await fetch(`${API_BASE}/workspaces/${code}/team-members`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ members }),
+  });
+
+  if (res.ok) {
+    const data = await parseJsonSafe<{
+      ok: true;
+      count: number;
+      credentials: TeamMemberCredential[];
+    }>(res);
+
+    if (!data) {
+      return { ok: false, message: "Invalid server response." };
+    }
+
+    return data;
+  }
+
+  const body = await parseJsonSafe<{ error?: string; message?: string }>(res);
+  return {
+    ok: false,
+    message: body?.message || body?.error || "Unable to save team members.",
   };
 }
 
@@ -197,7 +296,10 @@ export async function addTask(
     priority: string;
     fromUser: string;
     fromEmail: string;
+    forEmail?: string;
+    assignedTo?: string;
     dueDate?: string | null;
+    source?: "client" | "freelancer" | "team";
   },
 ): Promise<SharedTask | null> {
   const res = await fetch(`${API_BASE}/workspaces/${code}/tasks`, {

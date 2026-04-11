@@ -31,7 +31,7 @@ import type { Task } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
 const PORTAL_KEY = "@hourlink_portal_code";
-const API_BASE = "https://hourlink-api.onrender.com";
+const API_BASE = "https://hourlink-api.onrender.com/api";
 
 type FilterType = "all" | "todo" | "in_progress" | "done";
 type ViewMode = "list" | "calendar";
