@@ -126,49 +126,58 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* Smart Suggestions */}
-      {suggestions.length > 0 && !activeTimers.length && (
-        <View style={styles.suggestionsWrapper}>
-          <Text style={[styles.suggestionsHeader, { color: colors.mutedForeground }]}>
-            {suggestions.length === 1 ? "Resume where you left off?" : "Resume recent timers"}
-          </Text>
-          {suggestions.map((s, i) => (
-            <TouchableOpacity
-              key={s.entryId}
-              style={[
-                styles.suggestionCard,
-                { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" },
-                i > 0 && { marginTop: 8 },
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                startTimer({
-                  clientId: s.clientId,
-                  projectId: "",
-                  description: s.description,
-                  hourlyRate: s.hourlyRate || s.client?.hourlyRate || settings.defaultHourlyRate,
-                  billable: true,
-                  resumeEntryId: s.entryId,
-                });
-              }}
-              testID={i === 0 ? "smart-suggestion" : `smart-suggestion-${i}`}
-            >
-              <View style={styles.suggestionLeft}>
-                <AppIcon name="flash" size={16} color={colors.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.suggestionSub, { color: colors.foreground, fontWeight: "600" }]} numberOfLines={1}>
-                    {s.description || "Last session"}
-                  </Text>
-                  <Text style={[styles.suggestionSub, { color: colors.mutedForeground }]} numberOfLines={1}>
-                    {s.client?.name || "No client"}
-                  </Text>
+      {/* Smart Suggestions — hide cards already running, keep the rest visible */}
+      {(() => {
+        const visibleSuggestions = suggestions.filter((s) =>
+          !activeTimers.some(
+            (t) => t.resumeEntryId === s.entryId ||
+              (!t.resumeEntryId && t.description === s.description && t.clientId === s.clientId)
+          )
+        );
+        if (visibleSuggestions.length === 0) return null;
+        return (
+          <View style={styles.suggestionsWrapper}>
+            <Text style={[styles.suggestionsHeader, { color: colors.mutedForeground }]}>
+              {visibleSuggestions.length === 1 ? "Resume where you left off?" : "Resume recent timers"}
+            </Text>
+            {visibleSuggestions.map((s, i) => (
+              <TouchableOpacity
+                key={s.entryId}
+                style={[
+                  styles.suggestionCard,
+                  { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" },
+                  i > 0 && { marginTop: 8 },
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  startTimer({
+                    clientId: s.clientId,
+                    projectId: "",
+                    description: s.description,
+                    hourlyRate: s.hourlyRate || s.client?.hourlyRate || settings.defaultHourlyRate,
+                    billable: true,
+                    resumeEntryId: s.entryId,
+                  });
+                }}
+                testID={i === 0 ? "smart-suggestion" : `smart-suggestion-${i}`}
+              >
+                <View style={styles.suggestionLeft}>
+                  <AppIcon name="flash" size={16} color={colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.suggestionSub, { color: colors.foreground, fontWeight: "600" }]} numberOfLines={1}>
+                      {s.description || "Last session"}
+                    </Text>
+                    <Text style={[styles.suggestionSub, { color: colors.mutedForeground }]} numberOfLines={1}>
+                      {s.client?.name || "No client"}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-              <AppIcon name="play-circle" size={26} color={colors.primary} />
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
+                <AppIcon name="play-circle" size={26} color={colors.primary} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        );
+      })()}
 
       {/* Active Timers */}
       {activeTimers.map((timer) => (
