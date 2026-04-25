@@ -1,6 +1,9 @@
-import React, { createContext, useContext, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { GuidedTour, resetTour, shouldShowTour } from "@/components/GuidedTour";
 import { WelcomeOverlay } from "@/components/WelcomeOverlay";
-import { GuidedTour, shouldShowTour, resetTour } from "@/components/GuidedTour";
+
+const ONBOARDING_KEY = "hl_onboarding_done";
 
 interface WelcomeContextValue {
   triggerWelcome: () => void;
@@ -18,19 +21,33 @@ export function useWelcome() {
 
 interface Props {
   children: React.ReactNode;
-  initialVisible?: boolean;
 }
 
-export function WelcomeProvider({ children, initialVisible = true }: Props) {
-  const [welcomeVisible, setWelcomeVisible] = useState(initialVisible);
+export function WelcomeProvider({ children }: Props) {
+  const [welcomeVisible, setWelcomeVisible] = useState(false);
   const [tourVisible, setTourVisible] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(ONBOARDING_KEY).then((done) => {
+      if (!done) {
+        setWelcomeVisible(true);
+      }
+      setReady(true);
+    });
+  }, []);
 
   const handleWelcomeDismiss = async () => {
+    await AsyncStorage.setItem(ONBOARDING_KEY, "1");
     setWelcomeVisible(false);
     const show = await shouldShowTour();
     if (show) {
       setTimeout(() => setTourVisible(true), 400);
     }
+  };
+
+  const handleTriggerWelcome = () => {
+    setWelcomeVisible(true);
   };
 
   const handleTriggerTour = async () => {
@@ -39,12 +56,16 @@ export function WelcomeProvider({ children, initialVisible = true }: Props) {
   };
 
   return (
-    <WelcomeContext.Provider value={{
-      triggerWelcome: () => setWelcomeVisible(true),
-      triggerTour: handleTriggerTour,
-    }}>
+    <WelcomeContext.Provider
+      value={{
+        triggerWelcome: handleTriggerWelcome,
+        triggerTour: handleTriggerTour,
+      }}
+    >
       {children}
-      {welcomeVisible && <WelcomeOverlay onDismiss={handleWelcomeDismiss} />}
+      {ready && welcomeVisible && (
+        <WelcomeOverlay onDismiss={handleWelcomeDismiss} />
+      )}
       <GuidedTour visible={tourVisible} onDismiss={() => setTourVisible(false)} />
     </WelcomeContext.Provider>
   );
