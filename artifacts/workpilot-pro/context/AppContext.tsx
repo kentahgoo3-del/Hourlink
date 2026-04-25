@@ -307,7 +307,7 @@ type AppContextType = {
   getBillingAlerts: () => BillingAlert[];
   getCashFlowForecast: () => CashFlowItem[];
   getMonthRevenue: () => number;
-  getLastTimerSuggestion: () => { entryId: string; clientId: string; description: string; hourlyRate: number; client: Client | undefined } | null;
+  getLastTimerSuggestion: () => { entryId: string; clientId: string; description: string; hourlyRate: number; client: Client | undefined }[];
 };
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -886,10 +886,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [invoices, clients]);
 
   const getLastTimerSuggestion = useCallback(() => {
-    const last = timeEntries.find((e) => e.endTime);
-    if (!last) return null;
-    const client = clients.find((c) => c.id === last.clientId);
-    return { entryId: last.id, clientId: last.clientId, description: last.description, hourlyRate: last.hourlyRate, client };
+    const seen = new Set<string>();
+    const results: { entryId: string; clientId: string; description: string; hourlyRate: number; client: Client | undefined }[] = [];
+    for (const e of timeEntries) {
+      if (!e.endTime) continue;
+      const key = `${e.clientId}||${e.description}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      results.push({ entryId: e.id, clientId: e.clientId, description: e.description, hourlyRate: e.hourlyRate, client: clients.find((c) => c.id === e.clientId) });
+      if (results.length >= 4) break;
+    }
+    return results;
   }, [timeEntries, clients]);
 
   if (!loaded) return null;

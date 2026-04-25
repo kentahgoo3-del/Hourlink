@@ -69,7 +69,7 @@ export default function HomeScreen() {
   const recentInvoices = useMemo(() => invoices.slice(0, 3), [invoices]);
   const billingAlerts = useMemo(() => getBillingAlerts().slice(0, 2), [getBillingAlerts]);
   const cashFlow = useMemo(() => getCashFlowForecast().slice(0, 3), [getCashFlowForecast]);
-  const suggestion = useMemo(() => getLastTimerSuggestion(), [getLastTimerSuggestion]);
+  const suggestions = useMemo(() => getLastTimerSuggestion(), [getLastTimerSuggestion]);
 
   const weekDiff = weekSeconds - prevWeekSeconds;
   const weekDiffLabel = prevWeekSeconds > 0
@@ -126,34 +126,48 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* Smart Suggestion */}
-      {suggestion && !activeTimers.length && (
-        <TouchableOpacity
-          style={[styles.suggestionCard, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" }]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            startTimer({
-              clientId: suggestion.clientId,
-              projectId: "",
-              description: suggestion.description,
-              hourlyRate: suggestion.hourlyRate || suggestion.client?.hourlyRate || settings.defaultHourlyRate,
-              billable: true,
-              resumeEntryId: suggestion.entryId,
-            });
-          }}
-          testID="smart-suggestion"
-        >
-          <View style={styles.suggestionLeft}>
-            <AppIcon name="flash" size={18} color={colors.primary} />
-            <View>
-              <Text style={[styles.suggestionTitle, { color: colors.foreground }]}>Resume where you left off?</Text>
-              <Text style={[styles.suggestionSub, { color: colors.mutedForeground }]}>
-                {suggestion.description || "Last session"} · {suggestion.client?.name}
-              </Text>
-            </View>
-          </View>
-          <AppIcon name="play-circle" size={28} color={colors.primary} />
-        </TouchableOpacity>
+      {/* Smart Suggestions */}
+      {suggestions.length > 0 && !activeTimers.length && (
+        <View style={styles.suggestionsWrapper}>
+          <Text style={[styles.suggestionsHeader, { color: colors.mutedForeground }]}>
+            {suggestions.length === 1 ? "Resume where you left off?" : "Resume recent timers"}
+          </Text>
+          {suggestions.map((s, i) => (
+            <TouchableOpacity
+              key={s.entryId}
+              style={[
+                styles.suggestionCard,
+                { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" },
+                i > 0 && { marginTop: 8 },
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                startTimer({
+                  clientId: s.clientId,
+                  projectId: "",
+                  description: s.description,
+                  hourlyRate: s.hourlyRate || s.client?.hourlyRate || settings.defaultHourlyRate,
+                  billable: true,
+                  resumeEntryId: s.entryId,
+                });
+              }}
+              testID={i === 0 ? "smart-suggestion" : `smart-suggestion-${i}`}
+            >
+              <View style={styles.suggestionLeft}>
+                <AppIcon name="flash" size={16} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.suggestionSub, { color: colors.foreground, fontWeight: "600" }]} numberOfLines={1}>
+                    {s.description || "Last session"}
+                  </Text>
+                  <Text style={[styles.suggestionSub, { color: colors.mutedForeground }]} numberOfLines={1}>
+                    {s.client?.name || "No client"}
+                  </Text>
+                </View>
+              </View>
+              <AppIcon name="play-circle" size={26} color={colors.primary} />
+            </TouchableOpacity>
+          ))}
+        </View>
       )}
 
       {/* Active Timers */}
@@ -337,7 +351,9 @@ const styles = StyleSheet.create({
   goalTrack: { height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 8 },
   goalFill: { height: 6, borderRadius: 3 },
   goalSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  suggestionCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 16 },
+  suggestionsWrapper: { marginBottom: 16 },
+  suggestionsHeader: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 },
+  suggestionCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 14, borderWidth: 1, padding: 14 },
   suggestionLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   suggestionTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   suggestionSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
