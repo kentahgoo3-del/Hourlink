@@ -30,10 +30,11 @@ function formatDate(iso: string) {
 async function getLogoDataUri(logoUri?: string): Promise<string> {
   if (!logoUri) return "";
   try {
+    if (logoUri.startsWith("data:")) return logoUri;
     const ext = logoUri.split(".").pop()?.toLowerCase() || "png";
     const mimeMap: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp" };
     const mime = mimeMap[ext] || "image/png";
-    const base64 = await FileSystem.readAsStringAsync(logoUri, { encoding: FileSystem.EncodingType.Base64 });
+    const base64 = await FileSystem.readAsStringAsync(logoUri, { encoding: "base64" as any });
     return `data:${mime};base64,${base64}`;
   } catch { return ""; }
 }
@@ -49,7 +50,7 @@ export default function InvoiceDetailScreen() {
 
   const [showEdit, setShowEdit] = useState(false);
   const [editNotes, setEditNotes] = useState(invoice?.notes || "");
-  const [editDue, setEditDue] = useState(invoice?.dueDate ? formatDate(invoice.dueDate) : "");
+  const [showMenu, setShowMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -68,51 +69,152 @@ export default function InvoiceDetailScreen() {
     );
   }
 
+  const companyName = companyProfile.name || settings.name || "Your Company";
+  const logoUri = (companyProfile as any).logoUri as string | undefined;
+  const fmt = (n: number) =>
+    `${settings.currency}${n.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   const handleDelete = () => setShowDeleteConfirm(true);
 
   const handleExportPDF = async () => {
     if (!invoice) return;
     setExporting(true);
     try {
-      const logoDataUri = await getLogoDataUri((companyProfile as any).logoUri);
-      const logoHtml = logoDataUri ? `<img src="${logoDataUri}" style="max-height:100px;max-width:240px;object-fit:contain;display:block;margin-bottom:12px;" alt="logo"/>` : "";
-      const cName = companyProfile.name || settings.name || "Your Company";
-      const hasAddr = !!(companyProfile.addressLine1 || companyProfile.city || companyProfile.phone || companyProfile.email);
+      const logoDataUri = await getLogoDataUri(logoUri);
+      const logoHtml = logoDataUri
+        ? `<img src="${logoDataUri}" style="height:56px;max-width:180px;object-fit:contain;display:block;margin-bottom:0;" alt="logo"/>`
+        : `<div style="font-size:26px;font-weight:900;color:#1e293b;letter-spacing:-0.5px">${companyName}</div>`;
+      const cName = companyName;
       const sub = invoice.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
       const taxAmt = sub * (invoice.taxPercent / 100);
       const tot = sub + taxAmt;
-      const fmt = (n: number) => `${settings.currency}${n.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      const itemRows = invoice.items.map((item) => `<tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9">${item.description}<div style="font-size:11px;color:#94a3b8;margin-top:2px">${settings.currency}${item.unitPrice}/unit</div></td><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;text-align:center;color:#64748b">${item.quantity}</td><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:600">${fmt(item.quantity * item.unitPrice)}</td></tr>`).join("");
-      const client = clients.find((c) => c.id === invoice.clientId);
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${invoice.invoiceNumber}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,Helvetica,Arial,sans-serif;color:#1e293b;background:#fff;padding:48px}th{background:#f1f5f9;padding:10px 14px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px}table{width:100%;border-collapse:collapse}tr:last-child td{border-bottom:none!important}</style></head><body>
-<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px;padding-bottom:24px;border-bottom:3px solid #3b82f6">
-  <div>${logoHtml}<div style="font-size:24px;font-weight:800;color:#1e293b">${cName}</div>${companyProfile.tagline ? `<div style="font-size:13px;color:#64748b;margin-top:4px">${companyProfile.tagline}</div>` : ""}${hasAddr ? `<div style="font-size:12px;color:#94a3b8;margin-top:8px;line-height:1.6">${[companyProfile.addressLine1, companyProfile.city && companyProfile.province ? `${companyProfile.city}, ${companyProfile.province}` : companyProfile.city, companyProfile.phone, companyProfile.email, companyProfile.vatNumber ? `VAT: ${companyProfile.vatNumber}` : ""].filter(Boolean).join("<br/>")}</div>` : ""}</div>
-  <div style="text-align:right"><div style="font-size:28px;font-weight:800;color:#3b82f6">INVOICE</div><div style="font-size:16px;font-weight:600;margin-top:4px">${invoice.invoiceNumber}</div><div style="font-size:12px;color:#94a3b8;margin-top:8px">Issued: ${formatDate(invoice.createdAt)}</div><div style="font-size:12px;color:${invoice.status === "overdue" ? "#ef4444" : "#94a3b8"};margin-top:4px">Due: ${formatDate(invoice.dueDate)}</div></div>
-</div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:36px">
-  <div><div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">BILL TO</div><div style="font-size:15px;font-weight:700">${client?.name || "Client"}</div>${client?.company ? `<div style="color:#64748b;font-size:13px;margin-top:4px">${client.company}</div>` : ""}${client?.email ? `<div style="color:#64748b;font-size:13px;margin-top:2px">${client.email}</div>` : ""}${client?.phone ? `<div style="color:#64748b;font-size:13px;margin-top:2px">${client.phone}</div>` : ""}</div>
-  <div style="text-align:right"><div style="display:inline-block;background:${invoice.status === "paid" ? "#f0fdf4" : invoice.status === "overdue" ? "#fef2f2" : "#f8fafc"};color:${invoice.status === "paid" ? "#10b981" : invoice.status === "overdue" ? "#ef4444" : "#64748b"};border:1px solid currentColor;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">${invoice.status}</div></div>
-</div>
-${invoice.title ? `<div style="font-size:16px;font-weight:600;margin-bottom:16px">${invoice.title}</div>` : ""}
-<table style="margin-bottom:24px"><thead><tr><th style="width:60%">Description</th><th style="text-align:center">Qty</th><th style="text-align:right">Amount</th></tr></thead><tbody>${itemRows}</tbody></table>
-<div style="display:flex;justify-content:flex-end;margin-bottom:24px"><div style="width:300px"><div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9"><span style="color:#64748b">Subtotal</span><span>${fmt(sub)}</span></div><div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9"><span style="color:#64748b">Tax (${invoice.taxPercent}%)</span><span>${fmt(taxAmt)}</span></div><div style="display:flex;justify-content:space-between;padding:12px 0;border-top:2px solid #1e293b;margin-top:4px"><span style="font-weight:700;text-transform:uppercase;letter-spacing:.5px">TOTAL DUE</span><span style="font-size:22px;font-weight:800;color:#3b82f6">${fmt(tot)}</span></div></div></div>
-${invoice.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px;margin-bottom:16px"><div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">NOTES</div><div style="font-size:13px;color:#64748b;line-height:1.6">${invoice.notes}</div></div>` : ""}
-${(companyProfile.bankName || companyProfile.bankAccount) ? `<div style="background:#f0fdf4;border-radius:10px;padding:16px"><div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#064e3b;margin-bottom:8px">BANKING DETAILS</div>${companyProfile.bankName ? `<div style="font-size:13px;color:#065f46">Bank: ${companyProfile.bankName}</div>` : ""}${companyProfile.bankAccount ? `<div style="font-size:13px;color:#065f46">Account: ${companyProfile.bankAccount}</div>` : ""}${companyProfile.bankBranch ? `<div style="font-size:13px;color:#065f46">Branch: ${companyProfile.bankBranch}</div>` : ""}</div>` : ""}
-<div style="margin-top:48px;border-top:1px solid #e2e8f0;padding-top:16px;font-size:11px;color:#94a3b8;display:flex;justify-content:space-between"><span>${cName}</span><span>Generated by HourLink</span></div>
-</body></html>`;
+      const fmtP = (n: number) => `${settings.currency}${n.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const itemRows = invoice.items
+        .map((item) => `
+          <tr>
+            <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9">
+              <div style="font-size:13px;font-weight:600;color:#1e293b">${item.description}</div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:2px">${settings.currency}${item.unitPrice.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}/unit</div>
+            </td>
+            <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;font-size:13px;color:#64748b">${item.quantity}</td>
+            <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:right;font-size:13px;font-weight:700;color:#1e293b">${fmtP(item.quantity * item.unitPrice)}</td>
+          </tr>`).join("");
+      const statusColor = invoice.status === "paid" ? "#10b981" : invoice.status === "overdue" ? "#ef4444" : "#64748b";
+      const addrLines = [
+        companyProfile.addressLine1,
+        companyProfile.city && companyProfile.province ? `${companyProfile.city}, ${companyProfile.province}` : companyProfile.city,
+        companyProfile.phone,
+        companyProfile.email,
+        companyProfile.vatNumber ? `VAT: ${companyProfile.vatNumber}` : "",
+      ].filter(Boolean).join("<br/>");
+
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"/><title>${invoice.invoiceNumber}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,Helvetica Neue,Arial,sans-serif;color:#1e293b;background:#fff;padding:0}
+  .page{max-width:760px;margin:0 auto;padding:48px 48px 60px}
+  table{width:100%;border-collapse:collapse}
+  th{background:#f8fafc;padding:10px 16px;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.8px;font-weight:700;text-align:left}
+  th:nth-child(2){text-align:center}
+  th:nth-child(3){text-align:right}
+  tr:last-child td{border-bottom:none!important}
+</style></head>
+<body><div class="page">
+
+  <!-- Header -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:24px;border-bottom:2px solid #e2e8f0">
+    <div>
+      ${logoHtml}
+      ${logoDataUri ? `<div style="font-size:18px;font-weight:800;color:#1e293b;margin-top:10px">${cName}</div>` : ""}
+      ${companyProfile.tagline ? `<div style="font-size:12px;color:#94a3b8;margin-top:3px">${companyProfile.tagline}</div>` : ""}
+      ${addrLines ? `<div style="font-size:11px;color:#94a3b8;margin-top:10px;line-height:1.7">${addrLines}</div>` : ""}
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:32px;font-weight:900;color:#3b82f6;letter-spacing:-1px">INVOICE</div>
+      <div style="font-size:15px;font-weight:700;color:#1e293b;margin-top:4px">${invoice.invoiceNumber}</div>
+      <div style="display:inline-block;margin-top:8px;background:${statusColor}18;color:${statusColor};border:1px solid ${statusColor}60;border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">${invoice.status}</div>
+    </div>
+  </div>
+
+  <!-- Dates row -->
+  <div style="display:flex;gap:40px;margin-bottom:28px">
+    <div><div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:5px">ISSUE DATE</div><div style="font-size:13px;font-weight:600">${formatDate(invoice.createdAt)}</div></div>
+    <div><div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:5px">DUE DATE</div><div style="font-size:13px;font-weight:600;color:${invoice.status === "overdue" ? "#ef4444" : "#1e293b"}">${formatDate(invoice.dueDate)}</div></div>
+  </div>
+
+  <!-- From / Bill To -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;padding:20px 0;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;margin-bottom:28px">
+    <div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">FROM</div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px">${cName}</div>
+      ${addrLines ? `<div style="font-size:12px;color:#64748b;line-height:1.7">${addrLines}</div>` : ""}
+    </div>
+    <div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">BILL TO</div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px">${client?.name || "Client"}</div>
+      ${client?.company ? `<div style="font-size:12px;color:#64748b">${client.company}</div>` : ""}
+      ${client?.email ? `<div style="font-size:12px;color:#64748b">${client.email}</div>` : ""}
+      ${client?.phone ? `<div style="font-size:12px;color:#64748b">${client.phone}</div>` : ""}
+    </div>
+  </div>
+
+  ${invoice.title ? `<div style="font-size:15px;font-weight:700;margin-bottom:16px">${invoice.title}</div>` : ""}
+
+  <!-- Line Items -->
+  <table style="margin-bottom:24px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+    <thead><tr>
+      <th style="width:55%;border-radius:0">Description</th>
+      <th style="width:20%">Qty</th>
+      <th style="width:25%">Amount</th>
+    </tr></thead>
+    <tbody>${itemRows}</tbody>
+  </table>
+
+  <!-- Totals -->
+  <div style="display:flex;justify-content:flex-end;margin-bottom:28px">
+    <div style="width:280px">
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:13px;color:#64748b">Subtotal</span><span style="font-size:13px">${fmtP(sub)}</span></div>
+      ${invoice.taxPercent > 0 ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:13px;color:#64748b">Tax (${invoice.taxPercent}%)</span><span style="font-size:13px">${fmtP(taxAmt)}</span></div>` : ""}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;margin-top:4px;border-top:2px solid #1e293b">
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px">TOTAL DUE</span>
+        <span style="font-size:24px;font-weight:900;color:#3b82f6">${fmtP(tot)}</span>
+      </div>
+    </div>
+  </div>
+
+  ${invoice.notes ? `
+  <div style="background:#f8fafc;border-radius:8px;padding:16px 20px;margin-bottom:16px">
+    <div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">NOTES</div>
+    <div style="font-size:13px;color:#64748b;line-height:1.7">${invoice.notes}</div>
+  </div>` : ""}
+
+  ${(companyProfile.bankName || companyProfile.bankAccount) ? `
+  <div style="background:#f0fdf4;border-radius:8px;padding:16px 20px;margin-bottom:24px">
+    <div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#064e3b;margin-bottom:8px">BANKING DETAILS</div>
+    ${companyProfile.bankName ? `<div style="font-size:13px;color:#065f46;margin-top:3px">Bank: ${companyProfile.bankName}</div>` : ""}
+    ${companyProfile.bankAccount ? `<div style="font-size:13px;color:#065f46;margin-top:3px">Account: ${companyProfile.bankAccount}</div>` : ""}
+    ${companyProfile.bankBranch ? `<div style="font-size:13px;color:#065f46;margin-top:3px">Branch: ${companyProfile.bankBranch}</div>` : ""}
+  </div>` : ""}
+
+  <!-- Footer -->
+  <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8">
+    <span>${cName}</span>
+    <span>Generated by HourLink</span>
+  </div>
+
+</div></body></html>`;
+
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${invoice.invoiceNumber}`, UTI: "com.adobe.pdf" });
     } catch (e) { console.error("PDF error", e); }
     finally { setExporting(false); }
   };
 
-  const companyName = companyProfile.name || settings.name || "Your Company";
-  const hasCompanyInfo = !!(companyProfile.name || companyProfile.addressLine1 || companyProfile.phone);
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
+      {/* Navigation Header */}
+      <View style={[styles.header, { paddingTop: topPadding + 12, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <AppIcon name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
@@ -125,145 +227,176 @@ ${(companyProfile.bankName || companyProfile.bankAccount) ? `<div style="backgro
           >
             {exporting
               ? <ActivityIndicator size="small" color="#fff" />
-              : <AppIcon name="download-outline" size={15} color="#fff" />}
+              : <AppIcon name="arrow-down-tray" size={14} color="#fff" />}
             <Text style={styles.exportBtnText}>{exporting ? "…" : "PDF"}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleDelete}>
-            <AppIcon name="trash-outline" size={20} color="#ef4444" />
+          <TouchableOpacity onPress={() => setShowMenu(true)} style={[styles.menuBtn, { backgroundColor: colors.muted }]}>
+            <AppIcon name="ellipsis-horizontal" size={18} color={colors.foreground} />
           </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 20, paddingBottom: botPadding + 100 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: botPadding + 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Status Row */}
-        <View style={styles.statusRow}>
-          <StatusBadge status={invoice.status} large />
-          <TouchableOpacity
-            style={[styles.editBtn, { backgroundColor: colors.muted }]}
-            onPress={() => setShowEdit(true)}
-          >
-            <AppIcon name="pencil" size={14} color={colors.mutedForeground} />
-            <Text style={[styles.editBtnText, { color: colors.mutedForeground }]}>Edit</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Invoice Document Card */}
-        <View style={[styles.docCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {/* Company Header */}
-          <View style={[styles.companyHeader, { borderBottomColor: colors.border, backgroundColor: colors.primary + "0a" }]}>
-            {(companyProfile as any).logoUri && (
-              <Image source={{ uri: (companyProfile as any).logoUri }} style={styles.companyLogo} resizeMode="contain" />
-            )}
-            <View style={styles.companyInfo}>
-              <Text style={[styles.companyName, { color: colors.foreground }]}>{companyName}</Text>
-              {companyProfile.tagline ? <Text style={[styles.companySub, { color: colors.mutedForeground }]}>{companyProfile.tagline}</Text> : null}
+        <View style={[styles.docCard, { backgroundColor: "#fff", borderColor: colors.border, shadowColor: "#000" }]}>
+
+          {/* Brand Header — logo left, invoice number right */}
+          <View style={[styles.brandHeader, { borderBottomColor: colors.border }]}>
+            <View style={styles.brandLeft}>
+              {logoUri ? (
+                <Image
+                  source={{ uri: logoUri }}
+                  style={styles.logo}
+                  resizeMode="contain"
+                />
+              ) : null}
+              <View style={{ marginTop: logoUri ? 10 : 0 }}>
+                <Text style={styles.companyName}>{companyName}</Text>
+                {companyProfile.tagline ? (
+                  <Text style={styles.companyTagline}>{companyProfile.tagline}</Text>
+                ) : null}
+                {companyProfile.addressLine1 ? (
+                  <Text style={styles.companyAddr}>{companyProfile.addressLine1}</Text>
+                ) : null}
+                {companyProfile.city ? (
+                  <Text style={styles.companyAddr}>{companyProfile.city}{companyProfile.province ? `, ${companyProfile.province}` : ""}</Text>
+                ) : null}
+                {companyProfile.phone ? <Text style={styles.companyAddr}>{companyProfile.phone}</Text> : null}
+                {companyProfile.email ? <Text style={styles.companyAddr}>{companyProfile.email}</Text> : null}
+                {companyProfile.vatNumber ? <Text style={styles.companyAddr}>VAT: {companyProfile.vatNumber}</Text> : null}
+              </View>
+            </View>
+            <View style={styles.brandRight}>
+              <Text style={[styles.invoiceWord, { color: colors.primary }]}>INVOICE</Text>
+              <Text style={styles.invoiceNum}>{invoice.invoiceNumber}</Text>
+              <StatusBadge status={invoice.status} large />
             </View>
           </View>
 
-          <View style={{ padding: 20 }}>
-            {/* Invoice Meta */}
-            <View style={styles.metaRow}>
-              <View style={styles.metaBlock}>
-                <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>INVOICE</Text>
-                <Text style={[styles.metaValue, { color: colors.foreground }]}>{invoice.invoiceNumber}</Text>
+          <View style={styles.docBody}>
+            {/* Dates */}
+            <View style={styles.datesRow}>
+              <View>
+                <Text style={styles.metaLabel}>ISSUE DATE</Text>
+                <Text style={styles.metaValue}>{formatDate(invoice.createdAt)}</Text>
               </View>
-              <View style={[styles.metaBlock, { alignItems: "flex-end" }]}>
-                <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>ISSUE DATE</Text>
-                <Text style={[styles.metaValue, { color: colors.foreground }]}>{formatDate(invoice.createdAt)}</Text>
-              </View>
-            </View>
-            <View style={[styles.metaRow, { marginTop: 8 }]}>
-              <View style={styles.metaBlock} />
-              <View style={[styles.metaBlock, { alignItems: "flex-end" }]}>
-                <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>DUE DATE</Text>
-                <Text style={[styles.metaValue, { color: invoice.status === "overdue" ? "#ef4444" : colors.foreground }]}>{formatDate(invoice.dueDate)}</Text>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={styles.metaLabel}>DUE DATE</Text>
+                <Text style={[styles.metaValue, invoice.status === "overdue" && { color: "#ef4444" }]}>
+                  {formatDate(invoice.dueDate)}
+                </Text>
               </View>
             </View>
 
-            {/* From / To */}
-            <View style={[styles.fromTo, { borderTopColor: colors.border }]}>
+            {/* Divider */}
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            {/* From / Bill To */}
+            <View style={styles.fromTo}>
               <View style={styles.fromBlock}>
-                <Text style={[styles.fromLabel, { color: colors.mutedForeground }]}>FROM</Text>
-                <Text style={[styles.fromName, { color: colors.foreground }]}>{companyName}</Text>
-                {hasCompanyInfo && (
-                  <>
-                    {companyProfile.addressLine1 ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{companyProfile.addressLine1}</Text> : null}
-                    {companyProfile.city ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{companyProfile.city}, {companyProfile.province} {companyProfile.postalCode}</Text> : null}
-                    {companyProfile.phone ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{companyProfile.phone}</Text> : null}
-                    {companyProfile.email ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{companyProfile.email}</Text> : null}
-                    {companyProfile.vatNumber ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>VAT: {companyProfile.vatNumber}</Text> : null}
-                  </>
-                )}
+                <Text style={styles.metaLabel}>FROM</Text>
+                <Text style={styles.fromName}>{companyName}</Text>
               </View>
-              <View style={styles.fromBlock}>
-                <Text style={[styles.fromLabel, { color: colors.mutedForeground }]}>BILL TO</Text>
-                <Text style={[styles.fromName, { color: colors.foreground }]}>{client?.name || "Client"}</Text>
-                {client?.company ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{client.company}</Text> : null}
-                {client?.email ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{client.email}</Text> : null}
-                {client?.phone ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{client.phone}</Text> : null}
+              <View style={[styles.fromBlock, { alignItems: "flex-end" }]}>
+                <Text style={styles.metaLabel}>BILL TO</Text>
+                <Text style={[styles.fromName, { textAlign: "right" }]}>{client?.name || "Client"}</Text>
+                {client?.company ? <Text style={[styles.fromAddr, { textAlign: "right" }]}>{client.company}</Text> : null}
+                {client?.email ? <Text style={[styles.fromAddr, { textAlign: "right" }]}>{client.email}</Text> : null}
+                {client?.phone ? <Text style={[styles.fromAddr, { textAlign: "right" }]}>{client.phone}</Text> : null}
               </View>
             </View>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
             {/* Title */}
-            {invoice.title ? <Text style={[styles.invoiceTitle, { color: colors.foreground }]}>{invoice.title}</Text> : null}
+            {invoice.title ? (
+              <Text style={styles.invoiceTitle}>{invoice.title}</Text>
+            ) : null}
 
             {/* Line Items */}
             <View style={[styles.lineTable, { borderColor: colors.border }]}>
               <View style={[styles.lineHeader, { backgroundColor: colors.muted }]}>
-                <Text style={[styles.lineHeaderText, { color: colors.mutedForeground, flex: 3 }]}>Description</Text>
-                <Text style={[styles.lineHeaderText, { color: colors.mutedForeground, flex: 1, textAlign: "center" }]}>Qty</Text>
-                <Text style={[styles.lineHeaderText, { color: colors.mutedForeground, flex: 1.5, textAlign: "right" }]}>Amount</Text>
+                <Text style={[styles.lineHeaderText, { flex: 3 }]}>Description</Text>
+                <Text style={[styles.lineHeaderText, { flex: 1, textAlign: "center" }]}>Qty</Text>
+                <Text style={[styles.lineHeaderText, { flex: 1.5, textAlign: "right" }]}>Amount</Text>
               </View>
               {invoice.items.map((item, idx) => (
-                <View key={item.id} style={[styles.lineRow, idx < invoice.items.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+                <View
+                  key={item.id}
+                  style={[
+                    styles.lineRow,
+                    { borderTopColor: colors.border },
+                    idx > 0 && { borderTopWidth: 1 },
+                  ]}
+                >
                   <View style={{ flex: 3 }}>
-                    <Text style={[styles.lineDesc, { color: colors.foreground }]}>{item.description}</Text>
-                    <Text style={[styles.lineSub, { color: colors.mutedForeground }]}>{settings.currency}{item.unitPrice}/unit</Text>
+                    <Text style={styles.lineDesc}>{item.description}</Text>
+                    <Text style={[styles.lineSub, { color: colors.mutedForeground }]}>
+                      {settings.currency}{item.unitPrice.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}/unit
+                    </Text>
                   </View>
-                  <Text style={[styles.lineQty, { color: colors.mutedForeground, flex: 1, textAlign: "center" }]}>{item.quantity}</Text>
-                  <Text style={[styles.lineAmt, { color: colors.foreground, flex: 1.5, textAlign: "right" }]}>
-                    {settings.currency}{(item.quantity * item.unitPrice).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <Text style={[styles.lineQty, { flex: 1, textAlign: "center", color: colors.mutedForeground }]}>
+                    {item.quantity}
+                  </Text>
+                  <Text style={[styles.lineAmt, { flex: 1.5, textAlign: "right" }]}>
+                    {fmt(item.quantity * item.unitPrice)}
                   </Text>
                 </View>
               ))}
             </View>
 
             {/* Totals */}
-            <View style={styles.totalsBlock}>
-              <View style={styles.totalRow}>
-                <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Subtotal</Text>
-                <Text style={[styles.totalValue, { color: colors.foreground }]}>{settings.currency}{subtotal.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
-              </View>
-              <View style={styles.totalRow}>
-                <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Tax ({invoice.taxPercent}%)</Text>
-                <Text style={[styles.totalValue, { color: colors.foreground }]}>{settings.currency}{tax.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
-              </View>
-              <View style={[styles.totalRow, styles.grandRow, { borderTopColor: colors.border }]}>
-                <Text style={[styles.grandLabel, { color: colors.foreground }]}>TOTAL DUE</Text>
-                <Text style={[styles.grandAmount, { color: colors.primary }]}>{settings.currency}{total.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+            <View style={styles.totalsOuter}>
+              <View style={[styles.totalsBox, { borderTopColor: colors.border }]}>
+                <View style={styles.totalRow}>
+                  <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Subtotal</Text>
+                  <Text style={styles.totalValue}>{fmt(subtotal)}</Text>
+                </View>
+                {invoice.taxPercent > 0 && (
+                  <View style={styles.totalRow}>
+                    <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Tax ({invoice.taxPercent}%)</Text>
+                    <Text style={styles.totalValue}>{fmt(tax)}</Text>
+                  </View>
+                )}
+                <View style={[styles.grandRow, { borderTopColor: colors.border }]}>
+                  <Text style={styles.grandLabel}>TOTAL DUE</Text>
+                  <Text style={[styles.grandAmount, { color: colors.primary }]}>{fmt(total)}</Text>
+                </View>
               </View>
             </View>
 
             {/* Notes */}
             {invoice.notes ? (
-              <View style={[styles.notesBlock, { borderTopColor: colors.border }]}>
-                <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>NOTES</Text>
+              <View style={[styles.notesBlock, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                <Text style={[styles.metaLabel, { marginBottom: 6 }]}>NOTES</Text>
                 <Text style={[styles.notesText, { color: colors.mutedForeground }]}>{invoice.notes}</Text>
               </View>
             ) : null}
 
             {/* Banking Details */}
             {(companyProfile.bankName || companyProfile.bankAccount) && (
-              <View style={[styles.bankBlock, { borderTopColor: colors.border, backgroundColor: colors.muted }]}>
-                <Text style={[styles.bankTitle, { color: colors.foreground }]}>Banking Details</Text>
-                {companyProfile.bankName ? <Text style={[styles.bankRow, { color: colors.mutedForeground }]}>Bank: {companyProfile.bankName}</Text> : null}
-                {companyProfile.bankAccount ? <Text style={[styles.bankRow, { color: colors.mutedForeground }]}>Account: {companyProfile.bankAccount}</Text> : null}
-                {companyProfile.bankBranch ? <Text style={[styles.bankRow, { color: colors.mutedForeground }]}>Branch: {companyProfile.bankBranch}</Text> : null}
+              <View style={[styles.bankBlock, { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }]}>
+                <Text style={[styles.metaLabel, { color: "#065f46", marginBottom: 8 }]}>BANKING DETAILS</Text>
+                {companyProfile.bankName ? (
+                  <Text style={styles.bankRow}>Bank: {companyProfile.bankName}</Text>
+                ) : null}
+                {companyProfile.bankAccount ? (
+                  <Text style={styles.bankRow}>Account: {companyProfile.bankAccount}</Text>
+                ) : null}
+                {companyProfile.bankBranch ? (
+                  <Text style={styles.bankRow}>Branch: {companyProfile.bankBranch}</Text>
+                ) : null}
               </View>
             )}
+
+            {/* Document Footer */}
+            <View style={[styles.docFooter, { borderTopColor: colors.border }]}>
+              <Text style={[styles.footerText, { color: colors.mutedForeground }]}>{companyName}</Text>
+              <Text style={[styles.footerText, { color: colors.mutedForeground }]}>Generated by HourLink</Text>
+            </View>
           </View>
         </View>
 
@@ -292,8 +425,34 @@ ${(companyProfile.bankName || companyProfile.bankAccount) ? `<div style="backgro
         </View>
       </ScrollView>
 
+      {/* ⋯ Action Menu */}
+      <BottomSheet visible={showMenu} onClose={() => setShowMenu(false)} title="Invoice Options">
+        <TouchableOpacity
+          style={[styles.menuItem, { borderColor: colors.border }]}
+          onPress={() => { setShowMenu(false); setShowEdit(true); }}
+        >
+          <AppIcon name="pencil" size={18} color={colors.foreground} />
+          <Text style={[styles.menuItemText, { color: colors.foreground }]}>Edit Notes</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.menuItem, { borderColor: "#fee2e2", backgroundColor: "#fef2f2" }]}
+          onPress={() => { setShowMenu(false); handleDelete(); }}
+        >
+          <AppIcon name="trash-outline" size={18} color="#ef4444" />
+          <Text style={[styles.menuItemText, { color: "#ef4444" }]}>Delete Invoice</Text>
+        </TouchableOpacity>
+      </BottomSheet>
+
+      {/* Edit Notes Sheet */}
       <BottomSheet visible={showEdit} onClose={() => setShowEdit(false)} title="Edit Invoice">
-        <FormField label="Notes" placeholder="Payment terms, instructions..." value={editNotes} onChangeText={setEditNotes} multiline numberOfLines={4} />
+        <FormField
+          label="Notes"
+          placeholder="Payment terms, instructions..."
+          value={editNotes}
+          onChangeText={setEditNotes}
+          multiline
+          numberOfLines={4}
+        />
         <TouchableOpacity
           style={[styles.actionBtn, { backgroundColor: colors.primary }]}
           onPress={() => { updateInvoice(id, { notes: editNotes }); setShowEdit(false); }}
@@ -301,6 +460,7 @@ ${(companyProfile.bankName || companyProfile.bankAccount) ? `<div style="backgro
           <Text style={styles.actionBtnText}>Save Changes</Text>
         </TouchableOpacity>
       </BottomSheet>
+
       <ConfirmDialog
         visible={showDeleteConfirm}
         title="Delete Invoice"
@@ -317,53 +477,90 @@ ${(companyProfile.bankName || companyProfile.bankAccount) ? `<div style="backgro
 const styles = StyleSheet.create({
   container: { flex: 1 },
   notFound: { textAlign: "center", marginTop: 100, fontSize: 16 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
+
+  // Navigation
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerNum: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
-  exportBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  exportBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  statusRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  editBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
-  editBtnText: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  docCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden", marginBottom: 20 },
-  companyHeader: { padding: 20, borderBottomWidth: 1, gap: 10 },
-  companyLogo: { width: "100%" as any, height: 140 },
-  companyInfo: { flex: 1 },
-  companyName: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  companySub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  metaRow: { flexDirection: "row", justifyContent: "space-between" },
-  metaBlock: { flex: 1 },
-  metaLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase" },
-  metaValue: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginTop: 4 },
-  fromTo: { flexDirection: "row", gap: 20, borderTopWidth: 1, paddingTop: 20, marginTop: 20, marginBottom: 20 },
+  headerNum: { fontSize: 16, fontFamily: "Inter_700Bold", flex: 1, textAlign: "center" },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  exportBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
+  exportBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+  menuBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10 },
+
+  // Document Card
+  docCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: 16,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+
+  // Brand Header
+  brandHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", padding: 20, borderBottomWidth: 1 },
+  brandLeft: { flex: 1, paddingRight: 16 },
+  logo: { height: 52, width: 160, marginBottom: 8 },
+  companyName: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1e293b" },
+  companyTagline: { fontSize: 11, color: "#94a3b8", marginTop: 2, fontFamily: "Inter_400Regular" },
+  companyAddr: { fontSize: 10, color: "#94a3b8", marginTop: 1, fontFamily: "Inter_400Regular", lineHeight: 15 },
+  brandRight: { alignItems: "flex-end" },
+  invoiceWord: { fontSize: 22, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
+  invoiceNum: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1e293b", marginTop: 2, marginBottom: 6 },
+
+  // Body
+  docBody: { padding: 20 },
+  datesRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
+  metaLabel: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.8, textTransform: "uppercase", color: "#94a3b8", marginBottom: 4 },
+  metaValue: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1e293b" },
+  divider: { height: 1, marginBottom: 16 },
+
+  // From/To
+  fromTo: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
   fromBlock: { flex: 1 },
-  fromLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 },
-  fromName: { fontSize: 14, fontFamily: "Inter_700Bold", marginBottom: 4 },
-  fromAddr: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2, lineHeight: 18 },
-  invoiceTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 16 },
+  fromName: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1e293b", marginBottom: 3 },
+  fromAddr: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#64748b", lineHeight: 17 },
+
+  invoiceTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1e293b", marginBottom: 14 },
+
+  // Line Items
   lineTable: { borderWidth: 1, borderRadius: 10, overflow: "hidden", marginBottom: 16 },
-  lineHeader: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 10 },
-  lineHeaderText: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, textTransform: "uppercase" },
+  lineHeader: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 9 },
+  lineHeaderText: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.6, textTransform: "uppercase", color: "#94a3b8" },
   lineRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 12 },
-  lineDesc: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  lineDesc: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1e293b" },
   lineSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
   lineQty: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  lineAmt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  totalsBlock: { alignItems: "flex-end", gap: 6, marginBottom: 16 },
-  totalRow: { flexDirection: "row", justifyContent: "space-between", width: "55%" },
-  totalLabel: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  totalValue: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  grandRow: { borderTopWidth: 1, paddingTop: 10, marginTop: 4, width: "100%" },
-  grandLabel: { fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 0.5, textTransform: "uppercase" },
+  lineAmt: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1e293b" },
+
+  // Totals
+  totalsOuter: { alignItems: "flex-end", marginBottom: 16 },
+  totalsBox: { width: "55%", borderTopWidth: 1, paddingTop: 8 },
+  totalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
+  totalLabel: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  totalValue: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#1e293b" },
+  grandRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: 2, paddingTop: 10, marginTop: 4 },
+  grandLabel: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.8, textTransform: "uppercase", color: "#1e293b" },
   grandAmount: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  notesBlock: { borderTopWidth: 1, paddingTop: 16, marginTop: 8 },
-  notesLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 },
-  notesText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
-  bankBlock: { borderTopWidth: 1, marginTop: 16, padding: 14, borderRadius: 10 },
-  bankTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginBottom: 6 },
-  bankRow: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+
+  // Notes & Banking
+  notesBlock: { borderRadius: 10, padding: 14, marginBottom: 12, borderWidth: 1 },
+  notesText: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  bankBlock: { borderRadius: 10, padding: 14, borderWidth: 1, marginBottom: 12 },
+  bankRow: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#065f46", marginTop: 3 },
+
+  // Doc Footer
+  docFooter: { flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, paddingTop: 14, marginTop: 4 },
+  footerText: { fontSize: 10, fontFamily: "Inter_400Regular" },
+
+  // Actions
   actions: { gap: 10 },
   actionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 16 },
-  actionBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  actionBtnText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
+
+  // Menu Items
+  menuItem: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 10 },
+  menuItemText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });
