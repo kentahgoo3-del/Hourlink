@@ -371,9 +371,7 @@ export default function TeamScreen() {
       setExpandedTaskId(null);
     } else {
       setExpandedTaskId(taskId);
-      if (!taskNotes[taskId]) {
-        loadTaskNotes(taskId);
-      }
+      loadTaskNotes(taskId);
     }
   };
 
@@ -1364,6 +1362,26 @@ export default function TeamScreen() {
                               { borderTopColor: colors.border },
                             ]}
                           >
+                            <View style={styles.commentsPanelHeader}>
+                              <Text
+                                style={[
+                                  styles.commentsPanelTitle,
+                                  { color: colors.mutedForeground },
+                                ]}
+                              >
+                                COMMENTS
+                              </Text>
+                              <TouchableOpacity
+                                onPress={() => loadTaskNotes(task.id)}
+                                style={styles.refreshNotesBtn}
+                              >
+                                <AppIcon
+                                  name="refresh"
+                                  size={14}
+                                  color={colors.primary}
+                                />
+                              </TouchableOpacity>
+                            </View>
                             {!taskNotes[task.id] ? (
                               <ActivityIndicator
                                 size="small"
@@ -2300,6 +2318,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     gap: 8,
   },
+  commentsPanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  commentsPanelTitle: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 1,
+  },
+  refreshNotesBtn: { padding: 4 },
   noNotesText: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
