@@ -41,6 +41,10 @@ export type TimeEntry = {
   billable: boolean;
   invoiceId: string | null;
   resumeEntryId?: string | null;
+  // Multi-timer fields
+  pausedSeconds?: number;     // accumulated seconds from completed sessions
+  timerPaused?: boolean;      // is this timer currently paused?
+  sessionStartTime?: string;  // when the current running session began
 };
 
 export type QuoteItem = {
@@ -240,7 +244,7 @@ type AppContextType = {
   tasks: Task[];
   settings: UserSettings;
   companyProfile: CompanyProfile;
-  activeTimer: TimeEntry | null;
+  activeTimers: TimeEntry[];
 
   addClient: (client: Omit<Client, "id" | "createdAt">) => void;
   updateClient: (id: string, updates: Partial<Client>) => void;
@@ -250,8 +254,10 @@ type AppContextType = {
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
 
-  startTimer: (entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId" | "resumeEntryId"> & { taskId?: string | null; resumeEntryId?: string | null }) => void;
-  stopTimer: () => TimeEntry | null;
+  startTimer: (entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId" | "resumeEntryId" | "pausedSeconds" | "timerPaused" | "sessionStartTime"> & { taskId?: string | null; resumeEntryId?: string | null }) => void;
+  stopTimer: (id?: string) => TimeEntry | null;
+  pauseTimer: (id: string) => void;
+  resumeTimer: (id: string) => void;
   addTimeEntry: (entry: Omit<TimeEntry, "id">) => void;
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
   deleteTimeEntry: (id: string) => void;
@@ -320,7 +326,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(DEFAULT_COMPANY);
-  const [activeTimer, setActiveTimer] = useState<TimeEntry | null>(null);
+  const [activeTimers, setActiveTimers] = useState<TimeEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -329,7 +335,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const loadData = async () => {
     try {
-      const keys = ["clients","projects","timeEntries","quotes","invoices","expenses","quoteTemplates","clientNotes","meetings","tasks","taskComments","settings","companyProfile","activeTimer"];
+      const keys = ["clients","projects","timeEntries","quotes","invoices","expenses","quoteTemplates","clientNotes","meetings","tasks","taskComments","settings","companyProfile","activeTimers","activeTimer"];
       const results = await AsyncStorage.multiGet(keys);
       const map: Record<string, string | null> = {};
       results.forEach(([k, v]) => { map[k] = v; });
@@ -357,7 +363,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (map.taskComments) setTaskComments(JSON.parse(map.taskComments));
       if (map.settings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(map.settings) });
       if (map.companyProfile) setCompanyProfile({ ...DEFAULT_COMPANY, ...JSON.parse(map.companyProfile) });
-      if (map.activeTimer) setActiveTimer(JSON.parse(map.activeTimer));
+      if (map.activeTimers) {
+        setActiveTimers(JSON.parse(map.activeTimers));
+      } else if (map.activeTimer) {
+        // Migrate from old single-timer storage
+        const old: TimeEntry = JSON.parse(map.activeTimer);
+        const migrated: TimeEntry[] = [{ ...old, pausedSeconds: 0, timerPaused: false, sessionStartTime: old.startTime }];
+        setActiveTimers(migrated);
+        AsyncStorage.setItem("activeTimers", JSON.stringify(migrated));
+        AsyncStorage.removeItem("activeTimer");
+      }
     } catch (_) {}
     setLoaded(true);
   };
@@ -419,47 +434,93 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [save]);
 
   // Timers
-  const startTimer = useCallback((entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId" | "resumeEntryId"> & { taskId?: string | null; resumeEntryId?: string | null }) => {
-    const timer: TimeEntry = {
-      ...entry, taskId: entry.taskId ?? null, resumeEntryId: entry.resumeEntryId ?? null, id: genId(), startTime: new Date().toISOString(),
+  const startTimer = useCallback((entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId" | "resumeEntryId" | "pausedSeconds" | "timerPaused" | "sessionStartTime"> & { taskId?: string | null; resumeEntryId?: string | null }) => {
+    const now = new Date().toISOString();
+    const newTimer: TimeEntry = {
+      ...entry, taskId: entry.taskId ?? null, resumeEntryId: entry.resumeEntryId ?? null,
+      id: genId(), startTime: now, sessionStartTime: now,
       endTime: null, durationSeconds: 0, invoiceId: null,
+      pausedSeconds: 0, timerPaused: false,
     };
-    setActiveTimer(timer);
-    save("activeTimer", timer);
+    setActiveTimers((prev) => {
+      // Pause any currently running timer
+      const nowMs = Date.now();
+      const updated = prev.map((t) => {
+        if (t.timerPaused) return t;
+        const sessionSecs = Math.floor((nowMs - new Date(t.sessionStartTime || t.startTime).getTime()) / 1000);
+        return { ...t, timerPaused: true, pausedSeconds: (t.pausedSeconds || 0) + sessionSecs };
+      });
+      const next = [newTimer, ...updated];
+      save("activeTimers", next);
+      return next;
+    });
   }, [save]);
 
-  const stopTimer = useCallback((): TimeEntry | null => {
-    let completed: TimeEntry | null = null;
-    setActiveTimer((prev) => {
-      if (!prev) return null;
-      const endTime = new Date().toISOString();
-      const sessionSeconds = Math.floor(
-        (new Date(endTime).getTime() - new Date(prev.startTime).getTime()) / 1000
-      );
+  const pauseTimer = useCallback((id: string) => {
+    const nowMs = Date.now();
+    setActiveTimers((prev) => {
+      const next = prev.map((t) => {
+        if (t.id !== id || t.timerPaused) return t;
+        const sessionSecs = Math.floor((nowMs - new Date(t.sessionStartTime || t.startTime).getTime()) / 1000);
+        return { ...t, timerPaused: true, pausedSeconds: (t.pausedSeconds || 0) + sessionSecs };
+      });
+      save("activeTimers", next);
+      return next;
+    });
+  }, [save]);
 
-      if (prev.resumeEntryId) {
+  const resumeTimer = useCallback((id: string) => {
+    const nowMs = Date.now();
+    const nowIso = new Date(nowMs).toISOString();
+    setActiveTimers((prev) => {
+      const next = prev.map((t) => {
+        if (t.id === id) {
+          return { ...t, timerPaused: false, sessionStartTime: nowIso };
+        }
+        // Pause any other running timer
+        if (!t.timerPaused) {
+          const sessionSecs = Math.floor((nowMs - new Date(t.sessionStartTime || t.startTime).getTime()) / 1000);
+          return { ...t, timerPaused: true, pausedSeconds: (t.pausedSeconds || 0) + sessionSecs };
+        }
+        return t;
+      });
+      save("activeTimers", next);
+      return next;
+    });
+  }, [save]);
+
+  const stopTimer = useCallback((id?: string): TimeEntry | null => {
+    let completed: TimeEntry | null = null;
+    setActiveTimers((prev) => {
+      const targetId = id ?? prev.find((t) => !t.timerPaused)?.id ?? prev[0]?.id;
+      if (!targetId) return prev;
+      const target = prev.find((t) => t.id === targetId);
+      if (!target) return prev;
+
+      const nowMs = Date.now();
+      const endTime = new Date(nowMs).toISOString();
+      const totalSecs = (target.pausedSeconds || 0) + (target.timerPaused ? 0 :
+        Math.floor((nowMs - new Date(target.sessionStartTime || target.startTime).getTime()) / 1000));
+
+      if (target.resumeEntryId) {
         setTimeEntries((entries) => {
-          const idx = entries.findIndex((e) => e.id === prev.resumeEntryId);
+          const idx = entries.findIndex((e) => e.id === target.resumeEntryId);
           if (idx >= 0) {
             const original = entries[idx];
-            const updated = {
-              ...original,
-              durationSeconds: original.durationSeconds + sessionSeconds,
-              endTime,
-            };
+            const updated = { ...original, durationSeconds: original.durationSeconds + totalSecs, endTime };
             completed = updated;
             const next = [...entries];
             next[idx] = updated;
             save("timeEntries", next);
             return next;
           }
-          completed = { ...prev, endTime, durationSeconds: sessionSeconds, resumeEntryId: null };
+          completed = { ...target, endTime, durationSeconds: totalSecs, resumeEntryId: null, timerPaused: false };
           const next = [completed!, ...entries];
           save("timeEntries", next);
           return next;
         });
       } else {
-        completed = { ...prev, endTime, durationSeconds: sessionSeconds, resumeEntryId: null };
+        completed = { ...target, endTime, durationSeconds: totalSecs, resumeEntryId: null, timerPaused: false };
         setTimeEntries((entries) => {
           const next = [completed!, ...entries];
           save("timeEntries", next);
@@ -467,8 +528,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      save("activeTimer", null);
-      return null;
+      const remaining = prev.filter((t) => t.id !== targetId);
+      save("activeTimers", remaining);
+      return remaining;
     });
     return completed;
   }, [save]);
@@ -852,10 +914,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider value={{
       clients, projects, timeEntries, quotes, invoices,
       expenses, quoteTemplates, clientNotes, meetings, tasks,
-      settings, companyProfile, activeTimer,
+      settings, companyProfile, activeTimers,
       addClient, updateClient, deleteClient,
       addProject, updateProject, deleteProject,
-      startTimer, stopTimer, addTimeEntry, updateTimeEntry, deleteTimeEntry,
+      startTimer, stopTimer, pauseTimer, resumeTimer, addTimeEntry, updateTimeEntry, deleteTimeEntry,
       addQuote, updateQuote, deleteQuote, convertQuoteToInvoice,
       addInvoice, updateInvoice, deleteInvoice, markInvoicePaid,
       addExpense, updateExpense, deleteExpense,

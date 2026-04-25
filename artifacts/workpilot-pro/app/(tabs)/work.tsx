@@ -109,10 +109,14 @@ export default function WorkScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const {
-    clients, timeEntries, activeTimer, tasks,
-    startTimer, stopTimer, deleteTimeEntry, addInvoice, updateTimeEntry, settings, companyProfile,
+    clients, timeEntries, activeTimers, tasks,
+    startTimer, stopTimer, pauseTimer, resumeTimer,
+    deleteTimeEntry, addInvoice, updateTimeEntry, settings, companyProfile,
     addTaskComment, getTaskComments, getEntryComments,
   } = useApp();
+
+  const runningTimer = activeTimers.find((t) => !t.timerPaused) || null;
+  const activeTimer = runningTimer; // keep local alias for alert/misc compat
 
   const [showStart, setShowStart] = useState(false);
   const [showQuickInvoice, setShowQuickInvoice] = useState(false);
@@ -233,17 +237,18 @@ export default function WorkScreen() {
     });
   }, [timeEntries, clients]);
 
-  const handleStop = () => {
-    const timer = activeTimer;
-    const completed = stopTimer();
+  const handleStop = (id?: string) => {
+    const timer = id ? activeTimers.find((t) => t.id === id) : runningTimer;
+    const completed = stopTimer(id);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (timer && timer.billable) {
       if (completed) {
         setStoppedEntry(completed);
       } else {
-        const now = Date.now();
-        const durationSeconds = Math.floor((now - new Date(timer.startTime).getTime()) / 1000);
-        setStoppedEntry({ ...timer, endTime: new Date().toISOString(), durationSeconds });
+        const nowMs = Date.now();
+        const totalSecs = (timer.pausedSeconds || 0) + (timer.timerPaused ? 0 :
+          Math.floor((nowMs - new Date(timer.sessionStartTime || timer.startTime).getTime()) / 1000));
+        setStoppedEntry({ ...timer, endTime: new Date().toISOString(), durationSeconds: totalSecs });
       }
       setShowQuickInvoice(true);
     }
@@ -380,17 +385,25 @@ export default function WorkScreen() {
           )}
           <TouchableOpacity
             style={[styles.addBtn, { backgroundColor: colors.primary }]}
-            onPress={() => { if (!activeTimer) setShowStart(true); else handleStop(); }}
+            onPress={() => setShowStart(true)}
             testID="start-timer-btn"
           >
-            <AppIcon name={activeTimer ? "stop" : "add"} size={22} color="#fff" />
+            <AppIcon name="add" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
 
-      {activeTimer && (
-        <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-          <TimerWidget />
+      {activeTimers.length > 0 && (
+        <View style={{ paddingHorizontal: 20, paddingTop: 14, gap: 0 }}>
+          {activeTimers.map((timer) => (
+            <TimerWidget
+              key={timer.id}
+              timer={timer}
+              onStop={() => handleStop(timer.id)}
+              onPause={() => { pauseTimer(timer.id); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              onResume={() => { resumeTimer(timer.id); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+            />
+          ))}
         </View>
       )}
 
@@ -412,7 +425,7 @@ export default function WorkScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[alertStyles.alertBtn, { backgroundColor: colors.warning, borderColor: colors.warning }]}
-            onPress={() => { dismissAlert(); handleStop(); }}
+            onPress={() => { dismissAlert(); handleStop(runningTimer?.id); }}
           >
             <Text style={[alertStyles.alertBtnText, { color: "#fff" }]}>Stop</Text>
           </TouchableOpacity>
@@ -454,9 +467,9 @@ export default function WorkScreen() {
         <EmptyState
           icon="time-outline"
           title={filter === "unbilled" ? "All caught up!" : "No time entries"}
-          description={filter === "unbilled" ? "No unbilled time. Great work staying on top of your billing!" : activeTimer ? "Timer is running." : "Start tracking your work time."}
-          actionLabel={activeTimer || filter === "unbilled" ? undefined : "Start Timer"}
-          onAction={activeTimer || filter === "unbilled" ? undefined : () => setShowStart(true)}
+          description={filter === "unbilled" ? "No unbilled time. Great work staying on top of your billing!" : activeTimers.length > 0 ? "Timer is running." : "Start tracking your work time."}
+          actionLabel={activeTimers.length > 0 || filter === "unbilled" ? undefined : "Start Timer"}
+          onAction={activeTimers.length > 0 || filter === "unbilled" ? undefined : () => setShowStart(true)}
         />
       ) : (
         <FlatList
@@ -768,9 +781,6 @@ export default function WorkScreen() {
             <TouchableOpacity
               style={[styles.sheetBtn, { backgroundColor: colors.muted }]}
               onPress={() => {
-                if (activeTimer) {
-                  stopTimer();
-                }
                 startTimer({
                   clientId: selectedEntry.clientId,
                   taskId: selectedEntry.taskId ?? null,
