@@ -140,13 +140,18 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
     }
   };
 
-  const handleStopTimer = async () => {
+  const handleStopNow = async () => {
     if (!runningEntry) return;
-    const stopped = await stopTimeEntry(portalCode, runningEntry.id);
-    if (stopped) {
-      setRunningEntry(null);
-      setShowEndTimeInput(false);
-      loadData();
+    setStoppingWithTime(true);
+    try {
+      const stopped = await stopTimeEntry(portalCode, runningEntry.id);
+      if (stopped) {
+        setRunningEntry(null);
+        setShowEndTimeInput(false);
+        loadData();
+      }
+    } finally {
+      setStoppingWithTime(false);
     }
   };
 
@@ -168,9 +173,14 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
     }
   };
 
+  const timerBannerRef = useRef<HTMLDivElement | null>(null);
+
   const openEndTimeInput = () => {
     setEndTimeValue(toLocalDatetimeInputValue(new Date()));
     setShowEndTimeInput(true);
+    setTimeout(() => {
+      timerBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   };
 
   const handleStatusChange = async (taskId: string, status: string) => {
@@ -331,7 +341,7 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
 
       <main className="max-w-3xl mx-auto px-4 py-5">
         {runningEntry && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 animate-in fade-in duration-200">
+          <div ref={timerBannerRef} className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 animate-in fade-in duration-200">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -349,28 +359,34 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                   {formatDuration(elapsed)}
                 </span>
                 <button
-                  onClick={handleStopTimer}
-                  className="h-9 px-3 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1.5"
+                  onClick={openEndTimeInput}
+                  disabled={showEndTimeInput}
+                  className="h-9 px-3 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1.5 disabled:opacity-60"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                     <rect x="6" y="6" width="12" height="12" rx="2" />
                   </svg>
                   Stop
                 </button>
-                <button
-                  onClick={openEndTimeInput}
-                  className="h-9 px-3 bg-blue-100 text-blue-800 text-sm font-medium rounded-lg hover:bg-blue-200 transition-colors"
-                  title="Set a custom end time if you forgot to stop the timer"
-                >
-                  Set end time
-                </button>
               </div>
             </div>
 
             {showEndTimeInput && (
               <div className="mt-3 pt-3 border-t border-blue-200">
-                <p className="text-xs text-blue-700 mb-2 font-medium">
-                  Set the actual time you stopped working:
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-blue-800 font-semibold">
+                    When did you actually stop working?
+                  </p>
+                  <button
+                    onClick={handleStopNow}
+                    disabled={stoppingWithTime}
+                    className="text-xs text-blue-600 font-medium hover:underline disabled:opacity-50"
+                  >
+                    Stop at current time
+                  </button>
+                </div>
+                <p className="text-xs text-blue-600 mb-2">
+                  Adjust the time below if you forgot to stop the timer earlier. The correct duration will be recorded.
                 </p>
                 <div className="flex items-center gap-2 flex-wrap">
                   <input
@@ -516,8 +532,9 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                         )}
                         {isRunning && (
                           <button
-                            onClick={handleStopTimer}
-                            className="h-8 px-3 bg-red-500 text-white text-xs font-medium rounded-md hover:bg-red-600 transition-colors flex items-center gap-1"
+                            onClick={openEndTimeInput}
+                            disabled={showEndTimeInput}
+                            className="h-8 px-3 bg-red-500 text-white text-xs font-medium rounded-md hover:bg-red-600 transition-colors flex items-center gap-1 disabled:opacity-60"
                           >
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
                               <rect x="6" y="6" width="12" height="12" rx="2" />
