@@ -127,7 +127,8 @@ export default function WorkScreen() {
   const [desc, setDesc] = useState("");
   const [selectedClientId, setSelectedClientId] = useState(clients[0]?.id || "");
   const [billable, setBillable] = useState(true);
-  const [filter, setFilter] = useState<"all" | "billable" | "unbilled">("all");
+  const [filter, setFilter] = useState<"all" | "billable" | "unbilled" | "archived">("all");
+  const [archiveSearch, setArchiveSearch] = useState("");
   const [pendingDeleteEntryId, setPendingDeleteEntryId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [entryCommentText, setEntryCommentText] = useState("");
@@ -204,12 +205,27 @@ export default function WorkScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  const filteredEntries = useMemo(() =>
-    timeEntries.filter((e) => e.endTime).filter((e) => {
+  const archivedCount = useMemo(() => timeEntries.filter((e) => e.endTime && e.invoiceId).length, [timeEntries]);
+
+  const filteredEntries = useMemo(() => {
+    if (filter === "archived") {
+      const q = archiveSearch.trim().toLowerCase();
+      return timeEntries.filter((e) => {
+        if (!e.endTime || !e.invoiceId) return false;
+        if (!q) return true;
+        const client = clients.find((c) => c.id === e.clientId);
+        return (
+          (e.description || "").toLowerCase().includes(q) ||
+          (client?.name || "").toLowerCase().includes(q)
+        );
+      });
+    }
+    return timeEntries.filter((e) => e.endTime && !e.invoiceId).filter((e) => {
       if (filter === "billable") return e.billable;
-      if (filter === "unbilled") return e.billable && !e.invoiceId;
+      if (filter === "unbilled") return e.billable;
       return true;
-    }), [timeEntries, filter]);
+    });
+  }, [timeEntries, clients, filter, archiveSearch]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, TimeEntry[]>();
@@ -433,11 +449,11 @@ export default function WorkScreen() {
       )}
 
       <View style={[styles.filterRow, { borderBottomColor: colors.border }]}>
-        {(["all", "billable", "unbilled"] as const).map((f) => (
+        {(["all", "billable", "unbilled", "archived"] as const).map((f) => (
           <TouchableOpacity
             key={f}
             style={[styles.filterTab, filter === f && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
-            onPress={() => setFilter(f)}
+            onPress={() => { setFilter(f); setArchiveSearch(""); }}
           >
             <Text style={[styles.filterLabel, { color: filter === f ? colors.primary : colors.mutedForeground }]}>
               {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -449,9 +465,35 @@ export default function WorkScreen() {
                 </Text>
               </View>
             )}
+            {f === "archived" && archivedCount > 0 && (
+              <View style={[styles.filterBadge, { backgroundColor: colors.mutedForeground }]}>
+                <Text style={styles.filterBadgeText}>{archivedCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Archive search bar */}
+      {filter === "archived" && (
+        <View style={[styles.archiveSearchRow, { backgroundColor: colors.muted, borderBottomColor: colors.border }]}>
+          <AppIcon name="search-outline" size={16} color={colors.mutedForeground} />
+          <TextInput
+            style={[styles.archiveSearchInput, { color: colors.foreground }]}
+            placeholder="Search by client or description…"
+            placeholderTextColor={colors.mutedForeground}
+            value={archiveSearch}
+            onChangeText={setArchiveSearch}
+            returnKeyType="search"
+            autoCorrect={false}
+          />
+          {archiveSearch.length > 0 && (
+            <TouchableOpacity onPress={() => setArchiveSearch("")}>
+              <AppIcon name="close-circle" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {/* Unbilled summary banner */}
       {filter === "unbilled" && unbilledByClient.length > 0 && (
@@ -465,11 +507,21 @@ export default function WorkScreen() {
 
       {grouped.length === 0 ? (
         <EmptyState
-          icon="time-outline"
-          title={filter === "unbilled" ? "All caught up!" : "No time entries"}
-          description={filter === "unbilled" ? "No unbilled time. Great work staying on top of your billing!" : activeTimers.length > 0 ? "Timer is running." : "Start tracking your work time."}
-          actionLabel={activeTimers.length > 0 || filter === "unbilled" ? undefined : "Start Timer"}
-          onAction={activeTimers.length > 0 || filter === "unbilled" ? undefined : () => setShowStart(true)}
+          icon={filter === "archived" ? "archive-outline" : "time-outline"}
+          title={filter === "archived" ? (archiveSearch ? "No results" : "No archived entries") : filter === "unbilled" ? "All caught up!" : "No time entries"}
+          description={
+            filter === "archived"
+              ? archiveSearch
+                ? "Try a different client name or description."
+                : "Invoiced entries will appear here."
+              : filter === "unbilled"
+              ? "No unbilled time. Great work staying on top of your billing!"
+              : activeTimers.length > 0
+              ? "Timer is running."
+              : "Start tracking your work time."
+          }
+          actionLabel={filter === "archived" || activeTimers.length > 0 || filter === "unbilled" ? undefined : "Start Timer"}
+          onAction={filter === "archived" || activeTimers.length > 0 || filter === "unbilled" ? undefined : () => setShowStart(true)}
         />
       ) : (
         <FlatList
@@ -1032,6 +1084,8 @@ const styles = StyleSheet.create({
   batchInvoiceBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
   noteInputBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, width: "100%", marginTop: 2 },
   noteInput: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", minHeight: 36, maxHeight: 60, textAlignVertical: "top" },
+  archiveSearchRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: 1 },
+  archiveSearchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", paddingVertical: 0 },
 });
 
 const alertStyles = StyleSheet.create({
