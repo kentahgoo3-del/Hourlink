@@ -172,6 +172,7 @@ export type UserSettings = {
   defaultTaxPercent: number;
   profitGoal: number;
   billingReminderDays: number;
+  timerAlertThresholdHours: number;
 };
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -183,6 +184,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   defaultTaxPercent: 15,
   profitGoal: 50000,
   billingReminderDays: 7,
+  timerAlertThresholdHours: 2,
 };
 
 const DEFAULT_COMPANY: CompanyProfile = {

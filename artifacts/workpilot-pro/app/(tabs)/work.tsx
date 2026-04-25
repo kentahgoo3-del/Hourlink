@@ -1,7 +1,7 @@
 import { AppIcon } from "@/components/AppIcon";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   Modal,
@@ -126,6 +126,82 @@ export default function WorkScreen() {
   const [pendingDeleteEntryId, setPendingDeleteEntryId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [entryCommentText, setEntryCommentText] = useState("");
+
+  // Timer alert
+  const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  const alertDismissedUntilRef = useRef<number>(0);
+  const [alertDismissed, setAlertDismissed] = useState(false);
+
+  // Edit entry time
+  const [showEditTime, setShowEditTime] = useState(false);
+  const [editHour, setEditHour] = useState("");
+  const [editMinute, setEditMinute] = useState("");
+  const [editDurationPreview, setEditDurationPreview] = useState<string | null>(null);
+
+  // Smart alert: update elapsed time every 30s
+  useEffect(() => {
+    if (!activeTimer) { setElapsedMinutes(0); return; }
+    const update = () => {
+      const mins = Math.floor((Date.now() - new Date(activeTimer.startTime).getTime()) / 60000);
+      setElapsedMinutes(mins);
+      if (Date.now() > alertDismissedUntilRef.current) setAlertDismissed(false);
+    };
+    update();
+    const id = setInterval(update, 30000);
+    return () => clearInterval(id);
+  }, [activeTimer]);
+
+  const thresholdMinutes = (settings.timerAlertThresholdHours ?? 2) * 60;
+  const showTimerAlert = !!activeTimer && elapsedMinutes >= thresholdMinutes && !alertDismissed;
+
+  const dismissAlert = () => {
+    alertDismissedUntilRef.current = Date.now() + 60 * 60 * 1000;
+    setAlertDismissed(true);
+  };
+
+  // Compute edit preview whenever hour/minute changes
+  useEffect(() => {
+    if (!selectedEntry || !editHour || !editMinute) { setEditDurationPreview(null); return; }
+    const h = parseInt(editHour, 10);
+    const m = parseInt(editMinute, 10);
+    if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) { setEditDurationPreview(null); return; }
+    const start = new Date(selectedEntry.startTime);
+    const end = new Date(selectedEntry.startTime);
+    end.setHours(h, m, 0, 0);
+    if (end <= start) end.setDate(end.getDate() + 1);
+    const secs = Math.floor((end.getTime() - start.getTime()) / 1000);
+    if (secs <= 0) { setEditDurationPreview(null); return; }
+    setEditDurationPreview(formatDuration(secs));
+  }, [editHour, editMinute, selectedEntry]);
+
+  const openEditTime = (entry: TimeEntry) => {
+    if (entry.endTime) {
+      const d = new Date(entry.endTime);
+      setEditHour(d.getHours().toString().padStart(2, "0"));
+      setEditMinute(d.getMinutes().toString().padStart(2, "0"));
+    } else {
+      setEditHour(""); setEditMinute("");
+    }
+    setEditDurationPreview(null);
+    setShowEditTime(true);
+  };
+
+  const saveEditTime = () => {
+    if (!selectedEntry || !editHour || !editMinute) return;
+    const h = parseInt(editHour, 10);
+    const m = parseInt(editMinute, 10);
+    if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) return;
+    const start = new Date(selectedEntry.startTime);
+    const end = new Date(selectedEntry.startTime);
+    end.setHours(h, m, 0, 0);
+    if (end <= start) end.setDate(end.getDate() + 1);
+    const secs = Math.floor((end.getTime() - start.getTime()) / 1000);
+    if (secs <= 0) return;
+    updateTimeEntry(selectedEntry.id, { endTime: end.toISOString(), durationSeconds: secs });
+    setSelectedEntry((prev) => prev ? { ...prev, endTime: end.toISOString(), durationSeconds: secs } : prev);
+    setShowEditTime(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   const filteredEntries = useMemo(() =>
     timeEntries.filter((e) => e.endTime).filter((e) => {
@@ -318,6 +394,31 @@ export default function WorkScreen() {
       {activeTimer && (
         <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
           <TimerWidget />
+        </View>
+      )}
+
+      {/* Smart Timer Alert Banner */}
+      {showTimerAlert && (
+        <View style={[alertStyles.banner, { backgroundColor: colors.warning + "15", borderColor: colors.warning + "50" }]}>
+          <AppIcon name="alert-circle-outline" size={20} color={colors.warning} />
+          <View style={{ flex: 1 }}>
+            <Text style={[alertStyles.bannerTitle, { color: colors.warning }]}>
+              Timer running for {elapsedMinutes >= 60 ? `${Math.floor(elapsedMinutes / 60)}h ${elapsedMinutes % 60}m` : `${elapsedMinutes}m`}
+            </Text>
+            <Text style={[alertStyles.bannerSub, { color: colors.warning + "cc" }]}>Are you still working?</Text>
+          </View>
+          <TouchableOpacity
+            style={[alertStyles.alertBtn, { backgroundColor: colors.warning + "25", borderColor: colors.warning + "60" }]}
+            onPress={dismissAlert}
+          >
+            <Text style={[alertStyles.alertBtnText, { color: colors.warning }]}>Still Working</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[alertStyles.alertBtn, { backgroundColor: colors.warning, borderColor: colors.warning }]}
+            onPress={() => { dismissAlert(); handleStop(); }}
+          >
+            <Text style={[alertStyles.alertBtnText, { color: "#fff" }]}>Stop</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -542,7 +643,16 @@ export default function WorkScreen() {
               </Text>
             </View>
 
-            <View style={{ height: 16 }} />
+            {/* Edit Time button */}
+            <TouchableOpacity
+              style={[alertStyles.editTimeBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
+              onPress={() => openEditTime(selectedEntry)}
+            >
+              <AppIcon name="pencil" size={15} color={colors.primary} />
+              <Text style={[alertStyles.editTimeBtnText, { color: colors.primary }]}>Correct End Time</Text>
+            </TouchableOpacity>
+
+            <View style={{ height: 8 }} />
 
             {/* Status */}
             {!selectedEntry.billable && (
@@ -761,6 +871,79 @@ export default function WorkScreen() {
         </TouchableOpacity>
       </BottomSheet>
 
+      {/* Edit Time Modal */}
+      <Modal visible={showEditTime} transparent animationType="fade" onRequestClose={() => setShowEditTime(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.quickInvCard, { backgroundColor: colors.card, borderColor: colors.border, gap: 0 }]}>
+            <View style={[styles.quickInvIcon, { backgroundColor: colors.primary + "20", marginBottom: 8 }]}>
+              <AppIcon name="pencil" size={26} color={colors.primary} />
+            </View>
+            <Text style={[styles.quickInvTitle, { color: colors.foreground, marginBottom: 4 }]}>Correct End Time</Text>
+            {selectedEntry && (
+              <Text style={[styles.quickInvDesc, { color: colors.mutedForeground, marginBottom: 16 }]}>
+                Started at {formatTime(selectedEntry.startTime)} · Enter the actual end time below.
+              </Text>
+            )}
+
+            <View style={alertStyles.timeRow}>
+              <View style={alertStyles.timeField}>
+                <Text style={[alertStyles.timeLabel, { color: colors.mutedForeground }]}>HOUR (0–23)</Text>
+                <TextInput
+                  style={[alertStyles.timeInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
+                  value={editHour}
+                  onChangeText={setEditHour}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="HH"
+                  placeholderTextColor={colors.mutedForeground}
+                  textAlign="center"
+                />
+              </View>
+              <Text style={[alertStyles.timeSep, { color: colors.foreground }]}>:</Text>
+              <View style={alertStyles.timeField}>
+                <Text style={[alertStyles.timeLabel, { color: colors.mutedForeground }]}>MINUTE (0–59)</Text>
+                <TextInput
+                  style={[alertStyles.timeInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
+                  value={editMinute}
+                  onChangeText={setEditMinute}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="MM"
+                  placeholderTextColor={colors.mutedForeground}
+                  textAlign="center"
+                />
+              </View>
+            </View>
+
+            {editDurationPreview && (
+              <View style={[alertStyles.durationPreview, { backgroundColor: "#10b98112", borderColor: "#10b98130" }]}>
+                <AppIcon name="time-outline" size={14} color="#10b981" />
+                <Text style={[alertStyles.durationPreviewText, { color: "#10b981" }]}>
+                  New duration: {editDurationPreview}
+                </Text>
+              </View>
+            )}
+
+            <View style={[styles.divider, { marginVertical: 14 }]} />
+
+            <TouchableOpacity
+              style={[styles.actionRow, { backgroundColor: editDurationPreview ? colors.primary : colors.muted }]}
+              onPress={saveEditTime}
+              disabled={!editDurationPreview}
+            >
+              <AppIcon name="checkmark" size={18} color={editDurationPreview ? "#fff" : colors.mutedForeground} />
+              <Text style={[styles.actionRowText, { color: editDurationPreview ? "#fff" : colors.mutedForeground }]}>Save Correction</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionRowOutline, { borderColor: colors.border, marginTop: 8 }]}
+              onPress={() => setShowEditTime(false)}
+            >
+              <Text style={[styles.actionRowText, { color: colors.mutedForeground }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <ConfirmDialog
         visible={!!pendingDeleteEntryId}
         title="Delete Entry"
@@ -852,6 +1035,23 @@ const styles = StyleSheet.create({
   batchInvoiceBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
   noteInputBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, width: "100%", marginTop: 2 },
   noteInput: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", minHeight: 36, maxHeight: 60, textAlignVertical: "top" },
+});
+
+const alertStyles = StyleSheet.create({
+  banner: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 20, marginTop: 12, borderRadius: 14, borderWidth: 1, paddingVertical: 12, paddingHorizontal: 14 },
+  bannerTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  bannerSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
+  alertBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1 },
+  alertBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  editTimeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 10, borderWidth: 1, paddingVertical: 9, paddingHorizontal: 14, marginTop: 12 },
+  editTimeBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  timeRow: { flexDirection: "row", alignItems: "flex-end", gap: 10, width: "100%", justifyContent: "center", marginBottom: 12 },
+  timeField: { flex: 1, alignItems: "center" },
+  timeLabel: { fontSize: 9, fontFamily: "Inter_500Medium", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 },
+  timeInput: { width: "100%", borderRadius: 12, borderWidth: 1, fontSize: 28, fontFamily: "Inter_700Bold", paddingVertical: 12, paddingHorizontal: 8 },
+  timeSep: { fontSize: 28, fontFamily: "Inter_700Bold", paddingBottom: 10 },
+  durationPreview: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 10, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 12, width: "100%" },
+  durationPreviewText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });
 
 const cStyles = StyleSheet.create({

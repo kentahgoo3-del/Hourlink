@@ -5,9 +5,10 @@ import { useColors } from "@/hooks/useColors";
 type FormFieldProps = TextInputProps & {
   label: string;
   prefix?: string;
+  hint?: string;
 };
 
-export function FormField({ label, prefix, style, ...props }: FormFieldProps) {
+export function FormField({ label, prefix, hint, style, ...props }: FormFieldProps) {
   const colors = useColors();
   return (
     <View style={styles.wrap}>
@@ -22,6 +23,9 @@ export function FormField({ label, prefix, style, ...props }: FormFieldProps) {
           {...props}
         />
       </View>
+      {hint ? (
+        <Text style={[styles.hint, { color: colors.mutedForeground }]}>{hint}</Text>
+      ) : null}
     </View>
   );
 }
@@ -53,5 +57,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Inter_400Regular",
     paddingVertical: 12,
+  },
+  hint: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    marginTop: 5,
+    lineHeight: 17,
   },
 });

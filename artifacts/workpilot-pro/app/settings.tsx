@@ -162,6 +162,7 @@ export default function SettingsScreen() {
             <FormField label="Default Tax %" placeholder="15" value={settings.defaultTaxPercent.toString()} onChangeText={(v) => updateSettings({ defaultTaxPercent: parseFloat(v) || 0 })} keyboardType="decimal-pad" />
             <FormField label="Monthly Income Goal" prefix={settings.currency} placeholder="50000" value={settings.profitGoal.toString()} onChangeText={(v) => updateSettings({ profitGoal: parseFloat(v) || 0 })} keyboardType="decimal-pad" />
             <FormField label="Unbilled Alert (days)" placeholder="7" value={settings.billingReminderDays.toString()} onChangeText={(v) => updateSettings({ billingReminderDays: parseInt(v) || 7 })} keyboardType="number-pad" />
+            <FormField label="Timer Alert (hours)" placeholder="2" value={(settings.timerAlertThresholdHours ?? 2).toString()} onChangeText={(v) => updateSettings({ timerAlertThresholdHours: parseFloat(v) || 2 })} keyboardType="decimal-pad" hint="Show a warning banner when a timer runs longer than this many hours." />
 
             <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 28 }]}>Help & Info</Text>
 
