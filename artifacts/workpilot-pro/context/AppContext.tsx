@@ -307,7 +307,7 @@ type AppContextType = {
   getBillingAlerts: () => BillingAlert[];
   getCashFlowForecast: () => CashFlowItem[];
   getMonthRevenue: () => number;
-  getLastTimerSuggestion: () => { clientId: string; description: string; client: Client | undefined } | null;
+  getLastTimerSuggestion: () => { entryId: string; clientId: string; description: string; hourlyRate: number; client: Client | undefined } | null;
 };
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -889,7 +889,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const last = timeEntries.find((e) => e.endTime);
     if (!last) return null;
     const client = clients.find((c) => c.id === last.clientId);
-    return { clientId: last.clientId, description: last.description, client };
+    return { entryId: last.id, clientId: last.clientId, description: last.description, hourlyRate: last.hourlyRate, client };
   }, [timeEntries, clients]);
 
   if (!loaded) return null;

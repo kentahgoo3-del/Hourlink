@@ -136,8 +136,9 @@ export default function HomeScreen() {
               clientId: suggestion.clientId,
               projectId: "",
               description: suggestion.description,
-              hourlyRate: suggestion.client?.hourlyRate || settings.defaultHourlyRate,
+              hourlyRate: suggestion.hourlyRate || suggestion.client?.hourlyRate || settings.defaultHourlyRate,
               billable: true,
+              resumeEntryId: suggestion.entryId,
             });
           }}
           testID="smart-suggestion"
