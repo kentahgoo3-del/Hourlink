@@ -408,28 +408,24 @@ export default function QuoteDetailScreen() {
               <Text style={styles.actionBtnText}>Convert to Invoice</Text>
             </TouchableOpacity>
           )}
-        </View>
-      </ScrollView>
-
-      {/* Floating nav overlay */}
-      <View style={[styles.floatingNav, { top: topPadding + 4 }]} pointerEvents="box-none">
-        <TouchableOpacity onPress={() => router.back()} style={[styles.floatingBtn, { backgroundColor: colors.card + "ee" }]}>
-          <AppIcon name="chevron-back" size={22} color={colors.foreground} />
-        </TouchableOpacity>
-        <View style={styles.floatingRight}>
           <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: exporting ? colors.muted : ACCENT }]}
+            style={[styles.actionBtn, { backgroundColor: exporting ? colors.muted : ACCENT }]}
             onPress={handleExportPDF}
             disabled={exporting}
           >
-            {exporting ? <ActivityIndicator size="small" color="#fff" /> : <AppIcon name="download-outline" size={13} color="#fff" />}
-            <Text style={styles.exportBtnText}>{exporting ? "…" : "PDF"}</Text>
+            {exporting ? <ActivityIndicator size="small" color="#fff" /> : <AppIcon name="download-outline" size={18} color="#fff" />}
+            <Text style={styles.actionBtnText}>{exporting ? "Generating PDF…" : "Export PDF"}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleDelete} style={[styles.floatingBtn, { backgroundColor: "#fef2f2ee" }]}>
-            <AppIcon name="trash-outline" size={18} color="#ef4444" />
+          <TouchableOpacity
+            style={[styles.secondaryBtn, { backgroundColor: "#fef2f2", borderColor: "#fee2e2" }]}
+            onPress={handleDelete}
+          >
+            <AppIcon name="trash-outline" size={16} color="#ef4444" />
+            <Text style={[styles.secondaryBtnText, { color: "#ef4444" }]}>Delete Quote</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
+
 
       <ConfirmDialog
         visible={showDeleteConfirm}
@@ -485,12 +481,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   notFound: { textAlign: "center", marginTop: 100, fontSize: 16 },
 
-  // Floating nav
-  floatingNav: { position: "absolute", left: 12, right: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  floatingRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  floatingBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
-  exportBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
-  exportBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+  secondaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, borderWidth: 1, paddingVertical: 13 },
+  secondaryBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
   // Document Card
   docCard: {

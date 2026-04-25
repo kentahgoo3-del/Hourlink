@@ -398,6 +398,14 @@ export default function InvoiceDetailScreen() {
               <Text style={styles.actionBtnText}>Mark as Paid</Text>
             </TouchableOpacity>
           )}
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: exporting ? colors.muted : colors.primary }]}
+            onPress={handleExportPDF}
+            disabled={exporting}
+          >
+            {exporting ? <ActivityIndicator size="small" color="#fff" /> : <AppIcon name="download-outline" size={18} color="#fff" />}
+            <Text style={styles.actionBtnText}>{exporting ? "Generating PDF…" : "Export PDF"}</Text>
+          </TouchableOpacity>
           <View style={styles.secondaryActions}>
             <TouchableOpacity
               style={[styles.secondaryBtn, { backgroundColor: colors.card, borderColor: colors.border, flex: 1 }]}
@@ -417,20 +425,6 @@ export default function InvoiceDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* Floating nav overlay — sits on top of document, no background bar */}
-      <View style={[styles.floatingNav, { top: topPadding + 4 }]} pointerEvents="box-none">
-        <TouchableOpacity onPress={() => router.back()} style={[styles.floatingBtn, { backgroundColor: colors.card + "ee" }]}>
-          <AppIcon name="chevron-back" size={22} color={colors.foreground} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.exportBtn, { backgroundColor: exporting ? colors.muted : colors.primary }]}
-          onPress={handleExportPDF}
-          disabled={exporting}
-        >
-          {exporting ? <ActivityIndicator size="small" color="#fff" /> : <AppIcon name="download-outline" size={13} color="#fff" />}
-          <Text style={styles.exportBtnText}>{exporting ? "…" : "PDF"}</Text>
-        </TouchableOpacity>
-      </View>
 
 
       {/* Edit Notes Sheet */}
@@ -468,11 +462,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   notFound: { textAlign: "center", marginTop: 100, fontSize: 16 },
 
-  // Floating nav overlay
-  floatingNav: { position: "absolute", left: 12, right: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  floatingBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
-  exportBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
-  exportBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
 
   // Document Card
   docCard: {

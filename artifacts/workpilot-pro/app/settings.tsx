@@ -63,16 +63,24 @@ export default function SettingsScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true, aspect: [3, 1], quality: 0.8,
+      base64: true,
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      try {
+      if (asset.base64) {
         const ext = (asset.uri.split(".").pop()?.split("?")[0] || "jpg").toLowerCase();
-        const destUri = `${FileSystem.documentDirectory}company_logo.${ext}`;
-        await FileSystem.copyAsync({ from: asset.uri, to: destUri });
-        updateCompanyProfile({ logoUri: destUri } as any);
-      } catch {
-        updateCompanyProfile({ logoUri: asset.uri } as any);
+        const mimeMap: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp" };
+        const mime = mimeMap[ext] || "image/jpeg";
+        updateCompanyProfile({ logoUri: `data:${mime};base64,${asset.base64}` } as any);
+      } else {
+        try {
+          const ext = (asset.uri.split(".").pop()?.split("?")[0] || "jpg").toLowerCase();
+          const destUri = `${FileSystem.documentDirectory}company_logo.${ext}`;
+          await FileSystem.copyAsync({ from: asset.uri, to: destUri });
+          updateCompanyProfile({ logoUri: destUri } as any);
+        } catch {
+          updateCompanyProfile({ logoUri: asset.uri } as any);
+        }
       }
     }
   };
