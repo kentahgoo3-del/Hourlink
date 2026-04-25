@@ -226,7 +226,8 @@ export default function QuoteDetailScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const invoiceId = convertQuoteToInvoice(id);
     setShowConvertConfirm(false);
-    router.replace({ pathname: "/invoice/[id]", params: { id: invoiceId } });
+    if (!invoiceId) return;
+    setTimeout(() => router.replace(`/invoice/${invoiceId}`), 50);
   };
 
   const [showMenu, setShowMenu] = useState(false);

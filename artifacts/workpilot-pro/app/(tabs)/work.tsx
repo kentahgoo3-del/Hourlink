@@ -283,7 +283,7 @@ export default function WorkScreen() {
     const hours = stoppedEntry.durationSeconds / 3600;
     const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 30);
     const invoiceId = addInvoice({
-      clientId: stoppedEntry.clientId,
+      clientId: stoppedEntry.clientId || "",
       title: stoppedEntry.description || "Time tracking invoice",
       items: [{ id: Date.now().toString(), description: stoppedEntry.description || "Professional services", quantity: parseFloat(hours.toFixed(2)), unitPrice: stoppedEntry.hourlyRate }],
       notes: companyProfile.paymentTerms || "",
@@ -293,11 +293,12 @@ export default function WorkScreen() {
       paidAt: null,
       quoteId: null,
     });
-    // Link the time entry to the invoice - use a small delay to ensure stopTimer() has saved it
-    setTimeout(() => updateTimeEntry(stoppedEntry.id, { invoiceId }), 100);
+    if (!invoiceId) return;
+    const entryId = stoppedEntry.id;
+    setTimeout(() => updateTimeEntry(entryId, { invoiceId }), 150);
     setShowQuickInvoice(false);
     setStoppedEntry(null);
-    router.push({ pathname: "/invoice/[id]", params: { id: invoiceId } });
+    setTimeout(() => router.push(`/invoice/${invoiceId}`), 50);
   };
 
   // Create invoice for any single unbilled entry (from the entry detail sheet)
@@ -314,11 +315,12 @@ export default function WorkScreen() {
       paidAt: null,
       quoteId: null,
     });
+    if (!invoiceId) return;
     updateTimeEntry(entry.id, { invoiceId });
     setShowEntrySheet(false);
     setSelectedEntry(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push({ pathname: "/invoice/[id]", params: { id: invoiceId } });
+    router.push(`/invoice/${invoiceId}`);
   };
 
   // Create one invoice for ALL unbilled entries for a client
@@ -338,10 +340,11 @@ export default function WorkScreen() {
       paidAt: null,
       quoteId: null,
     });
+    if (!invoiceId) return;
     for (const e of entries) updateTimeEntry(e.id, { invoiceId });
     setShowBatchSheet(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push({ pathname: "/invoice/[id]", params: { id: invoiceId } });
+    router.push(`/invoice/${invoiceId}`);
   };
 
   const handleResume = () => {

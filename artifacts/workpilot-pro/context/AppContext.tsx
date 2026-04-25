@@ -262,7 +262,7 @@ type AppContextType = {
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
   deleteTimeEntry: (id: string) => void;
 
-  addQuote: (quote: Omit<Quote, "id" | "createdAt" | "quoteNumber">) => void;
+  addQuote: (quote: Omit<Quote, "id" | "createdAt" | "quoteNumber">) => string;
   updateQuote: (id: string, updates: Partial<Quote>) => void;
   deleteQuote: (id: string) => void;
   convertQuoteToInvoice: (quoteId: string) => string;
@@ -544,13 +544,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [save]);
 
   // Quotes
-  const addQuote = useCallback((quote: Omit<Quote, "id" | "createdAt" | "quoteNumber">) => {
+  const addQuote = useCallback((quote: Omit<Quote, "id" | "createdAt" | "quoteNumber">): string => {
+    const newId = genId();
     setQuotes((prev) => {
       const num = (prev.length + 1).toString().padStart(4, "0");
-      const next = [...prev, { ...quote, id: genId(), createdAt: new Date().toISOString(), quoteNumber: `QT-${num}` }];
+      const next = [...prev, { ...quote, id: newId, createdAt: new Date().toISOString(), quoteNumber: `QT-${num}` }];
       save("quotes", next);
       return next;
     });
+    return newId;
   }, [save]);
 
   const updateQuote = useCallback((id: string, updates: Partial<Quote>) => {
@@ -570,7 +572,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [save]);
 
   const convertQuoteToInvoice = useCallback((quoteId: string): string => {
-    let newInvoiceId = "";
+    const newInvoiceId = genId();
     setQuotes((prevQuotes) => {
       const quote = prevQuotes.find((q) => q.id === quoteId);
       if (!quote) return prevQuotes;
@@ -579,14 +581,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 30);
         const invoice: Invoice = {
-          id: genId(), clientId: quote.clientId,
+          id: newInvoiceId, clientId: quote.clientId,
           invoiceNumber: `INV-${num}`, title: quote.title,
           items: quote.items.map((item) => ({ ...item, id: genId() })),
           notes: quote.notes, taxPercent: quote.taxPercent,
           status: "draft", createdAt: new Date().toISOString(),
           dueDate: dueDate.toISOString(), paidAt: null, quoteId,
         };
-        newInvoiceId = invoice.id;
         const next = [invoice, ...prevInvoices];
         save("invoices", next);
         return next;
@@ -600,10 +601,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Invoices
   const addInvoice = useCallback((invoice: Omit<Invoice, "id" | "createdAt" | "invoiceNumber">): string => {
-    let newId = "";
+    const newId = genId();
     setInvoices((prev) => {
       const num = (prev.length + 1).toString().padStart(4, "0");
-      newId = genId();
       const next = [...prev, { ...invoice, id: newId, createdAt: new Date().toISOString(), invoiceNumber: `INV-${num}` }];
       save("invoices", next);
       return next;
