@@ -21,6 +21,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { FormField } from "@/components/FormField";
 import { TimerWidget } from "@/components/TimerWidget";
+import { WheelPicker } from "@/components/WheelPicker";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import type { TimeEntry } from "@/context/AppContext";
@@ -134,8 +135,8 @@ export default function WorkScreen() {
 
   // Edit entry time
   const [showEditTime, setShowEditTime] = useState(false);
-  const [editHour, setEditHour] = useState("");
-  const [editMinute, setEditMinute] = useState("");
+  const [editHour, setEditHour] = useState(0);
+  const [editMinute, setEditMinute] = useState(0);
   const [editDurationPreview, setEditDurationPreview] = useState<string | null>(null);
 
   // Smart alert: update elapsed time every 30s
@@ -161,13 +162,10 @@ export default function WorkScreen() {
 
   // Compute edit preview whenever hour/minute changes
   useEffect(() => {
-    if (!selectedEntry || !editHour || !editMinute) { setEditDurationPreview(null); return; }
-    const h = parseInt(editHour, 10);
-    const m = parseInt(editMinute, 10);
-    if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) { setEditDurationPreview(null); return; }
+    if (!selectedEntry) { setEditDurationPreview(null); return; }
     const start = new Date(selectedEntry.startTime);
     const end = new Date(selectedEntry.startTime);
-    end.setHours(h, m, 0, 0);
+    end.setHours(editHour, editMinute, 0, 0);
     if (end <= start) end.setDate(end.getDate() + 1);
     const secs = Math.floor((end.getTime() - start.getTime()) / 1000);
     if (secs <= 0) { setEditDurationPreview(null); return; }
@@ -175,32 +173,31 @@ export default function WorkScreen() {
   }, [editHour, editMinute, selectedEntry]);
 
   const openEditTime = (entry: TimeEntry) => {
+    const now = new Date();
     if (entry.endTime) {
       const d = new Date(entry.endTime);
-      setEditHour(d.getHours().toString().padStart(2, "0"));
-      setEditMinute(d.getMinutes().toString().padStart(2, "0"));
+      setEditHour(d.getHours());
+      setEditMinute(d.getMinutes());
     } else {
-      setEditHour(""); setEditMinute("");
+      setEditHour(now.getHours());
+      setEditMinute(now.getMinutes());
     }
     setEditDurationPreview(null);
     setShowEditTime(true);
   };
 
   const saveEditTime = () => {
-    if (!selectedEntry || !editHour || !editMinute) return;
-    const h = parseInt(editHour, 10);
-    const m = parseInt(editMinute, 10);
-    if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) return;
+    if (!selectedEntry || !editDurationPreview) return;
     const start = new Date(selectedEntry.startTime);
     const end = new Date(selectedEntry.startTime);
-    end.setHours(h, m, 0, 0);
+    end.setHours(editHour, editMinute, 0, 0);
     if (end <= start) end.setDate(end.getDate() + 1);
     const secs = Math.floor((end.getTime() - start.getTime()) / 1000);
     if (secs <= 0) return;
     updateTimeEntry(selectedEntry.id, { endTime: end.toISOString(), durationSeconds: secs });
     setSelectedEntry((prev) => prev ? { ...prev, endTime: end.toISOString(), durationSeconds: secs } : prev);
     setShowEditTime(false);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   const filteredEntries = useMemo(() =>
@@ -886,33 +883,23 @@ export default function WorkScreen() {
             )}
 
             <View style={alertStyles.timeRow}>
-              <View style={alertStyles.timeField}>
-                <Text style={[alertStyles.timeLabel, { color: colors.mutedForeground }]}>HOUR (0–23)</Text>
-                <TextInput
-                  style={[alertStyles.timeInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
-                  value={editHour}
-                  onChangeText={setEditHour}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  placeholder="HH"
-                  placeholderTextColor={colors.mutedForeground}
-                  textAlign="center"
-                />
-              </View>
+              <WheelPicker
+                value={editHour}
+                min={0}
+                max={23}
+                onChange={setEditHour}
+                label="HOUR"
+                colors={colors}
+              />
               <Text style={[alertStyles.timeSep, { color: colors.foreground }]}>:</Text>
-              <View style={alertStyles.timeField}>
-                <Text style={[alertStyles.timeLabel, { color: colors.mutedForeground }]}>MINUTE (0–59)</Text>
-                <TextInput
-                  style={[alertStyles.timeInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
-                  value={editMinute}
-                  onChangeText={setEditMinute}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  placeholder="MM"
-                  placeholderTextColor={colors.mutedForeground}
-                  textAlign="center"
-                />
-              </View>
+              <WheelPicker
+                value={editMinute}
+                min={0}
+                max={59}
+                onChange={setEditMinute}
+                label="MINUTE"
+                colors={colors}
+              />
             </View>
 
             {editDurationPreview && (
@@ -1045,11 +1032,11 @@ const alertStyles = StyleSheet.create({
   alertBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   editTimeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 10, borderWidth: 1, paddingVertical: 9, paddingHorizontal: 14, marginTop: 12 },
   editTimeBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  timeRow: { flexDirection: "row", alignItems: "flex-end", gap: 10, width: "100%", justifyContent: "center", marginBottom: 12 },
+  timeRow: { flexDirection: "row", alignItems: "center", gap: 6, width: "100%", justifyContent: "center", marginBottom: 16 },
   timeField: { flex: 1, alignItems: "center" },
   timeLabel: { fontSize: 9, fontFamily: "Inter_500Medium", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 },
   timeInput: { width: "100%", borderRadius: 12, borderWidth: 1, fontSize: 28, fontFamily: "Inter_700Bold", paddingVertical: 12, paddingHorizontal: 8 },
-  timeSep: { fontSize: 28, fontFamily: "Inter_700Bold", paddingBottom: 10 },
+  timeSep: { fontSize: 32, fontFamily: "Inter_700Bold", marginTop: 18, alignSelf: "center" },
   durationPreview: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 10, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 12, width: "100%" },
   durationPreviewText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });
