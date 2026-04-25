@@ -1,6 +1,7 @@
 import { AppIcon } from "@/components/AppIcon";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system";
+import * as MailComposer from "expo-mail-composer";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { router, useLocalSearchParams } from "expo-router";
@@ -52,6 +53,7 @@ export default function InvoiceDetailScreen() {
   const [editNotes, setEditNotes] = useState(invoice?.notes || "");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const subtotal = useMemo(() => invoice?.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0) ?? 0, [invoice]);
   const tax = subtotal * ((invoice?.taxPercent ?? 0) / 100);
@@ -208,6 +210,75 @@ export default function InvoiceDetailScreen() {
       await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${invoice.invoiceNumber}`, UTI: "com.adobe.pdf" });
     } catch (e) { console.error("PDF error", e); }
     finally { setExporting(false); }
+  };
+
+  const handleSendEmail = async () => {
+    if (!client?.email) return;
+    setSendingEmail(true);
+    setShowMenu(false);
+    try {
+      const isAvailable = await MailComposer.isAvailableAsync();
+      if (!isAvailable) {
+        setSendingEmail(false);
+        return;
+      }
+      const logoDataUri = await getLogoDataUri(logoUri);
+      const logoHtml = logoDataUri
+        ? `<img src="${logoDataUri}" style="height:56px;max-width:180px;object-fit:contain;display:block;margin-bottom:0;" alt="logo"/>`
+        : `<div style="font-size:26px;font-weight:900;color:#1e293b;letter-spacing:-0.5px">${companyName}</div>`;
+      const cName = companyName;
+      const sub = invoice.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
+      const taxAmt = sub * (invoice.taxPercent / 100);
+      const tot = sub + taxAmt;
+      const fmtP = (n: number) => `${settings.currency}${n.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const itemRows = invoice.items.map((item) => `
+          <tr>
+            <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9">
+              <div style="font-size:13px;font-weight:600;color:#1e293b">${item.description}</div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:2px">${settings.currency}${item.unitPrice.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}/unit</div>
+            </td>
+            <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;font-size:13px;color:#64748b">${item.quantity}</td>
+            <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:right;font-size:13px;font-weight:700;color:#1e293b">${fmtP(item.quantity * item.unitPrice)}</td>
+          </tr>`).join("");
+      const statusColor = invoice.status === "paid" ? "#10b981" : invoice.status === "overdue" ? "#ef4444" : "#64748b";
+      const addrLines = [
+        companyProfile.addressLine1,
+        companyProfile.city && companyProfile.province ? `${companyProfile.city}, ${companyProfile.province}` : companyProfile.city,
+        companyProfile.phone,
+        companyProfile.email,
+        companyProfile.vatNumber ? `VAT: ${companyProfile.vatNumber}` : "",
+      ].filter(Boolean).join("<br/>");
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"/><title>${invoice.invoiceNumber}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,Helvetica Neue,Arial,sans-serif;color:#1e293b;background:#fff;padding:0}.page{max-width:760px;margin:0 auto;padding:48px 48px 60px}table{width:100%;border-collapse:collapse}th{background:#f8fafc;padding:10px 16px;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.8px;font-weight:700;text-align:left}th:nth-child(2){text-align:center}th:nth-child(3){text-align:right}tr:last-child td{border-bottom:none!important}</style></head>
+<body><div class="page">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:24px;border-bottom:2px solid #e2e8f0">
+    <div>${logoHtml}${logoDataUri ? `<div style="font-size:18px;font-weight:800;color:#1e293b;margin-top:10px">${cName}</div>` : ""}${companyProfile.tagline ? `<div style="font-size:12px;color:#94a3b8;margin-top:3px">${companyProfile.tagline}</div>` : ""}${addrLines ? `<div style="font-size:11px;color:#94a3b8;margin-top:10px;line-height:1.7">${addrLines}</div>` : ""}</div>
+    <div style="text-align:right"><div style="font-size:32px;font-weight:900;color:#3b82f6;letter-spacing:-1px">INVOICE</div><div style="font-size:15px;font-weight:700;color:#1e293b;margin-top:4px">${invoice.invoiceNumber}</div><div style="display:inline-block;margin-top:8px;background:${statusColor}18;color:${statusColor};border:1px solid ${statusColor}60;border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">${invoice.status}</div></div>
+  </div>
+  <div style="display:flex;gap:40px;margin-bottom:28px"><div><div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:5px">ISSUE DATE</div><div style="font-size:13px;font-weight:600">${formatDate(invoice.createdAt)}</div></div><div><div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:5px">DUE DATE</div><div style="font-size:13px;font-weight:600">${formatDate(invoice.dueDate)}</div></div></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;padding:20px 0;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;margin-bottom:28px"><div><div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">FROM</div><div style="font-size:14px;font-weight:700;margin-bottom:4px">${cName}</div>${addrLines ? `<div style="font-size:12px;color:#64748b;line-height:1.7">${addrLines}</div>` : ""}</div><div><div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">BILL TO</div><div style="font-size:14px;font-weight:700;margin-bottom:4px">${client?.name || "Client"}</div>${client?.company ? `<div style="font-size:12px;color:#64748b">${client.company}</div>` : ""}${client?.email ? `<div style="font-size:12px;color:#64748b">${client.email}</div>` : ""}${client?.phone ? `<div style="font-size:12px;color:#64748b">${client.phone}</div>` : ""}</div></div>
+  ${invoice.title ? `<div style="font-size:15px;font-weight:700;margin-bottom:16px">${invoice.title}</div>` : ""}
+  <table style="margin-bottom:24px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden"><thead><tr><th style="width:55%;border-radius:0">Description</th><th style="width:20%">Qty</th><th style="width:25%">Amount</th></tr></thead><tbody>${itemRows}</tbody></table>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:28px"><div style="width:280px"><div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:13px;color:#64748b">Subtotal</span><span style="font-size:13px">${fmtP(sub)}</span></div>${invoice.taxPercent > 0 ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:13px;color:#64748b">Tax (${invoice.taxPercent}%)</span><span style="font-size:13px">${fmtP(taxAmt)}</span></div>` : ""}<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;margin-top:4px;border-top:2px solid #1e293b"><span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px">TOTAL DUE</span><span style="font-size:24px;font-weight:900;color:#3b82f6">${fmtP(tot)}</span></div></div></div>
+  ${invoice.notes ? `<div style="background:#f8fafc;border-radius:8px;padding:16px 20px;margin-bottom:16px"><div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">NOTES</div><div style="font-size:13px;color:#64748b;line-height:1.7">${invoice.notes}</div></div>` : ""}
+  ${(companyProfile.bankName || companyProfile.bankAccount) ? `<div style="background:#f0fdf4;border-radius:8px;padding:16px 20px;margin-bottom:24px"><div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#064e3b;margin-bottom:8px">BANKING DETAILS</div>${companyProfile.bankName ? `<div style="font-size:13px;color:#065f46;margin-top:3px">Bank: ${companyProfile.bankName}</div>` : ""}${companyProfile.bankAccount ? `<div style="font-size:13px;color:#065f46;margin-top:3px">Account: ${companyProfile.bankAccount}</div>` : ""}${companyProfile.bankBranch ? `<div style="font-size:13px;color:#065f46;margin-top:3px">Branch: ${companyProfile.bankBranch}</div>` : ""}</div>` : ""}
+  <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8"><span>${cName}</span><span>Generated by HourLink</span></div>
+</div></body></html>`;
+      const { uri: pdfUri } = await Print.printToFileAsync({ html, base64: false });
+      const emailBody = `Hi ${client.name},\n\nPlease find your invoice ${invoice.invoiceNumber} attached.\n\nAmount Due: ${fmtP(tot)}\nDue Date: ${formatDate(invoice.dueDate)}\n${invoice.notes ? `\n${invoice.notes}\n` : ""}${companyProfile.bankName ? `\nBanking Details:\nBank: ${companyProfile.bankName}${companyProfile.bankAccount ? `\nAccount: ${companyProfile.bankAccount}` : ""}${companyProfile.bankBranch ? `\nBranch: ${companyProfile.bankBranch}` : ""}` : ""}\n\nThank you for your business!\n\n${cName}`;
+      const result = await MailComposer.composeAsync({
+        recipients: [client.email],
+        subject: `Invoice ${invoice.invoiceNumber} from ${cName}`,
+        body: emailBody,
+        attachments: [pdfUri],
+      });
+      if (result.status === MailComposer.MailComposerStatus.SENT) {
+        updateInvoice(id, { status: invoice.status === "draft" ? "sent" : invoice.status });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (e) { console.error("Email error", e); }
+    finally { setSendingEmail(false); }
   };
 
   const [showMenu, setShowMenu] = useState(false);
@@ -406,6 +477,21 @@ export default function InvoiceDetailScreen() {
 
       {/* ⋯ Menu */}
       <BottomSheet visible={showMenu} onClose={() => setShowMenu(false)} title="Invoice Options">
+        {client?.email ? (
+          <TouchableOpacity
+            style={[styles.menuItem, { borderColor: "#dbeafe", backgroundColor: "#eff6ff" }]}
+            onPress={handleSendEmail}
+            disabled={sendingEmail}
+            testID="send-email-btn"
+          >
+            {sendingEmail
+              ? <ActivityIndicator size="small" color="#3b82f6" />
+              : <AppIcon name="mail" size={18} color="#3b82f6" />}
+            <Text style={[styles.menuItemText, { color: "#3b82f6" }]}>
+              {sendingEmail ? "Preparing…" : `Email to ${client.email}`}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
         {invoice.status === "draft" && (
           <TouchableOpacity
             style={[styles.menuItem, { borderColor: colors.border }]}
