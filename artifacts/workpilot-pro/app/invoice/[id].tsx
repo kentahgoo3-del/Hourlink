@@ -50,7 +50,6 @@ export default function InvoiceDetailScreen() {
 
   const [showEdit, setShowEdit] = useState(false);
   const [editNotes, setEditNotes] = useState(invoice?.notes || "");
-  const [showMenu, setShowMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -399,6 +398,22 @@ export default function InvoiceDetailScreen() {
               <Text style={styles.actionBtnText}>Mark as Paid</Text>
             </TouchableOpacity>
           )}
+          <View style={styles.secondaryActions}>
+            <TouchableOpacity
+              style={[styles.secondaryBtn, { backgroundColor: colors.card, borderColor: colors.border, flex: 1 }]}
+              onPress={() => setShowEdit(true)}
+            >
+              <AppIcon name="pencil" size={16} color={colors.foreground} />
+              <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>Edit Notes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.secondaryBtn, { backgroundColor: "#fef2f2", borderColor: "#fee2e2", flex: 1 }]}
+              onPress={handleDelete}
+            >
+              <AppIcon name="trash-outline" size={16} color="#ef4444" />
+              <Text style={[styles.secondaryBtnText, { color: "#ef4444" }]}>Delete</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
 
@@ -407,38 +422,16 @@ export default function InvoiceDetailScreen() {
         <TouchableOpacity onPress={() => router.back()} style={[styles.floatingBtn, { backgroundColor: colors.card + "ee" }]}>
           <AppIcon name="chevron-back" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <View style={styles.floatingRight}>
-          <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: exporting ? colors.muted : colors.primary }]}
-            onPress={handleExportPDF}
-            disabled={exporting}
-          >
-            {exporting ? <ActivityIndicator size="small" color="#fff" /> : <AppIcon name="download-outline" size={13} color="#fff" />}
-            <Text style={styles.exportBtnText}>{exporting ? "…" : "PDF"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowMenu(true)} style={[styles.floatingBtn, { backgroundColor: colors.card + "ee" }]}>
-            <AppIcon name="ellipsis-horizontal" size={18} color={colors.foreground} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[styles.exportBtn, { backgroundColor: exporting ? colors.muted : colors.primary }]}
+          onPress={handleExportPDF}
+          disabled={exporting}
+        >
+          {exporting ? <ActivityIndicator size="small" color="#fff" /> : <AppIcon name="download-outline" size={13} color="#fff" />}
+          <Text style={styles.exportBtnText}>{exporting ? "…" : "PDF"}</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* ⋯ Action Menu */}
-      <BottomSheet visible={showMenu} onClose={() => setShowMenu(false)} title="Invoice Options">
-        <TouchableOpacity
-          style={[styles.menuItem, { borderColor: colors.border }]}
-          onPress={() => { setShowMenu(false); setShowEdit(true); }}
-        >
-          <AppIcon name="pencil" size={18} color={colors.foreground} />
-          <Text style={[styles.menuItemText, { color: colors.foreground }]}>Edit Notes</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.menuItem, { borderColor: "#fee2e2", backgroundColor: "#fef2f2" }]}
-          onPress={() => { setShowMenu(false); handleDelete(); }}
-        >
-          <AppIcon name="trash-outline" size={18} color="#ef4444" />
-          <Text style={[styles.menuItemText, { color: "#ef4444" }]}>Delete Invoice</Text>
-        </TouchableOpacity>
-      </BottomSheet>
 
       {/* Edit Notes Sheet */}
       <BottomSheet visible={showEdit} onClose={() => setShowEdit(false)} title="Edit Invoice">
@@ -477,7 +470,6 @@ const styles = StyleSheet.create({
 
   // Floating nav overlay
   floatingNav: { position: "absolute", left: 12, right: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  floatingRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   floatingBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   exportBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
   exportBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
@@ -556,6 +548,7 @@ const styles = StyleSheet.create({
   actionBtnText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
 
   // Menu Items
-  menuItem: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 10 },
-  menuItemText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  secondaryActions: { flexDirection: "row", gap: 10 },
+  secondaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, borderWidth: 1, paddingVertical: 13 },
+  secondaryBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });
