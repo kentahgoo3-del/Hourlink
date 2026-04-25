@@ -29,9 +29,13 @@ import { FormField } from "@/components/FormField";
 import { useApp } from "@/context/AppContext";
 import type { Task } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { NonBinary } from "lucide-react-native";
 
 const PORTAL_KEY = "@hourlink_portal_code";
 const API_BASE = "https://hourlink-api.onrender.com/api";
+const WEB_APP_DOMAIN =
+  process.env.EXPO_PUBLIC_DOMAIN ||
+  "3c94995a-f8aa-4cf3-8522-b97ec8b49001-00-gjye0mczcysk.picard.replit.dev";
 
 type FilterType = "all" | "todo" | "in_progress" | "done";
 type ViewMode = "list" | "calendar";
@@ -752,8 +756,12 @@ export default function TasksScreen() {
 
   const getPortalUrl = useCallback(() => {
     if (!portalCode) return "";
-    const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
-    return `https://${domain}/client-portal/?code=${portalCode}`;
+    return `https://${WEB_APP_DOMAIN}/client-portal/?code=${portalCode}`;
+  }, [portalCode]);
+
+  const getTeamPortalUrl = useCallback(() => {
+    if (!portalCode) return "";
+    return `https://${WEB_APP_DOMAIN}/client-portal/?code=${portalCode}&mode=team`;
   }, [portalCode]);
 
   const copyPortalLink = useCallback(async () => {
@@ -767,19 +775,25 @@ export default function TasksScreen() {
   }, [getPortalUrl]);
 
   const sharePortalLink = useCallback(async () => {
-    const url = getPortalUrl();
-    if (!url) return;
+    const clientUrl = getPortalUrl();
+    const teamUrl = getTeamPortalUrl();
+    if (!clientUrl) return;
 
     try {
       await Share.share({
         message: `Submit tasks for me via HourLink:
-${url}`,
-        url,
+
+Client portal:
+${clientUrl}
+
+Team portal:
+${teamUrl}`,
+        url: clientUrl,
       });
     } catch (e) {
       console.error("sharePortalLink error:", e);
     }
-  }, [getPortalUrl]);
+  }, [getPortalUrl, getTeamPortalUrl]);
 
   const shareClientCredentials = useCallback(
     async (cred: { name: string; email: string; password: string }) => {
@@ -2607,3 +2621,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 });
+NonBinary
