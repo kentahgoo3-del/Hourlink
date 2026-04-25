@@ -1,5 +1,14 @@
 const BASE = "https://hourlink-api.onrender.com/api";
 
+export type TaskNote = {
+  id: string;
+  taskId: string;
+  authorName: string;
+  authorEmail: string;
+  text: string;
+  createdAt: string;
+};
+
 export type SharedTask = {
   id: string;
   title: string;
@@ -135,5 +144,22 @@ export const teamSync = {
 
   async getAllTasks(code: string): Promise<SharedTask[]> {
     return request<SharedTask[]>(`/workspaces/${code}/tasks`);
+  },
+
+  async getTaskNotes(code: string, taskId: string): Promise<TaskNote[]> {
+    return request<TaskNote[]>(`/workspaces/${code}/tasks/${taskId}/notes`);
+  },
+
+  async addTaskNote(
+    code: string,
+    taskId: string,
+    authorName: string,
+    authorEmail: string,
+    text: string,
+  ): Promise<TaskNote> {
+    return request<TaskNote>(`/workspaces/${code}/tasks/${taskId}/notes`, {
+      method: "POST",
+      body: JSON.stringify({ authorName, authorEmail, text }),
+    });
   },
 };

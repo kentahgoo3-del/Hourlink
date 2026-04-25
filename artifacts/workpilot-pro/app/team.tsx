@@ -7,6 +7,7 @@ import { useColors } from "@/hooks/useColors";
 import {
   teamSync,
   type SharedTask,
+  type TaskNote,
   type TeamMemberCredential,
   type TimeEntry,
   type WorkspaceInfo,
@@ -22,6 +23,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -100,6 +102,11 @@ export default function TeamScreen() {
   const [delegateFromApp, setDelegateFromApp] = useState(false);
   const [selectedAppTask, setSelectedAppTask] = useState<string | null>(null);
   const [copiedEmail, setCopiedEmail] = useState("");
+
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [taskNotes, setTaskNotes] = useState<Record<string, TaskNote[]>>({});
+  const [noteText, setNoteText] = useState("");
+  const [noteLoading, setNoteLoading] = useState(false);
 
   useEffect(() => {
     AsyncStorage.multiGet(["teamWorkspaceCode", "teamIsOwner"]).then(
@@ -350,6 +357,48 @@ export default function TeamScreen() {
     setCopiedEmail(emailTag);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTimeout(() => setCopiedEmail(""), 2000);
+  };
+
+  const loadTaskNotes = async (taskId: string) => {
+    try {
+      const notes = await teamSync.getTaskNotes(workspaceCode, taskId);
+      setTaskNotes((prev) => ({ ...prev, [taskId]: notes }));
+    } catch {}
+  };
+
+  const toggleTask = (taskId: string) => {
+    if (expandedTaskId === taskId) {
+      setExpandedTaskId(null);
+    } else {
+      setExpandedTaskId(taskId);
+      if (!taskNotes[taskId]) {
+        loadTaskNotes(taskId);
+      }
+    }
+  };
+
+  const handleAddNote = async (taskId: string) => {
+    if (!noteText.trim()) return;
+    setNoteLoading(true);
+    try {
+      const note = await teamSync.addTaskNote(
+        workspaceCode,
+        taskId,
+        settings.name || "Owner",
+        "",
+        noteText.trim(),
+      );
+      setTaskNotes((prev) => ({
+        ...prev,
+        [taskId]: [...(prev[taskId] || []), note],
+      }));
+      setNoteText("");
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {
+      Alert.alert("Error", "Could not add comment.");
+    } finally {
+      setNoteLoading(false);
+    }
   };
 
   const openDelegateFromApp = () => {
@@ -1272,6 +1321,151 @@ export default function TeamScreen() {
                             </Text>
                           )}
                         </View>
+
+                        {/* Comments toggle */}
+                        <TouchableOpacity
+                          style={[
+                            styles.commentsToggle,
+                            { borderTopColor: colors.border },
+                          ]}
+                          onPress={() => toggleTask(task.id)}
+                        >
+                          <AppIcon
+                            name="chatbubble-outline"
+                            size={14}
+                            color={colors.primary}
+                          />
+                          <Text
+                            style={[
+                              styles.commentsToggleText,
+                              { color: colors.primary },
+                            ]}
+                          >
+                            {expandedTaskId === task.id
+                              ? "Hide Comments"
+                              : `Comments${taskNotes[task.id] ? ` (${taskNotes[task.id].length})` : ""}`}
+                          </Text>
+                          <AppIcon
+                            name={
+                              expandedTaskId === task.id
+                                ? "chevron-up"
+                                : "chevron-down"
+                            }
+                            size={14}
+                            color={colors.mutedForeground}
+                          />
+                        </TouchableOpacity>
+
+                        {/* Expanded comments panel */}
+                        {expandedTaskId === task.id && (
+                          <View
+                            style={[
+                              styles.commentsPanel,
+                              { borderTopColor: colors.border },
+                            ]}
+                          >
+                            {!taskNotes[task.id] ? (
+                              <ActivityIndicator
+                                size="small"
+                                color={colors.primary}
+                                style={{ marginVertical: 8 }}
+                              />
+                            ) : taskNotes[task.id].length === 0 ? (
+                              <Text
+                                style={[
+                                  styles.noNotesText,
+                                  { color: colors.mutedForeground },
+                                ]}
+                              >
+                                No comments yet. Be the first to comment.
+                              </Text>
+                            ) : (
+                              taskNotes[task.id].map((note) => (
+                                <View
+                                  key={note.id}
+                                  style={[
+                                    styles.noteItem,
+                                    { backgroundColor: colors.muted },
+                                  ]}
+                                >
+                                  <View style={styles.noteHeader}>
+                                    <Text
+                                      style={[
+                                        styles.noteAuthor,
+                                        { color: colors.foreground },
+                                      ]}
+                                    >
+                                      {note.authorName}
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.noteTime,
+                                        { color: colors.mutedForeground },
+                                      ]}
+                                    >
+                                      {timeAgo(note.createdAt)}
+                                    </Text>
+                                  </View>
+                                  <Text
+                                    style={[
+                                      styles.noteText,
+                                      { color: colors.foreground },
+                                    ]}
+                                  >
+                                    {note.text}
+                                  </Text>
+                                </View>
+                              ))
+                            )}
+
+                            {/* Add comment input */}
+                            <View style={styles.noteInputRow}>
+                              <TextInput
+                                style={[
+                                  styles.noteInput,
+                                  {
+                                    backgroundColor: colors.background,
+                                    borderColor: colors.border,
+                                    color: colors.foreground,
+                                  },
+                                ]}
+                                placeholder="Add a comment..."
+                                placeholderTextColor={colors.mutedForeground}
+                                value={noteText}
+                                onChangeText={setNoteText}
+                                multiline
+                                returnKeyType="send"
+                                onSubmitEditing={() => handleAddNote(task.id)}
+                              />
+                              <TouchableOpacity
+                                style={[
+                                  styles.noteSendBtn,
+                                  {
+                                    backgroundColor:
+                                      noteText.trim()
+                                        ? colors.primary
+                                        : colors.muted,
+                                  },
+                                ]}
+                                onPress={() => handleAddNote(task.id)}
+                                disabled={!noteText.trim() || noteLoading}
+                              >
+                                {noteLoading ? (
+                                  <ActivityIndicator
+                                    size="small"
+                                    color="#fff"
+                                  />
+                                ) : (
+                                  <AppIcon
+                                    name="send"
+                                    size={16}
+                                    color={noteText.trim() ? "#fff" : colors.mutedForeground}
+                                  />
+                                )}
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        )}
                       </View>
                     );
                   })
@@ -2091,4 +2285,61 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   appTaskTitle: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
+  commentsToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingTop: 10,
+    marginTop: 4,
+    borderTopWidth: 1,
+  },
+  commentsToggleText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
+  commentsPanel: {
+    paddingTop: 12,
+    marginTop: 4,
+    borderTopWidth: 1,
+    gap: 8,
+  },
+  noNotesText: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    paddingVertical: 8,
+  },
+  noteItem: {
+    borderRadius: 10,
+    padding: 10,
+    gap: 4,
+  },
+  noteHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  noteAuthor: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  noteTime: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  noteText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  noteInputRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+    marginTop: 4,
+  },
+  noteInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    maxHeight: 80,
+  },
+  noteSendBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
