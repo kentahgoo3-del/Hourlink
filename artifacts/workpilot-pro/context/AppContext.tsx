@@ -889,7 +889,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const seen = new Set<string>();
     const results: { entryId: string; clientId: string; description: string; hourlyRate: number; client: Client | undefined }[] = [];
     for (const e of timeEntries) {
-      if (!e.endTime) continue;
+      if (!e.endTime || e.invoiceId) continue;
       const key = `${e.clientId}||${e.description}`;
       if (seen.has(key)) continue;
       seen.add(key);
