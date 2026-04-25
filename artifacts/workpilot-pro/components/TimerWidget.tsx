@@ -40,7 +40,7 @@ export function TimerWidget({ timer, onStop, onPause, onResume }: Props) {
   }, [timer, isRunning]);
 
   const client = clients.find((c) => c.id === timer.clientId);
-  const currency = client?.currency || settings.currency;
+  const currency = settings.currency;
   const rate = timer.hourlyRate;
   const earned = ((elapsed / 3600) * rate).toFixed(2);
 
