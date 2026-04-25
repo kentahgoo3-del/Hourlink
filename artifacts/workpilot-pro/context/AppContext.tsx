@@ -443,14 +443,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       pausedSeconds: 0, timerPaused: false,
     };
     setActiveTimers((prev) => {
-      // Pause any currently running timer
-      const nowMs = Date.now();
-      const updated = prev.map((t) => {
-        if (t.timerPaused) return t;
-        const sessionSecs = Math.floor((nowMs - new Date(t.sessionStartTime || t.startTime).getTime()) / 1000);
-        return { ...t, timerPaused: true, pausedSeconds: (t.pausedSeconds || 0) + sessionSecs };
-      });
-      const next = [newTimer, ...updated];
+      const next = [newTimer, ...prev];
       save("activeTimers", next);
       return next;
     });
@@ -470,20 +463,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [save]);
 
   const resumeTimer = useCallback((id: string) => {
-    const nowMs = Date.now();
-    const nowIso = new Date(nowMs).toISOString();
+    const nowIso = new Date().toISOString();
     setActiveTimers((prev) => {
-      const next = prev.map((t) => {
-        if (t.id === id) {
-          return { ...t, timerPaused: false, sessionStartTime: nowIso };
-        }
-        // Pause any other running timer
-        if (!t.timerPaused) {
-          const sessionSecs = Math.floor((nowMs - new Date(t.sessionStartTime || t.startTime).getTime()) / 1000);
-          return { ...t, timerPaused: true, pausedSeconds: (t.pausedSeconds || 0) + sessionSecs };
-        }
-        return t;
-      });
+      const next = prev.map((t) =>
+        t.id === id ? { ...t, timerPaused: false, sessionStartTime: nowIso } : t
+      );
       save("activeTimers", next);
       return next;
     });
