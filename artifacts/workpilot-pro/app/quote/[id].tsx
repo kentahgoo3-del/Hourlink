@@ -41,7 +41,7 @@ export default function QuoteDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { clients, quotes, updateQuote, deleteQuote, convertQuoteToInvoice, settings, companyProfile, startTimer, activeTimer } = useApp();
+  const { clients, quotes, updateQuote, deleteQuote, convertQuoteToInvoice, settings, companyProfile, startTimer } = useApp();
   const [showTimerPrompt, setShowTimerPrompt] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
@@ -109,11 +109,10 @@ ${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"
 
   const handleStartTimerNow = () => {
     setShowTimerPrompt(false);
-    if (activeTimer) return;
     const hourlyRate = client?.hourlyRate ?? settings.defaultHourlyRate ?? 0;
     startTimer({
       description: quote!.title,
-      clientId: quote!.clientId || null,
+      clientId: quote!.clientId || "",
       taskId: null,
       hourlyRate,
       billable: true,

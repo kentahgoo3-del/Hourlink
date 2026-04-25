@@ -34,8 +34,9 @@ export default function HomeScreen() {
     clients, timeEntries, invoices, quotes, settings,
     getUnbilledAmount, getOutstandingAmount, getMonthRevenue,
     getBillingAlerts, getCashFlowForecast, getLastTimerSuggestion,
-    activeTimer, startTimer,
+    activeTimers, startTimer, stopTimer, pauseTimer, resumeTimer,
   } = useApp();
+  const runningTimer = activeTimers.find((t) => !t.timerPaused) || null;
 
   const now = new Date();
   const weekStart = new Date(now);
@@ -126,7 +127,7 @@ export default function HomeScreen() {
       )}
 
       {/* Smart Suggestion */}
-      {suggestion && !activeTimer && (
+      {suggestion && !activeTimers.length && (
         <TouchableOpacity
           style={[styles.suggestionCard, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" }]}
           onPress={() => {
@@ -154,8 +155,16 @@ export default function HomeScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Active Timer */}
-      <TimerWidget />
+      {/* Active Timers */}
+      {activeTimers.map((timer) => (
+        <TimerWidget
+          key={timer.id}
+          timer={timer}
+          onStop={() => stopTimer(timer.id)}
+          onPause={() => pauseTimer(timer.id)}
+          onResume={() => resumeTimer(timer.id)}
+        />
+      ))}
 
       {/* Billing Alerts */}
       {billingAlerts.length > 0 && (

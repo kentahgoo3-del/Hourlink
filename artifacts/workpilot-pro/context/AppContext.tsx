@@ -254,7 +254,7 @@ type AppContextType = {
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
 
-  startTimer: (entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId" | "resumeEntryId" | "pausedSeconds" | "timerPaused" | "sessionStartTime"> & { taskId?: string | null; resumeEntryId?: string | null }) => void;
+  startTimer: (entry: Omit<TimeEntry, "id" | "projectId" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId" | "resumeEntryId" | "pausedSeconds" | "timerPaused" | "sessionStartTime"> & { projectId?: string; taskId?: string | null; resumeEntryId?: string | null }) => void;
   stopTimer: (id?: string) => TimeEntry | null;
   pauseTimer: (id: string) => void;
   resumeTimer: (id: string) => void;
@@ -434,10 +434,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [save]);
 
   // Timers
-  const startTimer = useCallback((entry: Omit<TimeEntry, "id" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId" | "resumeEntryId" | "pausedSeconds" | "timerPaused" | "sessionStartTime"> & { taskId?: string | null; resumeEntryId?: string | null }) => {
+  const startTimer = useCallback((entry: Omit<TimeEntry, "id" | "projectId" | "startTime" | "endTime" | "durationSeconds" | "invoiceId" | "taskId" | "resumeEntryId" | "pausedSeconds" | "timerPaused" | "sessionStartTime"> & { projectId?: string; taskId?: string | null; resumeEntryId?: string | null }) => {
     const now = new Date().toISOString();
     const newTimer: TimeEntry = {
-      ...entry, taskId: entry.taskId ?? null, resumeEntryId: entry.resumeEntryId ?? null,
+      ...entry, projectId: entry.projectId ?? "", taskId: entry.taskId ?? null, resumeEntryId: entry.resumeEntryId ?? null,
       id: genId(), startTime: now, sessionStartTime: now,
       endTime: null, durationSeconds: 0, invoiceId: null,
       pausedSeconds: 0, timerPaused: false,

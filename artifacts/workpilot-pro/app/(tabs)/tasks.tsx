@@ -319,7 +319,6 @@ export default function TasksScreen() {
     deleteTask,
     completeTask,
     startTimer,
-    activeTimer,
     settings,
     timeEntries,
     addTaskComment,
@@ -1038,10 +1037,6 @@ You can change your password on first login.`;
   };
 
   const handleStartTimer = (task: Task) => {
-    if (activeTimer) {
-      Alert.alert("Timer running", "Stop the current timer first.");
-      return;
-    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const client = clients.find((c) => c.id === task.clientId);
     const rate =

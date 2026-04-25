@@ -44,14 +44,10 @@ export default function FinanceScreen() {
     timeEntries, updateTimeEntry,
     addInvoice, addQuote, deleteInvoice, deleteQuote, deleteQuoteTemplate,
     markInvoicePaid, convertQuoteToInvoice, updateInvoice, updateQuote,
-    addQuoteTemplate, settings, startTimer, activeTimer,
+    addQuoteTemplate, settings, startTimer,
   } = useApp();
 
   const handleStartTimerForQuote = (quote: typeof quotes[0]) => {
-    if (activeTimer) {
-      Alert.alert("Timer running", "Stop your current timer before starting a new one.");
-      return;
-    }
     const client = clients.find((c) => c.id === quote.clientId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     startTimer({
