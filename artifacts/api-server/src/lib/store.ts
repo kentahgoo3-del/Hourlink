@@ -768,6 +768,7 @@ export const store = {
   async stopTimeEntry(
     code: string,
     entryId: string,
+    customStoppedAt?: Date,
   ): Promise<TimeEntry | null> {
     const normalizedCode = code.toUpperCase();
 
@@ -785,8 +786,11 @@ export const store = {
     }
 
     const startedAt = new Date(current.rows[0].startedAt).getTime();
-    const stoppedAt = new Date();
-    const duration = Math.round((stoppedAt.getTime() - startedAt) / 1000);
+    const stoppedAt = customStoppedAt || new Date();
+    const duration = Math.max(
+      0,
+      Math.round((stoppedAt.getTime() - startedAt) / 1000),
+    );
 
     const result = await pool.query(
       `UPDATE time_entries

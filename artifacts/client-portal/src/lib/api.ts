@@ -382,11 +382,14 @@ export async function startTimeEntry(
 export async function stopTimeEntry(
   code: string,
   entryId: string,
+  stoppedAt?: string,
 ): Promise<TimeEntry | null> {
   const res = await fetch(
     `${API_BASE}/workspaces/${code}/time-entries/${entryId}/stop`,
     {
       method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(stoppedAt ? { stoppedAt } : {}),
     },
   );
 

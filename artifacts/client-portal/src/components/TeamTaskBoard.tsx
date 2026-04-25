@@ -28,10 +28,10 @@ const PRIORITY_COLORS = {
   high: { bg: "bg-red-50", text: "text-red-700", dot: "bg-red-500" },
 };
 
-const STATUS_OPTIONS: { value: string; label: string; color: string }[] = [
-  { value: "pending", label: "Pending", color: "bg-gray-100 text-gray-700" },
-  { value: "in_progress", label: "In Progress", color: "bg-blue-100 text-blue-700" },
-  { value: "done", label: "Done", color: "bg-emerald-100 text-emerald-700" },
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "pending", label: "Pending" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "done", label: "Done" },
 ];
 
 function formatDuration(seconds: number): string {
@@ -53,6 +53,11 @@ function formatTime(dateStr: string) {
   return new Date(dateStr).toLocaleTimeString("en-ZA", {
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+function toLocalDatetimeInputValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function isDueSoon(dateStr: string | null) {
@@ -82,6 +87,10 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
   const [newComments, setNewComments] = useState<TaskNote[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const lastSeenRef = useRef<string>(new Date().toISOString());
+
+  const [showEndTimeInput, setShowEndTimeInput] = useState(false);
+  const [endTimeValue, setEndTimeValue] = useState("");
+  const [stoppingWithTime, setStoppingWithTime] = useState(false);
 
   const loadData = useCallback(async () => {
     const [t, entries, running] = await Promise.all([
@@ -136,8 +145,32 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
     const stopped = await stopTimeEntry(portalCode, runningEntry.id);
     if (stopped) {
       setRunningEntry(null);
+      setShowEndTimeInput(false);
       loadData();
     }
+  };
+
+  const handleStopWithEndTime = async () => {
+    if (!runningEntry || !endTimeValue) return;
+    setStoppingWithTime(true);
+    try {
+      const localDate = new Date(endTimeValue);
+      const isoString = localDate.toISOString();
+      const stopped = await stopTimeEntry(portalCode, runningEntry.id, isoString);
+      if (stopped) {
+        setRunningEntry(null);
+        setShowEndTimeInput(false);
+        setEndTimeValue("");
+        loadData();
+      }
+    } finally {
+      setStoppingWithTime(false);
+    }
+  };
+
+  const openEndTimeInput = () => {
+    setEndTimeValue(toLocalDatetimeInputValue(new Date()));
+    setShowEndTimeInput(true);
   };
 
   const handleStatusChange = async (taskId: string, status: string) => {
@@ -216,19 +249,19 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={`${import.meta.env.BASE_URL}hourlink_icon.png`} alt="HourLink" className="w-8 h-8 rounded-lg" />
-            <div>
-              <h1 className="text-sm font-semibold text-foreground leading-tight">Team Portal</h1>
-              <p className="text-xs text-muted-foreground">{workspace.ownerName}'s workspace</p>
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <img src={`${import.meta.env.BASE_URL}hourlink_icon.png`} alt="HourLink" className="w-7 h-7 rounded-lg flex-shrink-0" />
+            <div className="min-w-0">
+              <h1 className="text-sm font-semibold text-foreground leading-tight truncate">Team Portal</h1>
+              <p className="text-xs text-muted-foreground truncate">{workspace.ownerName}'s workspace</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <div className="relative">
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-1.5 rounded-lg hover:bg-muted transition-colors"
+                className="relative p-2 rounded-lg hover:bg-muted transition-colors"
                 title="Notifications"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -242,7 +275,7 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                 )}
               </button>
               {showNotifications && (
-                <div className="absolute right-0 top-10 w-72 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden">
+                <div className="absolute right-0 top-11 w-72 max-w-[calc(100vw-1rem)] bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden">
                   <div className="flex items-center justify-between px-3 py-2 border-b border-border">
                     <span className="text-xs font-semibold text-foreground">New Comments</span>
                     {newComments.length > 0 && (
@@ -281,11 +314,11 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                 </div>
               )}
             </div>
-            <div className="text-right">
+            <div className="text-right hidden sm:block">
               <p className="text-xs font-medium text-foreground">{user.name}</p>
               <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
             </div>
-            <button onClick={onLogout} className="text-xs text-muted-foreground hover:text-foreground transition-colors" title="Sign out">
+            <button onClick={onLogout} className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted" title="Sign out">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                 <polyline points="16 17 21 12 16 7" />
@@ -296,69 +329,111 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-6">
+      <main className="max-w-3xl mx-auto px-4 py-5">
         {runningEntry && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-center justify-between animate-in fade-in duration-200">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-blue-900">Timer Running</p>
+                  <p className="text-xs text-blue-700 truncate max-w-[160px]">
+                    {tasks.find((t) => t.id === runningEntry.taskId)?.title || "Task"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-blue-900">Timer Running</p>
-                <p className="text-xs text-blue-700">
-                  {tasks.find((t) => t.id === runningEntry.taskId)?.title || "Task"}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xl font-mono font-bold text-blue-900 tabular-nums">
+                  {formatDuration(elapsed)}
+                </span>
+                <button
+                  onClick={handleStopTimer}
+                  className="h-9 px-3 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1.5"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  </svg>
+                  Stop
+                </button>
+                <button
+                  onClick={openEndTimeInput}
+                  className="h-9 px-3 bg-blue-100 text-blue-800 text-sm font-medium rounded-lg hover:bg-blue-200 transition-colors"
+                  title="Set a custom end time if you forgot to stop the timer"
+                >
+                  Set end time
+                </button>
+              </div>
+            </div>
+
+            {showEndTimeInput && (
+              <div className="mt-3 pt-3 border-t border-blue-200">
+                <p className="text-xs text-blue-700 mb-2 font-medium">
+                  Set the actual time you stopped working:
                 </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="datetime-local"
+                    value={endTimeValue}
+                    max={toLocalDatetimeInputValue(new Date())}
+                    min={toLocalDatetimeInputValue(new Date(runningEntry.startedAt))}
+                    onChange={(e) => setEndTimeValue(e.target.value)}
+                    className="flex-1 min-w-0 h-9 px-3 rounded-lg border border-blue-300 bg-white text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                  <button
+                    onClick={handleStopWithEndTime}
+                    disabled={!endTimeValue || stoppingWithTime}
+                    className="h-9 px-4 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex-shrink-0"
+                  >
+                    {stoppingWithTime ? "Saving…" : "Confirm & Stop"}
+                  </button>
+                  <button
+                    onClick={() => setShowEndTimeInput(false)}
+                    className="h-9 px-3 text-blue-700 text-sm rounded-lg hover:bg-blue-100 transition-colors flex-shrink-0"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-2xl font-mono font-bold text-blue-900 tabular-nums">
-                {formatDuration(elapsed)}
-              </span>
-              <button
-                onClick={handleStopTimer}
-                className="h-9 px-4 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1.5"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="6" y="6" width="12" height="12" rx="2" />
-                </svg>
-                Stop
-              </button>
-            </div>
+            )}
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          <div className="bg-card border border-border rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-foreground">{counts.all}</p>
-            <p className="text-xs text-muted-foreground mt-1">Total Tasks</p>
+        <div className="grid grid-cols-3 gap-2 mb-5">
+          <div className="bg-card border border-border rounded-xl p-3 text-center">
+            <p className="text-xl font-bold text-foreground">{counts.all}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Total Tasks</p>
           </div>
-          <div className="bg-card border border-border rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-blue-600">{counts.in_progress}</p>
-            <p className="text-xs text-muted-foreground mt-1">In Progress</p>
+          <div className="bg-card border border-border rounded-xl p-3 text-center">
+            <p className="text-xl font-bold text-blue-600">{counts.in_progress}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">In Progress</p>
           </div>
-          <div className="bg-card border border-border rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-foreground">{formatDuration(totalTimeToday() + (runningEntry ? elapsed : 0))}</p>
-            <p className="text-xs text-muted-foreground mt-1">Today</p>
+          <div className="bg-card border border-border rounded-xl p-3 text-center">
+            <p className="text-xl font-bold text-foreground tabular-nums">{formatDuration(totalTimeToday() + (runningEntry ? elapsed : 0))}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Today</p>
           </div>
         </div>
 
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground">My Tasks</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-foreground">My Tasks</h2>
           <button onClick={() => loadData()} className="text-xs text-primary font-medium hover:underline">Refresh</button>
         </div>
 
-        <div className="flex gap-1 mb-4 bg-secondary rounded-lg p-1">
-          {(["all", "pending", "in_progress", "done"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`flex-1 h-8 rounded-md text-xs font-medium capitalize transition-all ${
-                filter === f ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {f === "in_progress" ? "In Progress" : f} ({counts[f]})
-            </button>
-          ))}
+        <div className="overflow-x-auto -mx-4 px-4 mb-4">
+          <div className="flex gap-1 bg-secondary rounded-lg p-1 min-w-max w-full">
+            {(["all", "pending", "in_progress", "done"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`flex-1 h-8 rounded-md text-xs font-medium whitespace-nowrap px-2 transition-all ${
+                  filter === f ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {f === "in_progress" ? "In Progress" : f.charAt(0).toUpperCase() + f.slice(1)} ({counts[f]})
+              </button>
+            ))}
+          </div>
         </div>
 
         {filteredTasks.length === 0 ? (
@@ -388,9 +463,9 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                   isRunning ? "border-blue-300 ring-1 ring-blue-100" : overdue ? "border-red-200" : "border-border"
                 }`}>
                   <div className="p-4">
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2 mb-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${pColor.bg} ${pColor.text}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${pColor.dot}`} />
                             {task.priority}
@@ -407,7 +482,7 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                             </span>
                           )}
                         </div>
-                        <h3 className={`text-sm font-medium text-foreground ${task.status === "done" ? "line-through opacity-60" : ""}`}>
+                        <h3 className={`text-sm font-medium text-foreground leading-snug ${task.status === "done" ? "line-through opacity-60" : ""}`}>
                           {task.title}
                         </h3>
                         {task.description && (
@@ -416,12 +491,12 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-border">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <select
                           value={task.status}
                           onChange={(e) => handleStatusChange(task.id, e.target.value)}
-                          className="h-7 px-2 rounded-md border border-input bg-background text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ring"
+                          className="h-8 px-2 rounded-md border border-input bg-background text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ring"
                         >
                           {STATUS_OPTIONS.map((s) => (
                             <option key={s.value} value={s.value}>{s.label}</option>
@@ -431,9 +506,9 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                           <button
                             onClick={() => handleStartTimer(task.id)}
                             disabled={!!runningEntry}
-                            className="h-7 px-3 bg-blue-500 text-white text-xs font-medium rounded-md hover:bg-blue-600 transition-colors disabled:opacity-40 flex items-center gap-1"
+                            className="h-8 px-3 bg-blue-500 text-white text-xs font-medium rounded-md hover:bg-blue-600 transition-colors disabled:opacity-40 flex items-center gap-1"
                           >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
                               <polygon points="5 3 19 12 5 21 5 3" />
                             </svg>
                             Start
@@ -442,9 +517,9 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                         {isRunning && (
                           <button
                             onClick={handleStopTimer}
-                            className="h-7 px-3 bg-red-500 text-white text-xs font-medium rounded-md hover:bg-red-600 transition-colors flex items-center gap-1"
+                            className="h-8 px-3 bg-red-500 text-white text-xs font-medium rounded-md hover:bg-red-600 transition-colors flex items-center gap-1"
                           >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
                               <rect x="6" y="6" width="12" height="12" rx="2" />
                             </svg>
                             Stop
@@ -482,7 +557,7 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                             .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
                             .slice(0, 5)
                             .map((entry) => (
-                              <div key={entry.id} className="flex items-center justify-between text-xs">
+                              <div key={entry.id} className="flex items-center justify-between text-xs gap-2 flex-wrap">
                                 <span className="text-muted-foreground">
                                   {formatDate(entry.startedAt)} {formatTime(entry.startedAt)}
                                   {entry.stoppedAt ? ` — ${formatTime(entry.stoppedAt)}` : " (running)"}
@@ -502,7 +577,7 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                         <div className="space-y-2">
                           {(notes[task.id] || []).map((note) => (
                             <div key={note.id} className="bg-card rounded-lg p-3 border border-border">
-                              <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
                                 <span className="text-xs font-medium text-foreground">{note.authorName}</span>
                                 <span className="text-xs text-muted-foreground">{formatDate(note.createdAt)} {formatTime(note.createdAt)}</span>
                               </div>
@@ -519,12 +594,12 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                           value={noteText[task.id] || ""}
                           onChange={(e) => setNoteText((prev) => ({ ...prev, [task.id]: e.target.value }))}
                           onKeyDown={(e) => { if (e.key === "Enter") handleAddNote(task.id); }}
-                          className="flex-1 h-8 px-3 rounded-lg border border-input bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                          className="flex-1 min-w-0 h-9 px-3 rounded-lg border border-input bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                         />
                         <button
                           onClick={() => handleAddNote(task.id)}
                           disabled={!noteText[task.id]?.trim()}
-                          className="h-8 px-3 bg-primary text-primary-foreground text-xs font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-40"
+                          className="h-9 px-3 bg-primary text-primary-foreground text-xs font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-40 flex-shrink-0"
                         >
                           Send
                         </button>

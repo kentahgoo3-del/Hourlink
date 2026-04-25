@@ -635,6 +635,7 @@ router.patch(
       .trim()
       .toUpperCase();
     const { entryId } = req.params;
+    const { stoppedAt } = req.body || {};
 
     try {
       const ws = await store.getWorkspace(code);
@@ -644,7 +645,15 @@ router.patch(
         return;
       }
 
-      const entry = await store.stopTimeEntry(code, entryId);
+      let customStoppedAt: Date | undefined;
+      if (stoppedAt) {
+        const d = new Date(stoppedAt);
+        if (!isNaN(d.getTime())) {
+          customStoppedAt = d;
+        }
+      }
+
+      const entry = await store.stopTimeEntry(code, entryId, customStoppedAt);
 
       if (!entry) {
         res.status(404).json({ error: "Entry not found or already stopped" });
