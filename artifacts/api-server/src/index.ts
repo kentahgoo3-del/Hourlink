@@ -69,6 +69,10 @@ async function initDB() {
   `);
 
   await pool.query(`
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS client_ref TEXT NOT NULL DEFAULT '';
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS time_entries (
       id TEXT PRIMARY KEY,
       workspace_code TEXT NOT NULL REFERENCES workspaces(code) ON DELETE CASCADE,

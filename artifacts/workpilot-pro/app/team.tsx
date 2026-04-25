@@ -66,7 +66,7 @@ function formatDuration(seconds: number): string {
 export default function TeamScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { settings, tasks: appTasks, addTask } = useApp();
+  const { settings, tasks: appTasks, addTask, clients } = useApp();
 
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
   const [isOwner, setIsOwner] = useState(false);
@@ -99,6 +99,7 @@ export default function TeamScreen() {
     "low" | "medium" | "high"
   >("medium");
   const [delegateToEmail, setDelegateToEmail] = useState("");
+  const [delegateClientRef, setDelegateClientRef] = useState("");
   const [delegateFromApp, setDelegateFromApp] = useState(false);
   const [selectedAppTask, setSelectedAppTask] = useState<string | null>(null);
   const [copiedEmail, setCopiedEmail] = useState("");
@@ -290,6 +291,7 @@ export default function TeamScreen() {
         priority: delegatePriority,
         fromUser: settings.name || "Owner",
         assignedTo: delegateToEmail || undefined,
+        clientRef: delegateClientRef.trim() || undefined,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setShowDelegate(false);
@@ -297,6 +299,7 @@ export default function TeamScreen() {
       setDelegateDesc("");
       setDelegatePriority("medium");
       setDelegateToEmail("");
+      setDelegateClientRef("");
       setDelegateFromApp(false);
       setSelectedAppTask(null);
       Alert.alert(
@@ -1272,6 +1275,23 @@ export default function TeamScreen() {
                             {task.description}
                           </Text>
                         ) : null}
+                        {task.clientRef ? (
+                          <View style={styles.clientRefRow}>
+                            <AppIcon
+                              name="person"
+                              size={11}
+                              color={colors.primary}
+                            />
+                            <Text
+                              style={[
+                                styles.clientRefText,
+                                { color: colors.primary },
+                              ]}
+                            >
+                              {task.clientRef}
+                            </Text>
+                          </View>
+                        ) : null}
                         <View
                           style={[
                             styles.teamTaskFooter,
@@ -1785,6 +1805,7 @@ export default function TeamScreen() {
           setShowDelegate(false);
           setDelegateFromApp(false);
           setSelectedAppTask(null);
+          setDelegateClientRef("");
         }}
         title={
           delegateFromApp
@@ -1893,6 +1914,67 @@ export default function TeamScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {isOwner && clients.length > 0 && (
+              <>
+                <Text
+                  style={[styles.prioLabel, { color: colors.mutedForeground }]}
+                >
+                  Client (for your reference)
+                </Text>
+                <View style={[styles.prioRow, { flexWrap: "wrap" }]}>
+                  <TouchableOpacity
+                    style={[
+                      styles.prioChip,
+                      {
+                        backgroundColor: !delegateClientRef
+                          ? colors.primary
+                          : colors.muted,
+                      },
+                    ]}
+                    onPress={() => setDelegateClientRef("")}
+                  >
+                    <Text
+                      style={[
+                        styles.prioChipText,
+                        { color: !delegateClientRef ? "#fff" : colors.foreground },
+                      ]}
+                    >
+                      None
+                    </Text>
+                  </TouchableOpacity>
+                  {clients.map((c) => (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[
+                        styles.prioChip,
+                        {
+                          backgroundColor:
+                            delegateClientRef === c.name
+                              ? colors.primary
+                              : colors.muted,
+                        },
+                      ]}
+                      onPress={() => setDelegateClientRef(c.name)}
+                    >
+                      <Text
+                        style={[
+                          styles.prioChipText,
+                          {
+                            color:
+                              delegateClientRef === c.name
+                                ? "#fff"
+                                : colors.foreground,
+                          },
+                        ]}
+                      >
+                        {c.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
 
             {isOwner && teamMembers.length > 0 && (
               <>
@@ -2261,6 +2343,8 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     marginTop: 4,
   },
+  clientRefRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 5, marginBottom: 2 },
+  clientRefText: { fontSize: 11, fontFamily: "Inter_500Medium" },
   assignedTo: { flexDirection: "row", alignItems: "center", gap: 6 },
   miniAvatar: {
     width: 22,

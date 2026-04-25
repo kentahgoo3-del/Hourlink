@@ -293,6 +293,7 @@ router.post("/workspaces/:code/tasks", async (req, res) => {
     assignedTo,
     dueDate,
     source,
+    clientRef,
   } = req.body;
 
   if (!title || !fromUser) {
@@ -328,6 +329,7 @@ router.post("/workspaces/:code/tasks", async (req, res) => {
         .toLowerCase(),
       dueDate: dueDate ? String(dueDate) : null,
       source: validSources.includes(source) ? source : "client",
+      clientRef: String(clientRef || "").trim(),
     });
 
     if (!task) {

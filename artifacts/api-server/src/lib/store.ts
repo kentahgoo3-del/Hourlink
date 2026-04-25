@@ -42,6 +42,7 @@ export type SharedTask = {
   claimed: boolean;
   status: "pending" | "in_progress" | "done";
   source: "client" | "freelancer" | "team";
+  clientRef: string;
 };
 
 export type TimeEntry = {
@@ -507,7 +508,7 @@ export const store = {
 
   async addTask(
     code: string,
-    task: Omit<SharedTask, "id" | "sentAt" | "claimed" | "status">,
+    task: Omit<SharedTask, "id" | "sentAt" | "claimed" | "status"> & { clientRef?: string },
   ): Promise<SharedTask | null> {
     const normalizedCode = code.toUpperCase();
 
@@ -526,12 +527,12 @@ export const store = {
       `INSERT INTO tasks (
         id, workspace_code, title, description, priority,
         from_user, from_email, for_email, assigned_to, due_date,
-        claimed, status, source
+        claimed, status, source, client_ref
       )
       VALUES (
         $1, $2, $3, $4, $5,
         $6, $7, $8, $9, $10,
-        FALSE, 'pending', $11
+        FALSE, 'pending', $11, $12
       )
       RETURNING
         id,
@@ -546,7 +547,8 @@ export const store = {
         sent_at AS "sentAt",
         claimed,
         status,
-        source`,
+        source,
+        client_ref AS "clientRef"`,
       [
         id,
         normalizedCode,
@@ -559,6 +561,7 @@ export const store = {
         task.assignedTo || "",
         task.dueDate || null,
         task.source || "client",
+        task.clientRef || "",
       ],
     );
 
@@ -582,7 +585,8 @@ export const store = {
          sent_at AS "sentAt",
          claimed,
          status,
-         source
+         source,
+         client_ref AS "clientRef"
        FROM tasks
        WHERE workspace_code = $1
        ORDER BY sent_at DESC`,
@@ -610,7 +614,8 @@ export const store = {
          sent_at AS "sentAt",
          claimed,
          status,
-         source
+         source,
+         client_ref AS "clientRef"
        FROM tasks
        WHERE workspace_code = $1
          AND (
@@ -642,7 +647,8 @@ export const store = {
          sent_at AS "sentAt",
          claimed,
          status,
-         source
+         source,
+         client_ref AS "clientRef"
        FROM tasks
        WHERE workspace_code = $1
          AND lower(assigned_to) = $2
@@ -670,7 +676,8 @@ export const store = {
          sent_at AS "sentAt",
          claimed,
          status,
-         source
+         source,
+         client_ref AS "clientRef"
        FROM tasks
        WHERE workspace_code = $1 AND claimed = FALSE
        ORDER BY sent_at DESC`,

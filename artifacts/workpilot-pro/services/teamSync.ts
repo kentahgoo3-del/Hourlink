@@ -23,6 +23,7 @@ export type SharedTask = {
   claimed: boolean;
   status: "pending" | "in_progress" | "done";
   source: "client" | "freelancer" | "team";
+  clientRef?: string;
 };
 
 export type TimeEntry = {
@@ -103,6 +104,7 @@ export const teamSync = {
       priority: string;
       fromUser: string;
       assignedTo?: string;
+      clientRef?: string;
     },
   ): Promise<SharedTask> {
     return request<SharedTask>(`/workspaces/${code}/tasks`, {
