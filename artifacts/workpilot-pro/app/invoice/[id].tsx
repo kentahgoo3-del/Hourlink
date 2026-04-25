@@ -210,10 +210,36 @@ export default function InvoiceDetailScreen() {
     finally { setExporting(false); }
   };
 
+  const [showMenu, setShowMenu] = useState(false);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+
+      {/* Top navigation bar */}
+      <View style={[styles.topBar, { paddingTop: topPadding + 8, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.topBarBtn}>
+          <AppIcon name="chevron-back" size={22} color={colors.foreground} />
+        </TouchableOpacity>
+        <Text style={[styles.topBarTitle, { color: colors.foreground }]} numberOfLines={1}>{invoice.invoiceNumber}</Text>
+        <View style={styles.topBarRight}>
+          <TouchableOpacity
+            style={[styles.pdfBtn, { backgroundColor: exporting ? colors.muted : colors.primary }]}
+            onPress={handleExportPDF}
+            disabled={exporting}
+          >
+            {exporting
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <AppIcon name="download-outline" size={14} color="#fff" />}
+            <Text style={styles.pdfBtnText}>{exporting ? "…" : "PDF"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowMenu(true)} style={[styles.topBarBtn, { backgroundColor: colors.muted }]}>
+            <AppIcon name="ellipsis-horizontal" size={18} color={colors.foreground} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView
-        contentContainerStyle={{ paddingTop: topPadding + 8, padding: 16, paddingBottom: botPadding + 100 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: botPadding + 32 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Invoice Document Card */}
@@ -376,56 +402,45 @@ export default function InvoiceDetailScreen() {
           </View>
         </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actions}>
-          {invoice.status === "draft" && (
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.primary }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); updateInvoice(id, { status: "sent" }); }}
-              testID="mark-sent-btn"
-            >
-              <AppIcon name="send" size={18} color="#fff" />
-              <Text style={styles.actionBtnText}>Mark as Sent</Text>
-            </TouchableOpacity>
-          )}
-          {(invoice.status === "sent" || invoice.status === "overdue") && (
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: "#10b981" }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); markInvoicePaid(id); }}
-              testID="mark-paid-btn"
-            >
-              <AppIcon name="checkmark-circle" size={18} color="#fff" />
-              <Text style={styles.actionBtnText}>Mark as Paid</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: exporting ? colors.muted : colors.primary }]}
-            onPress={handleExportPDF}
-            disabled={exporting}
-          >
-            {exporting ? <ActivityIndicator size="small" color="#fff" /> : <AppIcon name="download-outline" size={18} color="#fff" />}
-            <Text style={styles.actionBtnText}>{exporting ? "Generating PDF…" : "Export PDF"}</Text>
-          </TouchableOpacity>
-          <View style={styles.secondaryActions}>
-            <TouchableOpacity
-              style={[styles.secondaryBtn, { backgroundColor: colors.card, borderColor: colors.border, flex: 1 }]}
-              onPress={() => setShowEdit(true)}
-            >
-              <AppIcon name="pencil" size={16} color={colors.foreground} />
-              <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>Edit Notes</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.secondaryBtn, { backgroundColor: "#fef2f2", borderColor: "#fee2e2", flex: 1 }]}
-              onPress={handleDelete}
-            >
-              <AppIcon name="trash-outline" size={16} color="#ef4444" />
-              <Text style={[styles.secondaryBtnText, { color: "#ef4444" }]}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       </ScrollView>
 
-
+      {/* ⋯ Menu */}
+      <BottomSheet visible={showMenu} onClose={() => setShowMenu(false)} title="Invoice Options">
+        {invoice.status === "draft" && (
+          <TouchableOpacity
+            style={[styles.menuItem, { borderColor: colors.border }]}
+            onPress={() => { setShowMenu(false); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); updateInvoice(id, { status: "sent" }); }}
+            testID="mark-sent-btn"
+          >
+            <AppIcon name="send" size={18} color={colors.foreground} />
+            <Text style={[styles.menuItemText, { color: colors.foreground }]}>Mark as Sent</Text>
+          </TouchableOpacity>
+        )}
+        {(invoice.status === "sent" || invoice.status === "overdue") && (
+          <TouchableOpacity
+            style={[styles.menuItem, { borderColor: "#d1fae5", backgroundColor: "#f0fdf4" }]}
+            onPress={() => { setShowMenu(false); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); markInvoicePaid(id); }}
+            testID="mark-paid-btn"
+          >
+            <AppIcon name="checkmark-circle" size={18} color="#10b981" />
+            <Text style={[styles.menuItemText, { color: "#10b981" }]}>Mark as Paid</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={[styles.menuItem, { borderColor: colors.border }]}
+          onPress={() => { setShowMenu(false); setShowEdit(true); }}
+        >
+          <AppIcon name="pencil" size={18} color={colors.foreground} />
+          <Text style={[styles.menuItemText, { color: colors.foreground }]}>Edit Notes</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.menuItem, { borderColor: "#fee2e2", backgroundColor: "#fef2f2" }]}
+          onPress={() => { setShowMenu(false); handleDelete(); }}
+        >
+          <AppIcon name="trash-outline" size={18} color="#ef4444" />
+          <Text style={[styles.menuItemText, { color: "#ef4444" }]}>Delete Invoice</Text>
+        </TouchableOpacity>
+      </BottomSheet>
 
       {/* Edit Notes Sheet */}
       <BottomSheet visible={showEdit} onClose={() => setShowEdit(false)} title="Edit Invoice">
@@ -462,6 +477,17 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   notFound: { textAlign: "center", marginTop: 100, fontSize: 16 },
 
+  // Top nav bar
+  topBar: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1 },
+  topBarBtn: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  topBarTitle: { flex: 1, textAlign: "center", fontSize: 15, fontFamily: "Inter_700Bold", marginHorizontal: 8 },
+  topBarRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  pdfBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 9 },
+  pdfBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+
+  // Menu items
+  menuItem: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 10 },
+  menuItemText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 
   // Document Card
   docCard: {
@@ -532,12 +558,6 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 10, fontFamily: "Inter_400Regular" },
 
   // Actions
-  actions: { gap: 10 },
-  actionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 16 },
-  actionBtnText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
-
-  // Menu Items
-  secondaryActions: { flexDirection: "row", gap: 10 },
-  secondaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, borderWidth: 1, paddingVertical: 13 },
-  secondaryBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  actionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 14 },
+  actionBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
 });
