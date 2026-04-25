@@ -29,19 +29,23 @@ function formatDate(iso: string) {
 async function getLogoDataUri(logoUri?: string): Promise<string> {
   if (!logoUri) return "";
   try {
-    const ext = logoUri.split(".").pop()?.toLowerCase() || "png";
+    if (logoUri.startsWith("data:")) return logoUri;
+    const ext = logoUri.split(".").pop()?.split("?")[0]?.toLowerCase() || "png";
     const mimeMap: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp" };
     const mime = mimeMap[ext] || "image/png";
-    const base64 = await FileSystem.readAsStringAsync(logoUri, { encoding: FileSystem.EncodingType.Base64 });
+    const base64 = await FileSystem.readAsStringAsync(logoUri, { encoding: "base64" as any });
     return `data:${mime};base64,${base64}`;
   } catch { return ""; }
 }
+
+const ACCENT = "#8b5cf6";
 
 export default function QuoteDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { clients, quotes, updateQuote, deleteQuote, convertQuoteToInvoice, settings, companyProfile, startTimer } = useApp();
+
   const [showTimerPrompt, setShowTimerPrompt] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
@@ -65,36 +69,131 @@ export default function QuoteDetailScreen() {
     );
   }
 
+  const companyName = companyProfile.name || settings.name || "Your Company";
+  const logoUri = (companyProfile as any).logoUri as string | undefined;
+  const fmt = (n: number) =>
+    `${settings.currency}${n.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   const handleDelete = () => setShowDeleteConfirm(true);
 
   const handleExportPDF = async () => {
     if (!quote) return;
     setExporting(true);
     try {
-      const logoDataUri = await getLogoDataUri((companyProfile as any).logoUri);
-      const logoHtml = logoDataUri ? `<img src="${logoDataUri}" style="max-height:100px;max-width:240px;object-fit:contain;display:block;margin-bottom:12px;" alt="logo"/>` : "";
-      const cName = companyProfile.name || settings.name || "Your Company";
-      const hasAddr = !!(companyProfile.addressLine1 || companyProfile.city || companyProfile.phone);
+      const logoDataUri = await getLogoDataUri(logoUri);
+      const logoHtml = logoDataUri
+        ? `<img src="${logoDataUri}" style="height:56px;max-width:180px;object-fit:contain;display:block;margin-bottom:0;" alt="logo"/>`
+        : `<div style="font-size:26px;font-weight:900;color:#1e293b;">${companyName}</div>`;
       const sub = quote.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
       const taxAmt = sub * (quote.taxPercent / 100);
       const tot = sub + taxAmt;
-      const fmt = (n: number) => `${settings.currency}${n.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      const itemRows = quote.items.map((item) => `<tr><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9">${item.description}<div style="font-size:11px;color:#94a3b8;margin-top:2px">${settings.currency}${item.unitPrice}/unit</div></td><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;text-align:center;color:#64748b">${item.quantity}</td><td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:600">${fmt(item.quantity * item.unitPrice)}</td></tr>`).join("");
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${quote.quoteNumber}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,Helvetica,Arial,sans-serif;color:#1e293b;background:#fff;padding:48px}th{background:#f1f5f9;padding:10px 14px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px}table{width:100%;border-collapse:collapse}tr:last-child td{border-bottom:none!important}</style></head><body>
-<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px;padding-bottom:24px;border-bottom:3px solid #8b5cf6">
-  <div>${logoHtml}<div style="font-size:24px;font-weight:800;color:#1e293b">${cName}</div>${companyProfile.tagline ? `<div style="font-size:13px;color:#64748b;margin-top:4px">${companyProfile.tagline}</div>` : ""}${hasAddr ? `<div style="font-size:12px;color:#94a3b8;margin-top:8px;line-height:1.6">${[companyProfile.addressLine1, companyProfile.city && companyProfile.province ? `${companyProfile.city}, ${companyProfile.province}` : companyProfile.city, companyProfile.phone, companyProfile.vatNumber ? `VAT: ${companyProfile.vatNumber}` : ""].filter(Boolean).join("<br/>")}</div>` : ""}</div>
-  <div style="text-align:right"><div style="font-size:28px;font-weight:800;color:#8b5cf6">QUOTATION</div><div style="font-size:16px;font-weight:600;margin-top:4px">${quote.quoteNumber}</div><div style="font-size:12px;color:#94a3b8;margin-top:8px">Date: ${formatDate(quote.createdAt)}</div><div style="font-size:12px;color:#94a3b8;margin-top:4px">Valid until: ${formatDate(quote.validUntil)}</div></div>
-</div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:36px">
-  <div><div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">QUOTED FOR</div><div style="font-size:15px;font-weight:700">${client?.name || "Client"}</div>${client?.company ? `<div style="color:#64748b;font-size:13px;margin-top:4px">${client.company}</div>` : ""}${client?.email ? `<div style="color:#64748b;font-size:13px;margin-top:2px">${client.email}</div>` : ""}</div>
-  <div style="text-align:right"><div style="display:inline-block;background:#f5f3ff;color:#8b5cf6;border:1px solid #8b5cf6;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">${quote.status}</div></div>
-</div>
-${quote.title ? `<div style="font-size:16px;font-weight:600;margin-bottom:16px">${quote.title}</div>` : ""}
-<table style="margin-bottom:24px"><thead><tr><th style="width:60%">Description</th><th style="text-align:center">Qty</th><th style="text-align:right">Amount</th></tr></thead><tbody>${itemRows}</tbody></table>
-<div style="display:flex;justify-content:flex-end;margin-bottom:24px"><div style="width:300px"><div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9"><span style="color:#64748b">Subtotal</span><span>${fmt(sub)}</span></div><div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9"><span style="color:#64748b">Tax (${quote.taxPercent}%)</span><span>${fmt(taxAmt)}</span></div><div style="display:flex;justify-content:space-between;padding:12px 0;border-top:2px solid #1e293b;margin-top:4px"><span style="font-weight:700;text-transform:uppercase;letter-spacing:.5px">TOTAL</span><span style="font-size:22px;font-weight:800;color:#8b5cf6">${fmt(tot)}</span></div></div></div>
-${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"><div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">NOTES</div><div style="font-size:13px;color:#64748b;line-height:1.6">${quote.notes}</div></div>` : ""}
-<div style="margin-top:48px;border-top:1px solid #e2e8f0;padding-top:16px;font-size:11px;color:#94a3b8;display:flex;justify-content:space-between"><span>${cName}</span><span>Generated by HourLink</span></div>
-</body></html>`;
+      const fmtP = (n: number) => `${settings.currency}${n.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const itemRows = quote.items.map((item) => `
+        <tr>
+          <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9">
+            <div style="font-size:13px;font-weight:600;color:#1e293b">${item.description}</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px">${settings.currency}${item.unitPrice.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}/unit</div>
+          </td>
+          <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;font-size:13px;color:#64748b">${item.quantity}</td>
+          <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:right;font-size:13px;font-weight:700;color:#1e293b">${fmtP(item.quantity * item.unitPrice)}</td>
+        </tr>`).join("");
+      const addrLines = [
+        companyProfile.addressLine1,
+        companyProfile.city && companyProfile.province ? `${companyProfile.city}, ${companyProfile.province}` : companyProfile.city,
+        companyProfile.phone,
+        companyProfile.email,
+        companyProfile.vatNumber ? `VAT: ${companyProfile.vatNumber}` : "",
+      ].filter(Boolean).join("<br/>");
+
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"/><title>${quote.quoteNumber}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,Helvetica Neue,Arial,sans-serif;color:#1e293b;background:#fff;padding:0}
+  .page{max-width:760px;margin:0 auto;padding:48px 48px 60px}
+  table{width:100%;border-collapse:collapse}
+  th{background:#f8fafc;padding:10px 16px;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.8px;font-weight:700;text-align:left}
+  th:nth-child(2){text-align:center}
+  th:nth-child(3){text-align:right}
+  tr:last-child td{border-bottom:none!important}
+</style></head>
+<body><div class="page">
+
+  <!-- Header -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:24px;border-bottom:2px solid #e2e8f0">
+    <div>
+      ${logoHtml}
+      ${logoDataUri ? `<div style="font-size:18px;font-weight:800;color:#1e293b;margin-top:10px">${companyName}</div>` : ""}
+      ${companyProfile.tagline ? `<div style="font-size:12px;color:#94a3b8;margin-top:3px">${companyProfile.tagline}</div>` : ""}
+      ${addrLines ? `<div style="font-size:11px;color:#94a3b8;margin-top:10px;line-height:1.7">${addrLines}</div>` : ""}
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:32px;font-weight:900;color:${ACCENT};letter-spacing:-1px">QUOTATION</div>
+      <div style="font-size:15px;font-weight:700;color:#1e293b;margin-top:4px">${quote.quoteNumber}</div>
+      <div style="display:inline-block;margin-top:8px;background:${ACCENT}18;color:${ACCENT};border:1px solid ${ACCENT}60;border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">${quote.status}</div>
+    </div>
+  </div>
+
+  <!-- Dates -->
+  <div style="display:flex;gap:40px;margin-bottom:28px">
+    <div><div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:5px">DATE</div><div style="font-size:13px;font-weight:600">${formatDate(quote.createdAt)}</div></div>
+    <div><div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:5px">VALID UNTIL</div><div style="font-size:13px;font-weight:600">${formatDate(quote.validUntil)}</div></div>
+  </div>
+
+  <!-- From / Quoted For -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;padding:20px 0;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;margin-bottom:28px">
+    <div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">FROM</div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px">${companyName}</div>
+      ${addrLines ? `<div style="font-size:12px;color:#64748b;line-height:1.7">${addrLines}</div>` : ""}
+    </div>
+    <div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">QUOTED FOR</div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px">${client?.name || "Client"}</div>
+      ${client?.company ? `<div style="font-size:12px;color:#64748b">${client.company}</div>` : ""}
+      ${client?.email ? `<div style="font-size:12px;color:#64748b">${client.email}</div>` : ""}
+      ${client?.phone ? `<div style="font-size:12px;color:#64748b">${client.phone}</div>` : ""}
+    </div>
+  </div>
+
+  ${quote.title ? `<div style="font-size:15px;font-weight:700;margin-bottom:16px">${quote.title}</div>` : ""}
+
+  <!-- Line Items -->
+  <table style="margin-bottom:24px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+    <thead><tr>
+      <th style="width:55%;border-radius:0">Description</th>
+      <th style="width:20%">Qty</th>
+      <th style="width:25%">Amount</th>
+    </tr></thead>
+    <tbody>${itemRows}</tbody>
+  </table>
+
+  <!-- Totals -->
+  <div style="display:flex;justify-content:flex-end;margin-bottom:28px">
+    <div style="width:280px">
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:13px;color:#64748b">Subtotal</span><span style="font-size:13px">${fmtP(sub)}</span></div>
+      ${quote.taxPercent > 0 ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:13px;color:#64748b">Tax (${quote.taxPercent}%)</span><span style="font-size:13px">${fmtP(taxAmt)}</span></div>` : ""}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;margin-top:4px;border-top:2px solid #1e293b">
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px">TOTAL</span>
+        <span style="font-size:24px;font-weight:900;color:${ACCENT}">${fmtP(tot)}</span>
+      </div>
+    </div>
+  </div>
+
+  ${quote.notes ? `
+  <div style="background:#f8fafc;border-radius:8px;padding:16px 20px;margin-bottom:16px">
+    <div style="font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">NOTES</div>
+    <div style="font-size:13px;color:#64748b;line-height:1.7">${quote.notes}</div>
+  </div>` : ""}
+
+  <!-- Footer -->
+  <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8">
+    <span>${companyName}</span>
+    <span>Generated by HourLink</span>
+  </div>
+
+</div></body></html>`;
+
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: quote.quoteNumber, UTI: "com.adobe.pdf" });
     } catch (e) { console.error("PDF error", e); }
@@ -129,133 +228,150 @@ ${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"
     router.replace({ pathname: "/invoice/[id]", params: { id: invoiceId } });
   };
 
-  const companyName = companyProfile.name || settings.name || "Your Company";
-  const hasCompanyInfo = !!(companyProfile.name || companyProfile.addressLine1 || companyProfile.phone);
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPadding + 16, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <AppIcon name="chevron-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={[styles.headerNum, { color: colors.foreground }]}>{quote.quoteNumber}</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: exporting ? colors.muted : "#8b5cf6" }]}
-            onPress={handleExportPDF}
-            disabled={exporting}
-          >
-            {exporting
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <AppIcon name="download-outline" size={15} color="#fff" />}
-            <Text style={styles.exportBtnText}>{exporting ? "…" : "PDF"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleDelete}>
-            <AppIcon name="trash-outline" size={20} color="#ef4444" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <ScrollView
+        contentContainerStyle={{ paddingTop: topPadding + 8, padding: 16, paddingBottom: botPadding + 100 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Quote Document Card */}
+        <View style={[styles.docCard, { backgroundColor: "#fff", borderColor: colors.border, shadowColor: "#000" }]}>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: botPadding + 100 }} showsVerticalScrollIndicator={false}>
-        <View style={styles.statusRow}>
-          <StatusBadge status={quote.status} large />
-          <Text style={[styles.validUntil, { color: colors.mutedForeground }]}>Valid until {formatDate(quote.validUntil)}</Text>
-        </View>
-
-        <View style={[styles.docCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.companyHeader, { borderBottomColor: colors.border, backgroundColor: colors.primary + "0a" }]}>
-            {(companyProfile as any).logoUri && (
-              <Image source={{ uri: (companyProfile as any).logoUri }} style={styles.companyLogo} resizeMode="contain" />
-            )}
-            <View style={styles.companyInfo}>
-              <Text style={[styles.companyName, { color: colors.foreground }]}>{companyName}</Text>
-              {companyProfile.tagline ? <Text style={[styles.companySub, { color: colors.mutedForeground }]}>{companyProfile.tagline}</Text> : null}
+          {/* Brand Header */}
+          <View style={[styles.brandHeader, { borderBottomColor: colors.border }]}>
+            <View style={styles.brandLeft}>
+              {logoUri ? (
+                <Image source={{ uri: logoUri }} style={styles.logo} resizeMode="contain" />
+              ) : null}
+              <View style={{ marginTop: logoUri ? 10 : 0 }}>
+                <Text style={styles.companyName}>{companyName}</Text>
+                {companyProfile.tagline ? (
+                  <Text style={styles.companyTagline}>{companyProfile.tagline}</Text>
+                ) : null}
+                {companyProfile.addressLine1 ? <Text style={styles.companyAddr}>{companyProfile.addressLine1}</Text> : null}
+                {companyProfile.city ? (
+                  <Text style={styles.companyAddr}>{companyProfile.city}{companyProfile.province ? `, ${companyProfile.province}` : ""}</Text>
+                ) : null}
+                {companyProfile.phone ? <Text style={styles.companyAddr}>{companyProfile.phone}</Text> : null}
+                {companyProfile.email ? <Text style={styles.companyAddr}>{companyProfile.email}</Text> : null}
+                {companyProfile.vatNumber ? <Text style={styles.companyAddr}>VAT: {companyProfile.vatNumber}</Text> : null}
+              </View>
+            </View>
+            <View style={styles.brandRight}>
+              <Text style={[styles.quoteWord, { color: ACCENT }]}>QUOTATION</Text>
+              <Text style={styles.quoteNum}>{quote.quoteNumber}</Text>
+              <StatusBadge status={quote.status} large />
             </View>
           </View>
 
-          <View style={{ padding: 20 }}>
-            <View style={styles.metaRow}>
+          <View style={styles.docBody}>
+            {/* Dates */}
+            <View style={styles.datesRow}>
               <View>
-                <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>QUOTATION</Text>
-                <Text style={[styles.metaValue, { color: colors.foreground }]}>{quote.quoteNumber}</Text>
+                <Text style={styles.metaLabel}>DATE</Text>
+                <Text style={styles.metaValue}>{formatDate(quote.createdAt)}</Text>
               </View>
               <View style={{ alignItems: "flex-end" }}>
-                <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>DATE</Text>
-                <Text style={[styles.metaValue, { color: colors.foreground }]}>{formatDate(quote.createdAt)}</Text>
+                <Text style={styles.metaLabel}>VALID UNTIL</Text>
+                <Text style={styles.metaValue}>{formatDate(quote.validUntil)}</Text>
               </View>
             </View>
 
-            <View style={[styles.fromTo, { borderTopColor: colors.border }]}>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            {/* From / Quoted For */}
+            <View style={styles.fromTo}>
               <View style={styles.fromBlock}>
-                <Text style={[styles.fromLabel, { color: colors.mutedForeground }]}>FROM</Text>
-                <Text style={[styles.fromName, { color: colors.foreground }]}>{companyName}</Text>
-                {hasCompanyInfo && (
-                  <>
-                    {companyProfile.addressLine1 ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{companyProfile.addressLine1}</Text> : null}
-                    {companyProfile.city ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{companyProfile.city}, {companyProfile.province}</Text> : null}
-                    {companyProfile.phone ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{companyProfile.phone}</Text> : null}
-                    {companyProfile.vatNumber ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>VAT: {companyProfile.vatNumber}</Text> : null}
-                  </>
-                )}
+                <Text style={styles.metaLabel}>FROM</Text>
+                <Text style={styles.fromName}>{companyName}</Text>
               </View>
-              <View style={styles.fromBlock}>
-                <Text style={[styles.fromLabel, { color: colors.mutedForeground }]}>QUOTED FOR</Text>
-                <Text style={[styles.fromName, { color: colors.foreground }]}>{client?.name || "Client"}</Text>
-                {client?.company ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{client.company}</Text> : null}
-                {client?.email ? <Text style={[styles.fromAddr, { color: colors.mutedForeground }]}>{client.email}</Text> : null}
+              <View style={[styles.fromBlock, { alignItems: "flex-end" }]}>
+                <Text style={styles.metaLabel}>QUOTED FOR</Text>
+                <Text style={[styles.fromName, { textAlign: "right" }]}>{client?.name || "Client"}</Text>
+                {client?.company ? <Text style={[styles.fromAddr, { textAlign: "right" }]}>{client.company}</Text> : null}
+                {client?.email ? <Text style={[styles.fromAddr, { textAlign: "right" }]}>{client.email}</Text> : null}
+                {client?.phone ? <Text style={[styles.fromAddr, { textAlign: "right" }]}>{client.phone}</Text> : null}
               </View>
             </View>
 
-            {quote.title ? <Text style={[styles.docTitle, { color: colors.foreground }]}>{quote.title}</Text> : null}
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
+            {/* Title */}
+            {quote.title ? <Text style={styles.docTitle}>{quote.title}</Text> : null}
+
+            {/* Line Items */}
             <View style={[styles.lineTable, { borderColor: colors.border }]}>
               <View style={[styles.lineHeader, { backgroundColor: colors.muted }]}>
-                <Text style={[styles.lineHeaderText, { color: colors.mutedForeground, flex: 3 }]}>Description</Text>
-                <Text style={[styles.lineHeaderText, { color: colors.mutedForeground, flex: 1, textAlign: "center" }]}>Qty</Text>
-                <Text style={[styles.lineHeaderText, { color: colors.mutedForeground, flex: 1.5, textAlign: "right" }]}>Amount</Text>
+                <Text style={[styles.lineHeaderText, { flex: 3 }]}>Description</Text>
+                <Text style={[styles.lineHeaderText, { flex: 1, textAlign: "center" }]}>Qty</Text>
+                <Text style={[styles.lineHeaderText, { flex: 1.5, textAlign: "right" }]}>Amount</Text>
               </View>
               {quote.items.map((item, idx) => (
-                <View key={item.id} style={[styles.lineRow, idx < quote.items.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+                <View
+                  key={item.id}
+                  style={[
+                    styles.lineRow,
+                    { borderTopColor: colors.border },
+                    idx > 0 && { borderTopWidth: 1 },
+                  ]}
+                >
                   <View style={{ flex: 3 }}>
-                    <Text style={[styles.lineDesc, { color: colors.foreground }]}>{item.description}</Text>
-                    <Text style={[styles.lineSub, { color: colors.mutedForeground }]}>{settings.currency}{item.unitPrice}/unit</Text>
+                    <Text style={styles.lineDesc}>{item.description}</Text>
+                    <Text style={[styles.lineSub, { color: colors.mutedForeground }]}>
+                      {settings.currency}{item.unitPrice.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}/unit
+                    </Text>
                   </View>
-                  <Text style={[{ flex: 1, textAlign: "center", fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{item.quantity}</Text>
-                  <Text style={[{ flex: 1.5, textAlign: "right", fontSize: 13, color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                    {settings.currency}{(item.quantity * item.unitPrice).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <Text style={[styles.lineQty, { flex: 1, textAlign: "center", color: colors.mutedForeground }]}>
+                    {item.quantity}
+                  </Text>
+                  <Text style={[styles.lineAmt, { flex: 1.5, textAlign: "right" }]}>
+                    {fmt(item.quantity * item.unitPrice)}
                   </Text>
                 </View>
               ))}
             </View>
 
-            <View style={styles.totalsBlock}>
-              <View style={styles.totalRow}>
-                <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Subtotal</Text>
-                <Text style={[styles.totalValue, { color: colors.foreground }]}>{settings.currency}{subtotal.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
-              </View>
-              <View style={styles.totalRow}>
-                <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Tax ({quote.taxPercent}%)</Text>
-                <Text style={[styles.totalValue, { color: colors.foreground }]}>{settings.currency}{tax.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
-              </View>
-              <View style={[styles.totalRow, styles.grandRow, { borderTopColor: colors.border }]}>
-                <Text style={[styles.grandLabel, { color: colors.foreground }]}>TOTAL</Text>
-                <Text style={[styles.grandAmount, { color: colors.primary }]}>{settings.currency}{total.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+            {/* Totals */}
+            <View style={styles.totalsOuter}>
+              <View style={[styles.totalsBox, { borderTopColor: colors.border }]}>
+                <View style={styles.totalRow}>
+                  <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Subtotal</Text>
+                  <Text style={styles.totalValue}>{fmt(subtotal)}</Text>
+                </View>
+                {quote.taxPercent > 0 && (
+                  <View style={styles.totalRow}>
+                    <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Tax ({quote.taxPercent}%)</Text>
+                    <Text style={styles.totalValue}>{fmt(tax)}</Text>
+                  </View>
+                )}
+                <View style={[styles.grandRow, { borderTopColor: colors.border }]}>
+                  <Text style={styles.grandLabel}>TOTAL</Text>
+                  <Text style={[styles.grandAmount, { color: ACCENT }]}>{fmt(total)}</Text>
+                </View>
               </View>
             </View>
 
+            {/* Notes */}
             {quote.notes ? (
-              <View style={[styles.notesBlock, { borderTopColor: colors.border }]}>
-                <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>NOTES</Text>
+              <View style={[styles.notesBlock, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                <Text style={[styles.metaLabel, { marginBottom: 6 }]}>NOTES</Text>
                 <Text style={[styles.notesText, { color: colors.mutedForeground }]}>{quote.notes}</Text>
               </View>
             ) : null}
+
+            {/* Footer */}
+            <View style={[styles.docFooter, { borderTopColor: colors.border }]}>
+              <Text style={[styles.footerText, { color: colors.mutedForeground }]}>{companyName}</Text>
+              <Text style={[styles.footerText, { color: colors.mutedForeground }]}>Generated by HourLink</Text>
+            </View>
           </View>
         </View>
 
+        {/* Action Buttons */}
         <View style={styles.actions}>
           {quote.status === "draft" && (
             <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.primary }]}
+              style={[styles.actionBtn, { backgroundColor: ACCENT }]}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); updateQuote(id, { status: "sent" }); }}
               testID="mark-quote-sent"
             >
@@ -284,7 +400,7 @@ ${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"
           )}
           {quote.status === "accepted" && (
             <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.primary }]}
+              style={[styles.actionBtn, { backgroundColor: ACCENT }]}
               onPress={handleConvert}
               testID="convert-to-invoice"
             >
@@ -294,6 +410,26 @@ ${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"
           )}
         </View>
       </ScrollView>
+
+      {/* Floating nav overlay */}
+      <View style={[styles.floatingNav, { top: topPadding + 4 }]} pointerEvents="box-none">
+        <TouchableOpacity onPress={() => router.back()} style={[styles.floatingBtn, { backgroundColor: colors.card + "ee" }]}>
+          <AppIcon name="chevron-back" size={22} color={colors.foreground} />
+        </TouchableOpacity>
+        <View style={styles.floatingRight}>
+          <TouchableOpacity
+            style={[styles.exportBtn, { backgroundColor: exporting ? colors.muted : ACCENT }]}
+            onPress={handleExportPDF}
+            disabled={exporting}
+          >
+            {exporting ? <ActivityIndicator size="small" color="#fff" /> : <AppIcon name="download-outline" size={13} color="#fff" />}
+            <Text style={styles.exportBtnText}>{exporting ? "…" : "PDF"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleDelete} style={[styles.floatingBtn, { backgroundColor: "#fef2f2ee" }]}>
+            <AppIcon name="trash-outline" size={18} color="#ef4444" />
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <ConfirmDialog
         visible={showDeleteConfirm}
@@ -348,6 +484,87 @@ ${quote.notes ? `<div style="background:#f8fafc;border-radius:10px;padding:16px"
 const styles = StyleSheet.create({
   container: { flex: 1 },
   notFound: { textAlign: "center", marginTop: 100, fontSize: 16 },
+
+  // Floating nav
+  floatingNav: { position: "absolute", left: 12, right: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  floatingRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  floatingBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  exportBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
+  exportBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+
+  // Document Card
+  docCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: 16,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+
+  // Brand Header
+  brandHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", padding: 20, borderBottomWidth: 1 },
+  brandLeft: { flex: 1, paddingRight: 16 },
+  logo: { height: 52, width: 160, marginBottom: 8 },
+  companyName: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1e293b" },
+  companyTagline: { fontSize: 11, color: "#94a3b8", marginTop: 2, fontFamily: "Inter_400Regular" },
+  companyAddr: { fontSize: 10, color: "#94a3b8", marginTop: 1, fontFamily: "Inter_400Regular", lineHeight: 15 },
+  brandRight: { alignItems: "flex-end" },
+  quoteWord: { fontSize: 18, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
+  quoteNum: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1e293b", marginTop: 2, marginBottom: 6 },
+
+  // Body
+  docBody: { padding: 20 },
+  datesRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
+  metaLabel: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.8, textTransform: "uppercase", color: "#94a3b8", marginBottom: 4 },
+  metaValue: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1e293b" },
+  divider: { height: 1, marginBottom: 16 },
+
+  // From/To
+  fromTo: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
+  fromBlock: { flex: 1 },
+  fromName: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1e293b", marginBottom: 3 },
+  fromAddr: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#64748b", lineHeight: 17 },
+
+  docTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1e293b", marginBottom: 14 },
+
+  // Line Items
+  lineTable: { borderWidth: 1, borderRadius: 10, overflow: "hidden", marginBottom: 16 },
+  lineHeader: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 9 },
+  lineHeaderText: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.6, textTransform: "uppercase", color: "#94a3b8" },
+  lineRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 12 },
+  lineDesc: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1e293b" },
+  lineSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  lineQty: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  lineAmt: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1e293b" },
+
+  // Totals
+  totalsOuter: { alignItems: "flex-end", marginBottom: 16 },
+  totalsBox: { width: "55%", borderTopWidth: 1, paddingTop: 8 },
+  totalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
+  totalLabel: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  totalValue: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#1e293b" },
+  grandRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: 2, paddingTop: 10, marginTop: 4 },
+  grandLabel: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.8, textTransform: "uppercase", color: "#1e293b" },
+  grandAmount: { fontSize: 22, fontFamily: "Inter_700Bold" },
+
+  // Notes
+  notesBlock: { borderRadius: 10, padding: 14, marginBottom: 12, borderWidth: 1 },
+  notesText: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 19 },
+
+  // Doc Footer
+  docFooter: { flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, paddingTop: 14, marginTop: 4 },
+  footerText: { fontSize: 10, fontFamily: "Inter_400Regular" },
+
+  // Actions
+  actions: { gap: 10 },
+  sentActions: { flexDirection: "row", gap: 10 },
+  actionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 16 },
+  actionBtnText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
+
+  // Modal
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 32 },
   modalCard: { width: "100%", borderRadius: 20, borderWidth: 1, padding: 28, alignItems: "center", gap: 10 },
   modalIconWrap: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center", marginBottom: 4 },
@@ -357,47 +574,4 @@ const styles = StyleSheet.create({
   modalPrimaryBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
   modalSecondaryBtn: { width: "100%", borderRadius: 14, borderWidth: 1, paddingVertical: 12, alignItems: "center" },
   modalSecondaryBtnText: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
-  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerNum: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
-  exportBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  exportBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  statusRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  validUntil: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  docCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden", marginBottom: 20 },
-  companyHeader: { padding: 20, borderBottomWidth: 1, gap: 10 },
-  companyLogo: { width: "100%" as any, height: 140 },
-  companyInfo: { flex: 1 },
-  companyName: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  companySub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  metaRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
-  metaLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase" },
-  metaValue: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginTop: 4 },
-  fromTo: { flexDirection: "row", gap: 20, borderTopWidth: 1, paddingTop: 20, marginBottom: 20 },
-  fromBlock: { flex: 1 },
-  fromLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 },
-  fromName: { fontSize: 14, fontFamily: "Inter_700Bold", marginBottom: 4 },
-  fromAddr: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2, lineHeight: 18 },
-  docTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 16 },
-  lineTable: { borderWidth: 1, borderRadius: 10, overflow: "hidden", marginBottom: 16 },
-  lineHeader: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 10 },
-  lineHeaderText: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, textTransform: "uppercase" },
-  lineRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 12 },
-  lineDesc: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  lineSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
-  totalsBlock: { alignItems: "flex-end", gap: 6, marginBottom: 16 },
-  totalRow: { flexDirection: "row", justifyContent: "space-between", width: "55%" },
-  totalLabel: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  totalValue: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  grandRow: { borderTopWidth: 1, paddingTop: 10, marginTop: 4, width: "100%" },
-  grandLabel: { fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 0.5, textTransform: "uppercase" },
-  grandAmount: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  notesBlock: { borderTopWidth: 1, paddingTop: 16 },
-  notesLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 },
-  notesText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
-  actions: { gap: 10 },
-  sentActions: { flexDirection: "row", gap: 10 },
-  actionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 16 },
-  actionBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

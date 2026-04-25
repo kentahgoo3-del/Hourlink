@@ -1,4 +1,5 @@
 import { AppIcon } from "@/components/AppIcon";
+import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -64,7 +65,15 @@ export default function SettingsScreen() {
       allowsEditing: true, aspect: [3, 1], quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      updateCompanyProfile({ logoUri: result.assets[0].uri } as any);
+      const asset = result.assets[0];
+      try {
+        const ext = (asset.uri.split(".").pop()?.split("?")[0] || "jpg").toLowerCase();
+        const destUri = `${FileSystem.documentDirectory}company_logo.${ext}`;
+        await FileSystem.copyAsync({ from: asset.uri, to: destUri });
+        updateCompanyProfile({ logoUri: destUri } as any);
+      } catch {
+        updateCompanyProfile({ logoUri: asset.uri } as any);
+      }
     }
   };
 

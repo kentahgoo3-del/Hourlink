@@ -213,31 +213,8 @@ export default function InvoiceDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Navigation Header */}
-      <View style={[styles.header, { paddingTop: topPadding + 12, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <AppIcon name="chevron-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={[styles.headerNum, { color: colors.foreground }]}>{invoice.invoiceNumber}</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: exporting ? colors.muted : colors.primary }]}
-            onPress={handleExportPDF}
-            disabled={exporting}
-          >
-            {exporting
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <AppIcon name="arrow-down-tray" size={14} color="#fff" />}
-            <Text style={styles.exportBtnText}>{exporting ? "…" : "PDF"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowMenu(true)} style={[styles.menuBtn, { backgroundColor: colors.muted }]}>
-            <AppIcon name="ellipsis-horizontal" size={18} color={colors.foreground} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: botPadding + 100 }}
+        contentContainerStyle={{ paddingTop: topPadding + 8, padding: 16, paddingBottom: botPadding + 100 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Invoice Document Card */}
@@ -425,6 +402,26 @@ export default function InvoiceDetailScreen() {
         </View>
       </ScrollView>
 
+      {/* Floating nav overlay — sits on top of document, no background bar */}
+      <View style={[styles.floatingNav, { top: topPadding + 4 }]} pointerEvents="box-none">
+        <TouchableOpacity onPress={() => router.back()} style={[styles.floatingBtn, { backgroundColor: colors.card + "ee" }]}>
+          <AppIcon name="chevron-back" size={22} color={colors.foreground} />
+        </TouchableOpacity>
+        <View style={styles.floatingRight}>
+          <TouchableOpacity
+            style={[styles.exportBtn, { backgroundColor: exporting ? colors.muted : colors.primary }]}
+            onPress={handleExportPDF}
+            disabled={exporting}
+          >
+            {exporting ? <ActivityIndicator size="small" color="#fff" /> : <AppIcon name="download-outline" size={13} color="#fff" />}
+            <Text style={styles.exportBtnText}>{exporting ? "…" : "PDF"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowMenu(true)} style={[styles.floatingBtn, { backgroundColor: colors.card + "ee" }]}>
+            <AppIcon name="ellipsis-horizontal" size={18} color={colors.foreground} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* ⋯ Action Menu */}
       <BottomSheet visible={showMenu} onClose={() => setShowMenu(false)} title="Invoice Options">
         <TouchableOpacity
@@ -478,14 +475,12 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   notFound: { textAlign: "center", marginTop: 100, fontSize: 16 },
 
-  // Navigation
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
-  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerNum: { fontSize: 16, fontFamily: "Inter_700Bold", flex: 1, textAlign: "center" },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  // Floating nav overlay
+  floatingNav: { position: "absolute", left: 12, right: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  floatingRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  floatingBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   exportBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
   exportBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
-  menuBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10 },
 
   // Document Card
   docCard: {
