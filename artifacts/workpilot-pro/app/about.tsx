@@ -96,10 +96,10 @@ export default function AboutScreen() {
           </Text>
           <TouchableOpacity
             style={[styles.contactBtn, { backgroundColor: colors.primary }]}
-            onPress={() => Linking.openURL("mailto:support@hourlink.app")}
+            onPress={() => Linking.openURL("mailto:support@hour-link.com")}
           >
             <AppIcon name="mail-outline" size={16} color="#fff" />
-            <Text style={styles.contactBtnText}>support@hourlink.app</Text>
+            <Text style={styles.contactBtnText}>support@hour-link.com</Text>
           </TouchableOpacity>
         </View>
 

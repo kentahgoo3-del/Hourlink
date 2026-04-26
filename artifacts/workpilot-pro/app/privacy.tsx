@@ -78,7 +78,7 @@ Since we don't store your data on external servers, there is no account to delet
   },
   {
     title: "8. Contact Us",
-    body: "If you have any questions or concerns about this privacy policy or HourLink's data practices, please contact us at:\n\nsupport@hourlink.app",
+    body: "If you have any questions or concerns about this privacy policy or HourLink's data practices, please contact us at:\n\nsupport@hour-link.com",
   },
 ];
 
