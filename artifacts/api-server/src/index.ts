@@ -97,6 +97,16 @@ async function initDB() {
     );
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      id SERIAL PRIMARY KEY,
+      workspace_code TEXT NOT NULL REFERENCES workspaces(code) ON DELETE CASCADE,
+      token TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (workspace_code, token)
+    );
+  `);
+
   logger.info("DB initialized");
 }
 

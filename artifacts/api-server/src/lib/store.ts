@@ -979,4 +979,31 @@ export const store = {
 
     return result.rows;
   },
+
+  async savePushToken(code: string, token: string): Promise<void> {
+    const normalizedCode = code.toUpperCase();
+    await pool.query(
+      `INSERT INTO push_tokens (workspace_code, token)
+       VALUES ($1, $2)
+       ON CONFLICT (workspace_code, token) DO NOTHING`,
+      [normalizedCode, token],
+    );
+  },
+
+  async getPushTokens(code: string): Promise<string[]> {
+    const normalizedCode = code.toUpperCase();
+    const result = await pool.query(
+      `SELECT token FROM push_tokens WHERE workspace_code = $1`,
+      [normalizedCode],
+    );
+    return result.rows.map((r: { token: string }) => r.token);
+  },
+
+  async removePushToken(code: string, token: string): Promise<void> {
+    const normalizedCode = code.toUpperCase();
+    await pool.query(
+      `DELETE FROM push_tokens WHERE workspace_code = $1 AND token = $2`,
+      [normalizedCode, token],
+    );
+  },
 };

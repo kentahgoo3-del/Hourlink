@@ -3,6 +3,36 @@ import { store } from "../lib/store";
 
 const router = Router();
 
+async function sendPushNotifications(
+  tokens: string[],
+  title: string,
+  body: string,
+  data?: Record<string, string>,
+) {
+  if (tokens.length === 0) return;
+  try {
+    const messages = tokens.map((token) => ({
+      to: token,
+      sound: "default" as const,
+      title,
+      body,
+      data: data ?? {},
+      priority: "high" as const,
+    }));
+    await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "Accept-Encoding": "gzip, deflate",
+      },
+      body: JSON.stringify(messages),
+    });
+  } catch (err) {
+    console.error("Push notification send failed:", err);
+  }
+}
+
 router.post("/workspaces", async (req, res) => {
   const { ownerName } = req.body;
 
@@ -338,6 +368,18 @@ router.post("/workspaces/:code/tasks", async (req, res) => {
     }
 
     res.status(201).json(task);
+
+    if (source === "client" || source === "team") {
+      store.getPushTokens(code).then((tokens) => {
+        const senderName = String(fromUser || "Someone");
+        const notifTitle = "New Task Received";
+        const notifBody = `${senderName}: ${String(title)}`;
+        sendPushNotifications(tokens, notifTitle, notifBody, {
+          taskId: task.id,
+          workspaceCode: code,
+        }).catch(() => {});
+      }).catch(() => {});
+    }
   } catch (error) {
     console.error("addTask error:", error);
     res.status(500).json({ error: "Failed to add task" });
@@ -838,6 +880,42 @@ router.get("/workspaces/:code/notes", async (req, res) => {
   } catch (error) {
     console.error("getAllTaskNotes error:", error);
     res.status(500).json({ error: "Failed to get notes" });
+  }
+});
+
+router.post("/workspaces/:code/push-tokens", async (req, res) => {
+  const code = String(req.params.code || "").trim().toUpperCase();
+  const { token } = req.body || {};
+
+  if (!token || typeof token !== "string") {
+    res.status(400).json({ error: "token is required" });
+    return;
+  }
+
+  try {
+    const ws = await store.getWorkspace(code);
+    if (!ws) {
+      res.status(404).json({ error: "Workspace not found" });
+      return;
+    }
+    await store.savePushToken(code, token.trim());
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("savePushToken error:", error);
+    res.status(500).json({ error: "Failed to save push token" });
+  }
+});
+
+router.delete("/workspaces/:code/push-tokens/:token", async (req, res) => {
+  const code = String(req.params.code || "").trim().toUpperCase();
+  const token = decodeURIComponent(req.params.token || "");
+
+  try {
+    await store.removePushToken(code, token);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("removePushToken error:", error);
+    res.status(500).json({ error: "Failed to remove push token" });
   }
 });
 

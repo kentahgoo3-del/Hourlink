@@ -5,10 +5,13 @@ import {
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Font from "expo-font";
-import { Stack } from "expo-router";
+import * as Notifications from "expo-notifications";
+import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -16,6 +19,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { WelcomeProvider } from "@/context/WelcomeContext";
+import { registerPushToken } from "@/services/pushNotifications";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -37,6 +41,7 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
+  const notificationResponseListener = useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
     async function prepare() {
@@ -47,6 +52,14 @@ export default function RootLayout() {
           Inter_600SemiBold,
           Inter_700Bold,
         });
+
+        if (Platform.OS !== "web") {
+          const code = await AsyncStorage.getItem("teamWorkspaceCode");
+          const isOwner = await AsyncStorage.getItem("teamIsOwner");
+          if (code && isOwner === "true") {
+            registerPushToken(code).catch(() => {});
+          }
+        }
       } catch (e: any) {
         console.error('Font loading failed:', e?.message || e);
       } finally {
@@ -54,6 +67,17 @@ export default function RootLayout() {
       }
     }
     prepare();
+
+    if (Platform.OS !== "web") {
+      notificationResponseListener.current =
+        Notifications.addNotificationResponseReceivedListener(() => {
+          router.push("/team" as any);
+        });
+    }
+
+    return () => {
+      notificationResponseListener.current?.remove();
+    };
   }, []);
 
   const onLayoutRootView = useCallback(async () => {
