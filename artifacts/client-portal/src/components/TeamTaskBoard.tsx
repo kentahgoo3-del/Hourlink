@@ -262,7 +262,7 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <img src={`${import.meta.env.BASE_URL}hourlink_icon.png`} alt="HourLink" className="w-14 h-14 rounded-xl flex-shrink-0 object-contain" />
+            <img src={`${import.meta.env.BASE_URL}hourlink_icon.png`} alt="HourLink" className="w-[22px] h-[22px] rounded-md flex-shrink-0 object-contain" />
             <div className="min-w-0">
               <h1 className="text-sm font-semibold text-foreground leading-tight truncate">Team Portal</h1>
               <p className="text-xs text-muted-foreground truncate">{workspace.ownerName}'s workspace</p>
