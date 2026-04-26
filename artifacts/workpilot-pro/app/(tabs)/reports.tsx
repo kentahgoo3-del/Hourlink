@@ -565,8 +565,21 @@ ${insights.length > 0 ? `
 
 </body>
 </html>`;
-      const { uri } = await Print.printToFileAsync({ html, base64: false });
-      await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${bounds.label} Report`, UTI: "com.adobe.pdf" });
+      if (Platform.OS === "web") {
+        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const win = window.open(url, "_blank");
+        if (win) {
+          win.onload = () => {
+            win.focus();
+            win.print();
+          };
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } else {
+        const { uri } = await Print.printToFileAsync({ html, base64: false });
+        await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${bounds.label} Report`, UTI: "com.adobe.pdf" });
+      }
     } catch (e) {
       console.error("PDF export error", e);
     } finally {
