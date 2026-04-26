@@ -16,6 +16,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ClientBadge } from "@/components/ClientBadge";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useSubscription } from "@/lib/revenuecat";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 type Period = "week" | "month" | "quarter" | "year";
 
@@ -172,10 +174,13 @@ export default function ReportsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { clients, timeEntries, invoices, expenses, settings, tasks, companyProfile } = useApp();
+  const { isPro, isBusiness } = useSubscription();
 
   const [period, setPeriod] = useState<Period>("month");
   const [offset, setOffset] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [showPdfUpgrade, setShowPdfUpgrade] = useState(false);
+  const [showInsightsUpgrade, setShowInsightsUpgrade] = useState(false);
 
   const bounds = useMemo(() => getPeriodBounds(period, offset), [period, offset]);
   const prevBounds = useMemo(() => getPeriodBounds(period, offset - 1), [period, offset]);
@@ -308,6 +313,10 @@ export default function ReportsScreen() {
   const changePrefix = (pct: number) => pct >= 0 ? "+" : "";
 
   const handleExportPDF = async () => {
+    if (!isPro) {
+      setShowPdfUpgrade(true);
+      return;
+    }
     setExporting(true);
     try {
       const now = new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
@@ -640,12 +649,42 @@ ${insights.length > 0 ? `
         </TouchableOpacity>
       </View>
 
+      <UpgradeModal
+        visible={showPdfUpgrade}
+        onClose={() => setShowPdfUpgrade(false)}
+        title="PDF Export"
+        description="Export beautifully formatted PDF reports to share with clients or keep for your records. Requires Pro or Business."
+      />
+      <UpgradeModal
+        visible={showInsightsUpgrade}
+        onClose={() => setShowInsightsUpgrade(false)}
+        requiredPlan="business"
+        title="Smart Insights"
+        description="Smart Insights analyse your business performance automatically — trends, utilization, top clients and more. Requires Business plan."
+      />
+
       {/* Insights */}
-      {insights.length > 0 && (
+      {isBusiness && insights.length > 0 && (
         <>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Insights</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Smart Insights</Text>
           {insights.map((ins, idx) => <Insight key={idx} {...ins} />)}
         </>
+      )}
+      {!isBusiness && insights.length > 0 && (
+        <TouchableOpacity
+          style={[styles.insightGate, { backgroundColor: "#8b5cf620", borderColor: "#8b5cf640" }]}
+          onPress={() => setShowInsightsUpgrade(true)}
+          testID="insights-gate-btn"
+        >
+          <Text style={{ fontSize: 20 }}>🔒</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.insightGateTitle, { color: colors.foreground }]}>Smart Insights</Text>
+            <Text style={[styles.insightGateSub, { color: colors.mutedForeground }]}>
+              Unlock AI-powered business analytics with Business plan
+            </Text>
+          </View>
+          <AppIcon name="chevron-forward" size={16} color="#8b5cf6" />
+        </TouchableOpacity>
       )}
 
       {/* Summary Cards */}
@@ -819,6 +858,9 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", marginTop: 24, marginBottom: 12 },
   insight: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 8 },
   insightText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", lineHeight: 18 },
+  insightGate: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 8 },
+  insightGateTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 3 },
+  insightGateSub: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
   summaryGrid: { flexDirection: "row", gap: 10 },
   summaryCard: { flex: 1, borderRadius: 14, padding: 16 },
   summaryLabel: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.8)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },

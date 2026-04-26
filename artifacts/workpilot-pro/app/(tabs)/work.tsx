@@ -25,6 +25,8 @@ import { WheelPicker } from "@/components/WheelPicker";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import type { TimeEntry } from "@/context/AppContext";
+import { useSubscription } from "@/lib/revenuecat";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 function formatDuration(seconds: number) {
   const h = Math.floor(seconds / 3600);
@@ -114,6 +116,7 @@ export default function WorkScreen() {
     deleteTimeEntry, addInvoice, updateTimeEntry, settings, companyProfile,
     addTaskComment, getTaskComments, getEntryComments,
   } = useApp();
+  const { isPro, isBusiness } = useSubscription();
 
   const runningTimer = activeTimers.find((t) => !t.timerPaused) || null;
   const activeTimer = runningTimer; // keep local alias for alert/misc compat
@@ -122,6 +125,8 @@ export default function WorkScreen() {
   const [showQuickInvoice, setShowQuickInvoice] = useState(false);
   const [showEntrySheet, setShowEntrySheet] = useState(false);
   const [showBatchSheet, setShowBatchSheet] = useState(false);
+  const [showTimerUpgrade, setShowTimerUpgrade] = useState(false);
+  const [showBatchUpgrade, setShowBatchUpgrade] = useState(false);
   const [stoppedEntry, setStoppedEntry] = useState<TimeEntry | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<TimeEntry | null>(null);
   const [desc, setDesc] = useState("");
@@ -367,6 +372,11 @@ export default function WorkScreen() {
   };
 
   const handleStartTimer = () => {
+    if (!isPro && activeTimers.length >= 1) {
+      setShowStart(false);
+      setShowTimerUpgrade(true);
+      return;
+    }
     const client = clients.find((c) => c.id === selectedClientId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     startTimer({
@@ -394,11 +404,17 @@ export default function WorkScreen() {
           {unbilledByClient.length > 0 && (
             <TouchableOpacity
               style={[styles.batchBtn, { backgroundColor: colors.warning + "20", borderColor: colors.warning + "60" }]}
-              onPress={() => setShowBatchSheet(true)}
+              onPress={() => {
+                if (!isBusiness) {
+                  setShowBatchUpgrade(true);
+                } else {
+                  setShowBatchSheet(true);
+                }
+              }}
             >
               <AppIcon name="receipt-outline" size={14} color={colors.warning} />
               <Text style={[styles.batchBtnText, { color: colors.warning }]}>
-                Batch Invoice
+                Batch Invoice{!isBusiness ? " 🔒" : ""}
               </Text>
             </TouchableOpacity>
           )}
@@ -553,6 +569,21 @@ export default function WorkScreen() {
           )}
         />
       )}
+
+      <UpgradeModal
+        visible={showTimerUpgrade}
+        onClose={() => setShowTimerUpgrade(false)}
+        title="Multiple Timers"
+        description="Free plan supports 1 active timer at a time. Upgrade to Pro to run unlimited timers simultaneously."
+      />
+
+      <UpgradeModal
+        visible={showBatchUpgrade}
+        onClose={() => setShowBatchUpgrade(false)}
+        requiredPlan="business"
+        title="Batch Invoicing"
+        description="Batch invoicing is a Business feature. Upgrade to group all unbilled time for a client into a single invoice with one tap."
+      />
 
       {/* Timer Stopped Modal */}
       <Modal visible={showQuickInvoice} transparent animationType="fade" onRequestClose={handleInvoiceLater}>

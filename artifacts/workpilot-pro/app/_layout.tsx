@@ -20,6 +20,9 @@ import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { WelcomeProvider } from "@/context/WelcomeContext";
 import { registerPushToken } from "@/services/pushNotifications";
+import { SubscriptionProvider, initializeRevenueCat } from "@/lib/revenuecat";
+
+initializeRevenueCat();
 
 SplashScreen.preventAutoHideAsync();
 
@@ -35,6 +38,7 @@ function RootLayoutNav() {
       <Stack.Screen name="quote/[id]" />
       <Stack.Screen name="about" />
       <Stack.Screen name="privacy" />
+      <Stack.Screen name="paywall" options={{ presentation: "modal" }} />
     </Stack>
   );
 }
@@ -91,17 +95,19 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <ErrorBoundary>
-            <AppProvider>
-              <WelcomeProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <RootLayoutNav />
-                </GestureHandlerRootView>
-              </WelcomeProvider>
-            </AppProvider>
-          </ErrorBoundary>
-        </ThemeProvider>
+        <SubscriptionProvider>
+          <ThemeProvider>
+            <ErrorBoundary>
+              <AppProvider>
+                <WelcomeProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <RootLayoutNav />
+                  </GestureHandlerRootView>
+                </WelcomeProvider>
+              </AppProvider>
+            </ErrorBoundary>
+          </ThemeProvider>
+        </SubscriptionProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
   );

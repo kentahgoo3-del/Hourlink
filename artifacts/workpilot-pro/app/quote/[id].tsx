@@ -1,4 +1,6 @@
 import { AppIcon } from "@/components/AppIcon";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import { useSubscription } from "@/lib/revenuecat";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system";
 import * as MailComposer from "expo-mail-composer";
@@ -46,11 +48,15 @@ export default function QuoteDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { clients, quotes, updateQuote, deleteQuote, convertQuoteToInvoice, settings, companyProfile, startTimer } = useApp();
+  const { clients, quotes, updateQuote, deleteQuote, convertQuoteToInvoice, settings, companyProfile, startTimer, activeTimers } = useApp();
+
+  const { isPro } = useSubscription();
 
   const [showTimerPrompt, setShowTimerPrompt] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
+  const [showUpgradePDF, setShowUpgradePDF] = useState(false);
+  const [showTimerUpgrade, setShowTimerUpgrade] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
 
@@ -81,6 +87,7 @@ export default function QuoteDetailScreen() {
 
   const handleExportPDF = async () => {
     if (!quote) return;
+    if (!isPro) { setShowUpgradePDF(true); return; }
     setExporting(true);
     try {
       const logoDataUri = await getLogoDataUri(logoUri);
@@ -205,6 +212,7 @@ export default function QuoteDetailScreen() {
 
   const handleSendEmail = async () => {
     if (!client?.email) return;
+    if (!isPro) { setShowUpgradePDF(true); return; }
     setSendingEmail(true);
     setShowMenu(false);
     try {
@@ -270,6 +278,10 @@ export default function QuoteDetailScreen() {
 
   const handleStartTimerNow = () => {
     setShowTimerPrompt(false);
+    if (!isPro && activeTimers.length >= 1) {
+      setShowTimerUpgrade(true);
+      return;
+    }
     const hourlyRate = client?.hourlyRate ?? settings.defaultHourlyRate ?? 0;
     startTimer({
       description: quote!.title,
@@ -570,6 +582,19 @@ export default function QuoteDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      <UpgradeModal
+        visible={showUpgradePDF}
+        onClose={() => setShowUpgradePDF(false)}
+        title="PDF Export"
+        description="Generating and emailing PDF quotes is a Pro feature. Upgrade to share professional quotes as PDF files."
+      />
+      <UpgradeModal
+        visible={showTimerUpgrade}
+        onClose={() => setShowTimerUpgrade(false)}
+        title="Multiple Timers"
+        description="The free plan supports 1 active timer at a time. Upgrade to Pro for unlimited concurrent timers."
+      />
     </View>
   );
 }

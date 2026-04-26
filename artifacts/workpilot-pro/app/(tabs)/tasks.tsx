@@ -26,9 +26,11 @@ import { ClientDropdown } from "@/components/ClientDropdown";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { FormField } from "@/components/FormField";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import { useApp } from "@/context/AppContext";
 import type { Task } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useSubscription } from "@/lib/revenuecat";
 import { NonBinary } from "lucide-react-native";
 
 const PORTAL_KEY = "@hourlink_portal_code";
@@ -325,8 +327,12 @@ export default function TasksScreen() {
     getTaskComments,
     taskComments,
     markCommentsSynced,
+    activeTimers,
   } = useApp();
 
+  const { isBusiness, isPro } = useSubscription();
+  const [showPortalUpgrade, setShowPortalUpgrade] = useState(false);
+  const [showTimerUpgrade, setShowTimerUpgrade] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [filter, setFilter] = useState<FilterType>("all");
   const [showAdd, setShowAdd] = useState(false);
@@ -711,6 +717,7 @@ export default function TasksScreen() {
   );
 
   const openPortalSheet = useCallback(async () => {
+    if (!isBusiness) { setShowPortalUpgrade(true); return; }
     const code = await createOrGetPortal();
 
     if (!code) {
@@ -1037,6 +1044,10 @@ You can change your password on first login.`;
   };
 
   const handleStartTimer = (task: Task) => {
+    if (!isPro && activeTimers.length >= 1) {
+      setShowTimerUpgrade(true);
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const client = clients.find((c) => c.id === task.clientId);
     const rate =
@@ -2198,6 +2209,22 @@ You can change your password on first login.`;
           setPendingDeleteId(null);
         }}
         onCancel={() => setPendingDeleteId(null)}
+      />
+
+      <UpgradeModal
+        visible={showPortalUpgrade}
+        onClose={() => setShowPortalUpgrade(false)}
+        requiredPlan="business"
+        title="Client Portal Sync"
+        description="Sharing tasks with your Client Portal is a Business feature. Upgrade to connect with clients and sync tasks in real time."
+      />
+
+      <UpgradeModal
+        visible={showTimerUpgrade}
+        onClose={() => setShowTimerUpgrade(false)}
+        title="Upgrade for Multiple Timers"
+        description="You can only run one timer at a time on the free plan. Upgrade to Pro to track unlimited timers simultaneously."
+        requiredPlan="pro"
       />
     </View>
   );

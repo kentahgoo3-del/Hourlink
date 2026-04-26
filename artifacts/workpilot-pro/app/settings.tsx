@@ -22,6 +22,8 @@ import { useTheme } from "@/context/ThemeContext";
 import { useWelcome } from "@/context/WelcomeContext";
 import { useColors } from "@/hooks/useColors";
 import { THEMES, type ThemeName } from "@/constants/themes";
+import { useSubscription } from "@/lib/revenuecat";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 const CURRENCIES = ["R", "$", "€", "£", "¥", "A$", "C$", "CHF", "NZD", "AED"];
 
@@ -51,8 +53,10 @@ export default function SettingsScreen() {
   const { settings, companyProfile, updateSettings, updateCompanyProfile } = useApp();
   const { themeName, setTheme, appearance, setAppearance } = useTheme();
   const { triggerWelcome, triggerTour } = useWelcome();
+  const { isPro, isBusiness, isSubscribed, openPaywall } = useSubscription();
   const [section, setSection] = useState<Section>("profile");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showThemeUpgrade, setShowThemeUpgrade] = useState(false);
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const botPadding = Platform.OS === "web" ? 34 : insets.bottom;
@@ -291,15 +295,35 @@ export default function SettingsScreen() {
           <>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Color Theme</Text>
             <Text style={[styles.hint, { color: colors.mutedForeground }]}>Pick a base theme. The app adapts to your device's light or dark mode automatically.</Text>
+            {!isPro && (
+              <TouchableOpacity
+                style={[styles.upgradeThemeBanner, { backgroundColor: "#3b82f615", borderColor: "#3b82f640" }]}
+                onPress={openPaywall}
+                testID="theme-upgrade-banner"
+              >
+                <AppIcon name="star-outline" size={18} color="#3b82f6" />
+                <Text style={[styles.upgradeThemeBannerText, { color: "#3b82f6" }]}>
+                  Upgrade to Pro to unlock all color themes
+                </Text>
+                <AppIcon name="chevron-forward" size={14} color="#3b82f6" />
+              </TouchableOpacity>
+            )}
             <View style={styles.themeGrid}>
               {themeNames.map((name) => {
                 const theme = THEMES[name];
                 const isActive = themeName === name;
+                const isLocked = !isPro && name !== "blue";
                 return (
                   <TouchableOpacity
                     key={name}
-                    style={[styles.themeCard, { backgroundColor: colors.card, borderColor: isActive ? theme.light.primary : colors.border, borderWidth: isActive ? 2 : 1 }]}
-                    onPress={() => setTheme(name)}
+                    style={[styles.themeCard, { backgroundColor: colors.card, borderColor: isActive ? theme.light.primary : colors.border, borderWidth: isActive ? 2 : 1, opacity: isLocked ? 0.7 : 1 }]}
+                    onPress={() => {
+                      if (isLocked) {
+                        setShowThemeUpgrade(true);
+                      } else {
+                        setTheme(name);
+                      }
+                    }}
                     testID={`theme-${name}`}
                   >
                     <View style={styles.swatchRow}>
@@ -308,10 +332,11 @@ export default function SettingsScreen() {
                       <View style={[styles.swatch, { backgroundColor: theme.dark.card, flex: 1 }]} />
                     </View>
                     <View style={styles.themeCardBody}>
-                      <Text style={styles.themeEmoji}>{theme.emoji}</Text>
+                      <Text style={styles.themeEmoji}>{isLocked ? "🔒" : theme.emoji}</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.themeName, { color: colors.foreground }]}>{theme.label}</Text>
                         {isActive && <Text style={[styles.themeActiveTxt, { color: theme.light.primary }]}>Active</Text>}
+                        {isLocked && <Text style={[styles.themeActiveTxt, { color: colors.mutedForeground }]}>Pro</Text>}
                       </View>
                       {isActive && (
                         <View style={[styles.themeCheck, { backgroundColor: theme.light.primary }]}>
@@ -323,6 +348,12 @@ export default function SettingsScreen() {
                 );
               })}
             </View>
+            <UpgradeModal
+              visible={showThemeUpgrade}
+              onClose={() => setShowThemeUpgrade(false)}
+              title="Pro Themes"
+              description="Unlock all color themes including Dark Pro, Forest, Sunset, Violet and Slate with a Pro subscription."
+            />
           </>
         )}
 
@@ -440,7 +471,46 @@ export default function SettingsScreen() {
         {/* BILLING */}
         {section === "billing" && (
           <>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Billing Preferences</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Subscription</Text>
+
+            {isSubscribed ? (
+              <View style={[styles.subStatusCard, { backgroundColor: isBusiness ? "#8b5cf615" : "#3b82f615", borderColor: isBusiness ? "#8b5cf640" : "#3b82f640" }]}>
+                <View style={[styles.subStatusIcon, { backgroundColor: isBusiness ? "#8b5cf6" : "#3b82f6" }]}>
+                  <AppIcon name="star" size={20} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.subStatusTitle, { color: colors.foreground }]}>
+                    {isBusiness ? "Business Plan" : "Pro Plan"}
+                  </Text>
+                  <Text style={[styles.subStatusSub, { color: colors.mutedForeground }]}>
+                    Your subscription is active
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.manageBtn, { borderColor: isBusiness ? "#8b5cf6" : "#3b82f6" }]}
+                  onPress={openPaywall}
+                >
+                  <Text style={[styles.manageBtnText, { color: isBusiness ? "#8b5cf6" : "#3b82f6" }]}>Manage</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.linkRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.cr }]}
+                onPress={openPaywall}
+                testID="upgrade-subscription-btn"
+              >
+                <View style={[styles.linkIcon, { backgroundColor: "#3b82f618" }]}>
+                  <AppIcon name="star-outline" size={20} color="#3b82f6" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.linkTitle, { color: colors.foreground }]}>Upgrade to Pro or Business</Text>
+                  <Text style={[styles.linkHint, { color: colors.mutedForeground }]}>Unlock PDF export, unlimited timers, all themes &amp; more</Text>
+                </View>
+                <AppIcon name="chevron-forward" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            )}
+
+            <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>Billing Preferences</Text>
 
             <View style={[styles.toggleRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={{ flex: 1 }}>
@@ -535,4 +605,12 @@ const styles = StyleSheet.create({
   linkIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   linkTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
   linkHint: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  subStatusCard: { flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 1, borderRadius: 14, padding: 16, marginBottom: 8 },
+  subStatusIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  subStatusTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+  subStatusSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  manageBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
+  manageBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  upgradeThemeBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 16 },
+  upgradeThemeBannerText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
 });

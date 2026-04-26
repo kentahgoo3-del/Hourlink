@@ -2,8 +2,10 @@ import { AppIcon } from "@/components/AppIcon";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FormField } from "@/components/FormField";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useSubscription } from "@/lib/revenuecat";
 import {
   teamSync,
   type SharedTask,
@@ -67,6 +69,7 @@ export default function TeamScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { settings, tasks: appTasks, addTask, clients } = useApp();
+  const { isBusiness, loading: subLoading } = useSubscription();
 
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
   const [isOwner, setIsOwner] = useState(false);
@@ -2093,6 +2096,14 @@ export default function TeamScreen() {
         destructive
         onConfirm={doLeave}
         onCancel={() => setShowLeaveConfirm(false)}
+      />
+
+      <UpgradeModal
+        visible={!subLoading && !isBusiness}
+        onClose={() => router.back()}
+        requiredPlan="business"
+        title="Team Sync"
+        description="Team & Delegation is a Business plan feature. Upgrade to create a team workspace, delegate tasks, and track your team's time."
       />
     </ScrollView>
   );

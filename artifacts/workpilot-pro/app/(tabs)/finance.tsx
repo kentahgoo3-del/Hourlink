@@ -23,6 +23,8 @@ import { FormField } from "@/components/FormField";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import { useSubscription } from "@/lib/revenuecat";
 import type { InvoiceItem, QuoteItem } from "@/context/AppContext";
 
 function formatCurrency(amount: number, currency: string) {
@@ -44,10 +46,17 @@ export default function FinanceScreen() {
     timeEntries, updateTimeEntry,
     addInvoice, addQuote, deleteInvoice, deleteQuote, deleteQuoteTemplate,
     markInvoicePaid, convertQuoteToInvoice, updateInvoice, updateQuote,
-    addQuoteTemplate, settings, startTimer,
+    addQuoteTemplate, settings, startTimer, activeTimers,
   } = useApp();
+  const { isPro } = useSubscription();
+
+  const [showTimerUpgrade, setShowTimerUpgrade] = useState(false);
 
   const handleStartTimerForQuote = (quote: typeof quotes[0]) => {
+    if (!isPro && activeTimers.length >= 1) {
+      setShowTimerUpgrade(true);
+      return;
+    }
     const client = clients.find((c) => c.id === quote.clientId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     startTimer({
@@ -471,6 +480,14 @@ export default function FinanceScreen() {
           setPendingDeleteItem(null);
         }}
         onCancel={() => setPendingDeleteItem(null)}
+      />
+
+      <UpgradeModal
+        visible={showTimerUpgrade}
+        onClose={() => setShowTimerUpgrade(false)}
+        title="Upgrade for Multiple Timers"
+        description="You can only run one timer at a time on the free plan. Upgrade to Pro to track unlimited timers simultaneously."
+        requiredPlan="pro"
       />
     </View>
   );

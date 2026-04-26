@@ -61,6 +61,15 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - `app/about.tsx` — About HourLink screen
   - `app/privacy.tsx` — Privacy Policy screen
   - `constants/colors.ts` — design tokens (blue/slate theme)
+  - **Subscription / RevenueCat** (Replit integration installed):
+    - `lib/revenuecat.tsx` — `initializeRevenueCat()`, `SubscriptionProvider`, `useSubscription` hook, `PurchaseConfirmModal`
+    - `app/paywall.tsx` — paywall screen (Free/Pro/Business plan cards, subscribe/restore)
+    - `components/UpgradeModal.tsx` — shared gate modal that navigates to paywall
+    - Tiers: **Free** (1 timer, 3 clients, basic invoicing), **Pro** $9.99/mo (unlimited, PDF export, expenses, all themes), **Business** $19.99/mo (adds Smart Insights, team sync, batch invoice, portal sync)
+    - Entitlements: `pro` and `business`; Business implies Pro
+    - Web mock: AsyncStorage key `rc_mock_tier` (`'free'`|`'pro'`|`'business'`) simulates purchases without network calls
+    - Gates enforced in: `clients.tsx` (3-client limit), `work.tsx` (2nd timer, batch invoice), `reports.tsx` (PDF, Smart Insights), `settings.tsx` (themes, billing section)
+    - Env vars: `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY`, `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`, `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`
 
 - `app/team.tsx` — Team & Delegation screen (workspace create/join, member management, task delegation, time logs)
   - `services/teamSync.ts` — API client for team workspace operations

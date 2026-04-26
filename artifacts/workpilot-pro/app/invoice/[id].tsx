@@ -1,4 +1,5 @@
 import { AppIcon } from "@/components/AppIcon";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system";
 import * as MailComposer from "expo-mail-composer";
@@ -6,6 +7,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useMemo, useState } from "react";
+import { useSubscription } from "@/lib/revenuecat";
 import {
   ActivityIndicator,
   Image,
@@ -49,9 +51,12 @@ export default function InvoiceDetailScreen() {
   const invoice = invoices.find((inv) => inv.id === id);
   const client = clients.find((c) => c.id === invoice?.clientId);
 
+  const { isPro } = useSubscription();
+
   const [showEdit, setShowEdit] = useState(false);
   const [editNotes, setEditNotes] = useState(invoice?.notes || "");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showUpgradePDF, setShowUpgradePDF] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
 
@@ -79,6 +84,7 @@ export default function InvoiceDetailScreen() {
 
   const handleExportPDF = async () => {
     if (!invoice) return;
+    if (!isPro) { setShowUpgradePDF(true); return; }
     setExporting(true);
     try {
       const logoDataUri = await getLogoDataUri(logoUri);
@@ -214,6 +220,7 @@ export default function InvoiceDetailScreen() {
 
   const handleSendEmail = async () => {
     if (!client?.email) return;
+    if (!isPro) { setShowUpgradePDF(true); return; }
     setSendingEmail(true);
     setShowMenu(false);
     try {
@@ -554,6 +561,13 @@ export default function InvoiceDetailScreen() {
         destructive
         onConfirm={() => { setShowDeleteConfirm(false); deleteInvoice(id); router.back(); }}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      <UpgradeModal
+        visible={showUpgradePDF}
+        onClose={() => setShowUpgradePDF(false)}
+        title="PDF Export"
+        description="Generating and emailing PDF invoices is a Pro feature. Upgrade to export professional invoices as PDF files."
       />
     </View>
   );

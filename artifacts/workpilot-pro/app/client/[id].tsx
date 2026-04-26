@@ -19,6 +19,8 @@ import { FormField } from "@/components/FormField";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import { useSubscription } from "@/lib/revenuecat";
 
 type Tab = "overview" | "notes" | "meetings" | "expenses";
 
@@ -40,6 +42,9 @@ export default function ClientDetailScreen() {
     addMeeting, deleteMeeting, addExpense, deleteExpense,
     getClientRevenue, getClientProfit, settings,
   } = useApp();
+
+  const { isPro } = useSubscription();
+  const [showExpenseUpgrade, setShowExpenseUpgrade] = useState(false);
 
   const client = clients.find((c) => c.id === id);
   const [tab, setTab] = useState<Tab>("overview");
@@ -277,7 +282,22 @@ export default function ClientDetailScreen() {
         )}
 
         {/* EXPENSES */}
-        {tab === "expenses" && (
+        {tab === "expenses" && !isPro && (
+          <TouchableOpacity
+            style={[styles.noteCard, { backgroundColor: colors.card, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: 12 }]}
+            onPress={() => setShowExpenseUpgrade(true)}
+            testID="expenses-upgrade-btn"
+          >
+            <AppIcon name="lock-closed" size={20} color={colors.mutedForeground} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.noteText, { color: colors.foreground }]}>Expense Tracking</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>Upgrade to Pro to log and track expenses</Text>
+            </View>
+            <AppIcon name="chevron-forward" size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        )}
+
+        {tab === "expenses" && isPro && (
           <>
             <TouchableOpacity style={[styles.addRowBtn, { backgroundColor: colors.primary }]} onPress={() => setShowAddExpense(true)} testID="add-expense-btn">
               <AppIcon name="add" size={18} color="#fff" />
@@ -399,6 +419,14 @@ export default function ClientDetailScreen() {
         destructive
         onConfirm={() => { if (pendingDeleteExpenseId) deleteExpense(pendingDeleteExpenseId); setPendingDeleteExpenseId(null); }}
         onCancel={() => setPendingDeleteExpenseId(null)}
+      />
+
+      <UpgradeModal
+        visible={showExpenseUpgrade}
+        onClose={() => setShowExpenseUpgrade(false)}
+        title="Upgrade for Expense Tracking"
+        description="Expense tracking is a Pro feature. Upgrade to log billable and non-billable expenses, track profit margins, and include expenses on invoices."
+        requiredPlan="pro"
       />
     </View>
   );

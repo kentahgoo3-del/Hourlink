@@ -19,18 +19,24 @@ import { EmptyState } from "@/components/EmptyState";
 import { FormField } from "@/components/FormField";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useSubscription } from "@/lib/revenuecat";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 const CLIENT_COLORS = [
   "#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b",
   "#10b981", "#ef4444", "#06b6d4", "#f97316",
 ];
 
+const FREE_CLIENT_LIMIT = 3;
+
 export default function ClientsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { clients, addClient, invoices, settings } = useApp();
+  const { isPro } = useSubscription();
 
   const [showAdd, setShowAdd] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const [search, setSearch] = useState("");
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
@@ -64,6 +70,11 @@ export default function ClientsScreen() {
       Alert.alert("Missing name", "Please enter a client name.");
       return;
     }
+    if (!isPro && clients.length >= FREE_CLIENT_LIMIT) {
+      setShowAdd(false);
+      setShowUpgrade(true);
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     addClient({
       name: name.trim(),
@@ -87,7 +98,13 @@ export default function ClientsScreen() {
         <Text style={[styles.screenTitle, { color: colors.foreground }]}>Clients</Text>
         <TouchableOpacity
           style={[styles.addBtn, { backgroundColor: colors.primary }]}
-          onPress={() => setShowAdd(true)}
+          onPress={() => {
+            if (!isPro && clients.length >= FREE_CLIENT_LIMIT) {
+              setShowUpgrade(true);
+            } else {
+              setShowAdd(true);
+            }
+          }}
           testID="add-client-btn"
         >
           <AppIcon name="add" size={22} color="#fff" />
@@ -152,6 +169,13 @@ export default function ClientsScreen() {
           }}
         />
       )}
+
+      <UpgradeModal
+        visible={showUpgrade}
+        onClose={() => setShowUpgrade(false)}
+        title="Client Limit Reached"
+        description={`Free plan is limited to ${FREE_CLIENT_LIMIT} clients. Upgrade to Pro for unlimited clients and much more.`}
+      />
 
       <BottomSheet visible={showAdd} onClose={() => setShowAdd(false)} title="New Client">
         <FormField label="Name *" placeholder="e.g., John Smith" value={name} onChangeText={setName} />

@@ -1,4 +1,5 @@
 import { AppIcon } from "@/components/AppIcon";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -18,6 +19,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { TimerWidget } from "@/components/TimerWidget";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useSubscription } from "@/lib/revenuecat";
+import { navigate } from "@/lib/navigate";
 
 function formatCurrency(amount: number, currency: string) {
   return `${currency}${amount.toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -36,6 +39,8 @@ export default function HomeScreen() {
     getBillingAlerts, getCashFlowForecast, getLastTimerSuggestion,
     activeTimers, startTimer, stopTimer, pauseTimer, resumeTimer,
   } = useApp();
+  const { isPro } = useSubscription();
+  const [showTimerUpgrade, setShowTimerUpgrade] = useState(false);
   const runningTimer = activeTimers.find((t) => !t.timerPaused) || null;
 
   const now = new Date();
@@ -83,6 +88,7 @@ export default function HomeScreen() {
   const botPadding = Platform.OS === "web" ? 34 : insets.bottom;
 
   return (
+    <>
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={[styles.content, { paddingTop: topPadding + 16, paddingBottom: botPadding + 100 }]}
@@ -150,6 +156,10 @@ export default function HomeScreen() {
                 ]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  if (!isPro && activeTimers.length >= 1) {
+                    setShowTimerUpgrade(true);
+                    return;
+                  }
                   startTimer({
                     clientId: s.clientId,
                     projectId: "",
@@ -256,32 +266,50 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Cash Flow Forecast */}
+      {/* Cash Flow Forecast — Pro only */}
       {cashFlow.length > 0 && (
-        <>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Expected Income</Text>
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.cashFlowHeader}>
-              <AppIcon name="trending-up" size={16} color="#10b981" />
-              <Text style={[styles.cashFlowTotal, { color: "#10b981" }]}>
-                {formatCurrency(cashFlow.reduce((s, c) => s + c.amount, 0), settings.currency)} forecasted
-              </Text>
-            </View>
-            {cashFlow.map((item, idx) => (
-              <View key={item.label} style={[styles.cashRow, idx < cashFlow.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-                <View>
-                  <Text style={[styles.cashLabel, { color: colors.foreground }]}>{item.clientName}</Text>
-                  <Text style={[styles.cashDue, { color: colors.mutedForeground }]}>
-                    Due {new Date(item.dueDate).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
-                  </Text>
-                </View>
-                <Text style={[styles.cashAmount, { color: colors.foreground }]}>
-                  {formatCurrency(item.amount, settings.currency)}
+        isPro ? (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Expected Income</Text>
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.cashFlowHeader}>
+                <AppIcon name="trending-up" size={16} color="#10b981" />
+                <Text style={[styles.cashFlowTotal, { color: "#10b981" }]}>
+                  {formatCurrency(cashFlow.reduce((s, c) => s + c.amount, 0), settings.currency)} forecasted
                 </Text>
               </View>
-            ))}
-          </View>
-        </>
+              {cashFlow.map((item, idx) => (
+                <View key={item.label} style={[styles.cashRow, idx < cashFlow.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+                  <View>
+                    <Text style={[styles.cashLabel, { color: colors.foreground }]}>{item.clientName}</Text>
+                    <Text style={[styles.cashDue, { color: colors.mutedForeground }]}>
+                      Due {new Date(item.dueDate).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+                    </Text>
+                  </View>
+                  <Text style={[styles.cashAmount, { color: colors.foreground }]}>
+                    {formatCurrency(item.amount, settings.currency)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Expected Income</Text>
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, alignItems: "center", flexDirection: "row", gap: 12 }]}
+              onPress={() => navigate("/paywall")}
+              testID="cashflow-upgrade-btn"
+            >
+              <AppIcon name="lock-closed" size={20} color={colors.mutedForeground} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.cashLabel, { color: colors.foreground }]}>Cash Flow Forecast</Text>
+                <Text style={[styles.cashDue, { color: colors.mutedForeground }]}>Upgrade to Pro to see upcoming income</Text>
+              </View>
+              <AppIcon name="chevron-forward" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </>
+        )
       )}
 
       {/* Top Clients */}
@@ -343,6 +371,14 @@ export default function HomeScreen() {
         </>
       )}
     </ScrollView>
+
+    <UpgradeModal
+      visible={showTimerUpgrade}
+      onClose={() => setShowTimerUpgrade(false)}
+      title="Multiple Timers"
+      description="Running multiple timers simultaneously is a Pro feature. Upgrade to track time across several clients at once."
+    />
+    </>
   );
 }
 
