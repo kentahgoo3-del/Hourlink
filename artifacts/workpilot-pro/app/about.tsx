@@ -86,8 +86,7 @@ export default function AboutScreen() {
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 24 }]}>
           <Text style={[styles.cardTitle, { color: colors.foreground }]}>Built with</Text>
           <Text style={[styles.cardBody, { color: colors.mutedForeground }]}>
-            React Native • Expo • TypeScript{"\n"}
-            Designed and developed with care for the freelancer community.
+            React Native, Expo, TypeScript, Node.js and PostgreSQL. Designed and developed with care for the freelancer community.
           </Text>
         </View>
 
