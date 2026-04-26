@@ -23,12 +23,14 @@ export default function AboutScreen() {
   const botPadding = Platform.OS === "web" ? 34 : insets.bottom;
 
   const features = [
-    { icon: "timer-outline", color: "#f59e0b", title: "Time Tracking", desc: "Track billable hours with one-tap timers" },
-    { icon: "people-outline", color: "#8b5cf6", title: "Client Management", desc: "Organise clients, projects, and rates" },
-    { icon: "document-text-outline", color: "#ec4899", title: "Invoicing & Quotes", desc: "Create professional invoices and quotes" },
-    { icon: "bar-chart-outline", color: "#0ea5e9", title: "Reports & Analytics", desc: "Detailed financial and time reports" },
-    { icon: "checkmark-circle-outline", color: "#22c55e", title: "Task Management", desc: "Organise work with priorities and boards" },
-    { icon: "wallet-outline", color: "#f97316", title: "Expense Tracking", desc: "Log and categorise business expenses" },
+    { icon: "timer-outline", color: "#f59e0b", title: "Time Tracking", desc: "Start, stop and correct timers for any task or client" },
+    { icon: "people-outline", color: "#8b5cf6", title: "Client Management", desc: "Organise clients, projects and billing rates in one place" },
+    { icon: "document-text-outline", color: "#ec4899", title: "Invoicing & Quotes", desc: "Create and send professional invoices and quotes" },
+    { icon: "bar-chart-outline", color: "#0ea5e9", title: "Reports & Analytics", desc: "Understand your earnings, time and productivity at a glance" },
+    { icon: "checkmark-circle-outline", color: "#22c55e", title: "Task Management", desc: "Prioritise and track work across clients and projects" },
+    { icon: "wallet-outline", color: "#f97316", title: "Expense Tracking", desc: "Log and categorise business expenses as you go" },
+    { icon: "people-circle-outline", color: "#06b6d4", title: "Team Workspaces", desc: "Invite team members and collaborate on shared tasks" },
+    { icon: "globe-outline", color: "#84cc16", title: "Client Portal", desc: "Give clients a dedicated space to view tasks and progress" },
   ];
 
   return (
@@ -61,10 +63,10 @@ export default function AboutScreen() {
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.foreground }]}>What is HourLink?</Text>
           <Text style={[styles.cardBody, { color: colors.mutedForeground }]}>
-            HourLink is a comprehensive freelancer toolkit designed to help independent professionals manage every aspect of their business. From tracking billable hours to creating invoices, managing clients, and analysing your financial performance — all in one beautifully crafted app.
+            HourLink is a freelancer toolkit built for independent professionals who want to run a tight, organised business. Track your time, manage clients, send invoices and quotes, log expenses, and review your financial performance all from one app.
           </Text>
           <Text style={[styles.cardBody, { color: colors.mutedForeground, marginTop: 8 }]}>
-            Built with freelancers in mind, HourLink keeps your data private and stored locally on your device. No account required, no data harvesting — just a powerful tool that works for you.
+            It also goes beyond solo work. With team workspaces and a web-based client portal, you can bring collaborators on board, delegate tasks, and give clients real-time visibility into progress. Your data stays private and secure, with no account required to get started.
           </Text>
         </View>
 
