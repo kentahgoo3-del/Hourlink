@@ -53,7 +53,7 @@ export default function SettingsScreen() {
   const { settings, companyProfile, updateSettings, updateCompanyProfile } = useApp();
   const { themeName, setTheme, appearance, setAppearance } = useTheme();
   const { triggerWelcome, triggerTour } = useWelcome();
-  const { isPro, isBusiness, isSubscribed, openPaywall } = useSubscription();
+  const { isPro, isBusiness, isSubscribed, openPaywall, openManageSubscription } = useSubscription();
   const [section, setSection] = useState<Section>("profile");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showThemeUpgrade, setShowThemeUpgrade] = useState(false);
@@ -488,7 +488,8 @@ export default function SettingsScreen() {
                 </View>
                 <TouchableOpacity
                   style={[styles.manageBtn, { borderColor: isBusiness ? "#8b5cf6" : "#3b82f6" }]}
-                  onPress={openPaywall}
+                  onPress={openManageSubscription}
+                  testID="manage-subscription-btn"
                 >
                   <Text style={[styles.manageBtnText, { color: isBusiness ? "#8b5cf6" : "#3b82f6" }]}>Manage</Text>
                 </TouchableOpacity>

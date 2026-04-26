@@ -18,9 +18,14 @@ import {
 
 const IS_WEB = Platform.OS === "web";
 
+interface RCEntitlement {
+  expirationDate?: string | null;
+  [key: string]: unknown;
+}
+
 interface RCCustomerInfo {
   entitlements: {
-    active: Record<string, unknown>;
+    active: Record<string, RCEntitlement>;
   };
 }
 
@@ -102,25 +107,42 @@ export type SubscriptionState = {
   isPro: boolean;
   isBusiness: boolean;
   isSubscribed: boolean;
+  nextBillingDate: string | null;
   offering: SubOffering | null;
   offerings: SubOffering | null;
   loading: boolean;
   openPaywall: () => void;
+  openManageSubscription: () => void;
   purchasePackage: (pkg: OfferingPackage) => Promise<void>;
   purchase: (pkg: OfferingPackage) => Promise<void>;
   restorePurchases: () => Promise<void>;
   restore: () => Promise<void>;
   refreshSubscription: () => void;
+  downgradeMockToFree: () => Promise<void>;
 };
 
 const SubscriptionContext = createContext<SubscriptionState | null>(null);
 
-async function fetchSubState(): Promise<{ isPro: boolean; isBusiness: boolean; offering: SubOffering | null }> {
+async function fetchSubState(): Promise<{ isPro: boolean; isBusiness: boolean; nextBillingDate: string | null; offering: SubOffering | null }> {
   if (IS_WEB || !RNPurchases) {
     const tier = (await AsyncStorage.getItem(MOCK_TIER_KEY)) as MockTier | null;
+    const isActive = tier === "pro" || tier === "business";
+    let mockNextBillingDate: string | null = null;
+    if (isActive) {
+      const stored = await AsyncStorage.getItem("rc_mock_next_billing");
+      if (stored) {
+        mockNextBillingDate = stored;
+      } else {
+        const next = new Date();
+        next.setMonth(next.getMonth() + 1);
+        mockNextBillingDate = next.toISOString();
+        await AsyncStorage.setItem("rc_mock_next_billing", mockNextBillingDate);
+      }
+    }
     return {
-      isPro: tier === "pro" || tier === "business",
+      isPro: isActive,
       isBusiness: tier === "business",
+      nextBillingDate: mockNextBillingDate,
       offering: getMockOffering(),
     };
   }
@@ -133,13 +155,15 @@ async function fetchSubState(): Promise<{ isPro: boolean; isBusiness: boolean; o
     const active = customerInfo?.entitlements?.active ?? {};
     const isPro = !!active["pro"] || !!active["business"];
     const isBusiness = !!active["business"];
+    const activeEntitlement = active["business"] ?? active["pro"] ?? null;
+    const nextBillingDate = activeEntitlement?.expirationDate ?? null;
     const current: SubOffering | null = rcOfferings?.current
       ? normalizeOffering(rcOfferings.current)
       : null;
-    return { isPro, isBusiness, offering: current };
+    return { isPro, isBusiness, nextBillingDate, offering: current };
   } catch (err: unknown) {
     console.warn("[RevenueCat] fetch error:", err instanceof Error ? err.message : String(err));
-    return { isPro: false, isBusiness: false, offering: null };
+    return { isPro: false, isBusiness: false, nextBillingDate: null, offering: null };
   }
 }
 
@@ -206,6 +230,16 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     navigate("/paywall");
   }, []);
 
+  const openManageSubscription = useCallback(() => {
+    navigate("/manage-subscription");
+  }, []);
+
+  const downgradeMockToFree = useCallback(async () => {
+    await AsyncStorage.removeItem(MOCK_TIER_KEY);
+    await AsyncStorage.removeItem("rc_mock_next_billing");
+    refreshSubscription();
+  }, [refreshSubscription]);
+
   const purchasePackage = useCallback(async (pkg: OfferingPackage) => {
     setConfirmPkg(pkg);
   }, []);
@@ -255,15 +289,18 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     isPro: data?.isPro ?? false,
     isBusiness: data?.isBusiness ?? false,
     isSubscribed: (data?.isPro || data?.isBusiness) ?? false,
+    nextBillingDate: data?.nextBillingDate ?? null,
     offering: data?.offering ?? null,
     offerings: data?.offering ?? null,
     loading: isLoading,
     openPaywall,
+    openManageSubscription,
     purchasePackage,
     purchase: purchasePackage,
     restorePurchases,
     restore: restorePurchases,
     refreshSubscription,
+    downgradeMockToFree,
   };
 
   return (
@@ -290,15 +327,18 @@ export function useSubscription(): SubscriptionState {
       isPro: false,
       isBusiness: false,
       isSubscribed: false,
+      nextBillingDate: null,
       offering: null,
       offerings: null,
       loading: false,
       openPaywall: () => {},
+      openManageSubscription: () => {},
       purchasePackage: async () => {},
       purchase: async () => {},
       restorePurchases: async () => {},
       restore: async () => {},
       refreshSubscription: () => {},
+      downgradeMockToFree: async () => {},
     };
   }
   return ctx;
