@@ -80,6 +80,7 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const [expandedTimeLog, setExpandedTimeLog] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, TaskNote[]>>({});
   const [noteText, setNoteText] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<"all" | "pending" | "in_progress" | "done">("all");
@@ -544,50 +545,120 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                         )}
                       </div>
                       <div className="flex items-center gap-3">
-                        {(taskTime > 0 || isRunning) && (
-                          <span className="text-xs font-mono text-muted-foreground">
-                            {formatDuration(taskTime + (isRunning ? elapsed : 0))}
-                          </span>
-                        )}
+                        <button
+                          onClick={() => setExpandedTimeLog(expandedTimeLog === task.id ? null : task.id)}
+                          className={`text-xs font-medium hover:underline flex items-center gap-1 ${expandedTimeLog === task.id ? "text-blue-600" : "text-muted-foreground hover:text-foreground"}`}
+                          title="View time log"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                          </svg>
+                          {taskTime > 0 || isRunning
+                            ? formatDuration(taskTime + (isRunning ? elapsed : 0))
+                            : "Log"}
+                        </button>
                         <button
                           onClick={() => toggleExpand(task.id)}
-                          className="text-xs text-primary font-medium hover:underline flex items-center gap-1"
+                          className={`text-xs font-medium hover:underline flex items-center gap-1 ${isExpanded ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
                         >
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                           </svg>
-                          {isExpanded ? "Hide" : "Notes"}
+                          Notes
                         </button>
                       </div>
                     </div>
                   </div>
 
+                  {expandedTimeLog === task.id && (() => {
+                    const taskEntries = timeEntries
+                      .filter((e) => e.taskId === task.id)
+                      .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+                    const totalSecs = taskEntries.reduce((s, e) => s + (e.duration || 0), 0)
+                      + (isRunning ? elapsed : 0);
+                    return (
+                      <div className="border-t border-blue-100 bg-blue-50/50 p-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-xs font-semibold text-blue-900 uppercase tracking-wide flex items-center gap-1.5">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            Time Log
+                          </h4>
+                          <span className="text-xs font-mono font-bold text-blue-900">
+                            Total: {formatDuration(totalSecs)}
+                          </span>
+                        </div>
+                        {taskEntries.length === 0 && !isRunning ? (
+                          <p className="text-xs text-blue-600/70">No time sessions recorded yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {taskEntries.map((entry, idx) => {
+                              const isThisRunning = !entry.stoppedAt;
+                              const entryElapsed = isThisRunning ? elapsed : null;
+                              const dur = entry.duration ?? (entryElapsed ?? 0);
+                              return (
+                                <div key={entry.id} className={`rounded-lg border px-3 py-2 ${isThisRunning ? "border-blue-300 bg-blue-100/60" : "border-blue-100 bg-white"}`}>
+                                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <span className="w-4 h-4 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-[9px] font-bold text-blue-700 flex-shrink-0">
+                                        {idx + 1}
+                                      </span>
+                                      <div>
+                                        <div className="flex items-center gap-1 text-blue-800 font-medium">
+                                          <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" className="text-green-500 flex-shrink-0">
+                                            <polygon points="5 3 19 12 5 21 5 3" />
+                                          </svg>
+                                          Started {formatDate(entry.startedAt)} at {formatTime(entry.startedAt)}
+                                        </div>
+                                        <div className="flex items-center gap-1 text-blue-700 mt-0.5">
+                                          {isThisRunning ? (
+                                            <>
+                                              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                                              <span className="text-blue-600 font-medium">Timer running…</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" className="text-red-400 flex-shrink-0">
+                                                <rect x="6" y="6" width="12" height="12" rx="2" />
+                                              </svg>
+                                              Stopped at {formatTime(entry.stoppedAt!)}
+                                            </>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <span className="text-xs font-mono font-bold text-blue-900 tabular-nums">
+                                      {formatDuration(dur)}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {isRunning && taskEntries.every((e) => e.stoppedAt) && (
+                              <div className="rounded-lg border border-blue-300 bg-blue-100/60 px-3 py-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <div className="flex items-center gap-1 text-blue-800 font-medium">
+                                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                                      Timer running…
+                                    </div>
+                                  </div>
+                                  <span className="text-xs font-mono font-bold text-blue-900 tabular-nums">
+                                    {formatDuration(elapsed)}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {isExpanded && (
                     <div className="border-t border-border bg-muted/30 p-4 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                      <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide">Time Log</h4>
-                      {timeEntries.filter((e) => e.taskId === task.id).length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No time logged yet.</p>
-                      ) : (
-                        <div className="space-y-1">
-                          {timeEntries
-                            .filter((e) => e.taskId === task.id)
-                            .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
-                            .slice(0, 5)
-                            .map((entry) => (
-                              <div key={entry.id} className="flex items-center justify-between text-xs gap-2 flex-wrap">
-                                <span className="text-muted-foreground">
-                                  {formatDate(entry.startedAt)} {formatTime(entry.startedAt)}
-                                  {entry.stoppedAt ? ` — ${formatTime(entry.stoppedAt)}` : " (running)"}
-                                </span>
-                                <span className="font-mono font-medium text-foreground">
-                                  {entry.duration ? formatDuration(entry.duration) : "..."}
-                                </span>
-                              </div>
-                            ))}
-                        </div>
-                      )}
-
-                      <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide pt-2">Notes</h4>
+                      <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide">Notes</h4>
                       {(notes[task.id] || []).length === 0 ? (
                         <p className="text-xs text-muted-foreground">No notes yet.</p>
                       ) : (
