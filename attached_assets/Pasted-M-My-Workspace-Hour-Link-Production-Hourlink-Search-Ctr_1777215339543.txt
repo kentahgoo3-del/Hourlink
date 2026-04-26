@@ -1,0 +1,175 @@
+M
+My Workspace
+Hour Link
+
+Production
+
+Hourlink
+
+
+Search
+Ctrl+
+K
+
+New
+
+
+k
+Environment
+Hourlink
+Events
+Settings
+Monitor
+Metrics
+Manage
+Environment
+Previews
+Redirects/Rewrites
+Headers
+New plans, zero seat fees
+We're updating workspace pricing to help teams grow faster. No seat fees, more self-serve features, granular bandwidth billing, and more.
+Opt-in early
+
+
+Changelog
+Invite a friend
+
+Contact support
+Render Status
+Static Site
+Hourlink
+
+Manual Deploy
+Service ID:
+srv-d7n033i8qa3s739usrk0
+
+kentahgoo3-del / Hourlink
+main
+https://hourlink.onrender.com
+
+Settings
+Table of contents
+General
+Build
+Deploy
+Custom Domains
+PR Previews
+Notifications
+Delete or suspend
+General
+Name
+A unique name for your Static Site.
+Hourlink
+
+Edit
+Build
+Repository
+The repository used for your Static Site.
+https://github.com/kentahgoo3-del/Hourlink
+
+Edit
+Branch
+The Git branch to build and deploy.
+Branch
+main
+
+Edit
+Root DirectoryOptional
+If set, Render runs commands from this directory instead of the repository root. Additionally, code changes outside of this directory do not trigger an auto-deploy. Most commonly used with a monorepo.
+
+Edit
+Build Command
+Render runs this command to build your app before each deploy.
+$
+pnpm install --frozen-lockfile && pnpm --filter @workspace/client-portal run build
+
+Edit
+Publish Directory
+The relative path of the directory containing built assets to publish. Examples:./build, dist and frontend/build.
+artifacts/client-portal/dist/public
+
+Edit
+Git Credentials
+User providing the credentials to pull the repository.
+kentahgoo3@googlemail.com (you)
+Use My Credentials
+Build Filters
+Include or ignore specific paths in your repo when determining whether to trigger an auto-deploy. Paths are relative to your repo's root directory. Learn more.
+
+Edit
+Included Paths
+Changes that match these paths will trigger a new build.
+
+
+Add Included Path
+Ignored Paths
+Changes that match these paths will not trigger a new build.
+
+
+Add Ignored Path
+Deploy
+Auto-Deploy
+By default, Render automatically deploys your service whenever you update its code or configuration. Disable to handle deploys manually. Learn more.
+autoDeployTrigger
+
+On Commit
+
+Edit
+Deploy Hook
+Your private URL to trigger a deploy for this server. Remember to keep this a secret.
+••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+
+
+
+Regenerate hook
+Custom Domains
+You can point custom domains you own to this service.
+
+
+Name
+1
+portal.hour-link.com
+Menu
+Verified Status
+Verified
+Certificate Status
+Certificate Issued
+
+Add Custom Domain
+Render Subdomain
+If enabled, your service remains reachable at its onrender.com subdomain in addition to all custom domains. Disable to serve exclusively from custom domains.
+
+
+enabled
+Your service is reachable at https://hourlink.onrender.com.
+PR Previews
+Pull Request Previews
+Spin up temporary instances to test pull requests opened against the main branch of kentahgoo3-del/Hourlink. Choose Automatic to preview all PRs, or Manual for only PRs with [render preview] in their title. Pull Request Previews create a new instance for just this service. Use Preview Environments to clone a group of services for every PR.
+prPreviewsEnabled
+
+Off
+
+Edit
+Notifications
+Service Notifications
+Set notifications to receive for your service. This setting will override your workspace's default settings.
+notificationsToSend
+
+Use workspace default (Only failure notifications)
+
+Edit
+Preview Environment Notifications
+Configure notifications for preview environments and service previews.
+previewNotificationsEnabled
+
+Use account default (Disabled)
+
+Edit
+
+Delete Static Site
+
+Suspend Static Site
+0 services selected:
+
+Move
+
