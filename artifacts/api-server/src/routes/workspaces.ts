@@ -712,6 +712,45 @@ router.patch(
   },
 );
 
+router.patch(
+  "/workspaces/:code/time-entries/:entryId/correct",
+  async (req, res) => {
+    const code = String(req.params.code || "").trim().toUpperCase();
+    const { entryId } = req.params;
+    const { stoppedAt } = req.body || {};
+
+    if (!stoppedAt) {
+      res.status(400).json({ error: "stoppedAt is required" });
+      return;
+    }
+
+    const d = new Date(stoppedAt);
+    if (isNaN(d.getTime())) {
+      res.status(400).json({ error: "stoppedAt is not a valid date" });
+      return;
+    }
+
+    try {
+      const ws = await store.getWorkspace(code);
+      if (!ws) {
+        res.status(404).json({ error: "Workspace not found" });
+        return;
+      }
+
+      const entry = await store.correctTimeEntry(code, entryId, d);
+      if (!entry) {
+        res.status(404).json({ error: "Entry not found or still running" });
+        return;
+      }
+
+      res.json(entry);
+    } catch (error) {
+      console.error("correctTimeEntry error:", error);
+      res.status(500).json({ error: "Failed to correct time entry" });
+    }
+  },
+);
+
 router.get("/workspaces/:code/time-entries", async (req, res) => {
   const code = String(req.params.code || "")
     .trim()

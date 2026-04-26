@@ -817,6 +817,50 @@ export const store = {
     return result.rows[0] ?? null;
   },
 
+  async correctTimeEntry(
+    code: string,
+    entryId: string,
+    newStoppedAt: Date,
+  ): Promise<TimeEntry | null> {
+    const normalizedCode = code.toUpperCase();
+
+    const current = await pool.query(
+      `SELECT started_at AS "startedAt"
+       FROM time_entries
+       WHERE workspace_code = $1
+         AND id = $2
+         AND stopped_at IS NOT NULL`,
+      [normalizedCode, entryId],
+    );
+
+    if (current.rowCount === 0) {
+      return null;
+    }
+
+    const startedAt = new Date(current.rows[0].startedAt).getTime();
+    const duration = Math.max(
+      0,
+      Math.round((newStoppedAt.getTime() - startedAt) / 1000),
+    );
+
+    const result = await pool.query(
+      `UPDATE time_entries
+       SET stopped_at = $3, duration = $4
+       WHERE workspace_code = $1 AND id = $2
+       RETURNING
+         id,
+         task_id AS "taskId",
+         member_email AS "memberEmail",
+         member_name AS "memberName",
+         started_at AS "startedAt",
+         stopped_at AS "stoppedAt",
+         duration`,
+      [normalizedCode, entryId, newStoppedAt.toISOString(), duration],
+    );
+
+    return result.rows[0] ?? null;
+  },
+
   async getTimeEntries(
     code: string,
     email?: string,

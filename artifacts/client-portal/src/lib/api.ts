@@ -397,6 +397,23 @@ export async function stopTimeEntry(
   return parseJsonSafe<TimeEntry>(res);
 }
 
+export async function correctTimeEntry(
+  code: string,
+  entryId: string,
+  stoppedAt: string,
+): Promise<TimeEntry | null> {
+  const res = await fetch(
+    `${API_BASE}/workspaces/${code}/time-entries/${entryId}/correct`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stoppedAt }),
+    },
+  );
+  if (!res.ok) return null;
+  return parseJsonSafe<TimeEntry>(res);
+}
+
 export async function getTimeEntries(
   code: string,
   email?: string,

@@ -5,6 +5,7 @@ import {
   getRunningEntry,
   startTimeEntry,
   stopTimeEntry,
+  correctTimeEntry,
   updateTaskStatus,
   addTaskNote,
   getTaskNotes,
@@ -92,6 +93,10 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
   const [showEndTimeInput, setShowEndTimeInput] = useState(false);
   const [endTimeValue, setEndTimeValue] = useState("");
   const [stoppingWithTime, setStoppingWithTime] = useState(false);
+
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [editStopValue, setEditStopValue] = useState("");
+  const [savingCorrection, setSavingCorrection] = useState(false);
 
   const loadData = useCallback(async () => {
     const [t, entries, running] = await Promise.all([
@@ -191,6 +196,25 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
       }
     } finally {
       setStoppingWithTime(false);
+    }
+  };
+
+  const handleSaveCorrection = async (entry: TimeEntry) => {
+    if (!editStopValue) return;
+    const localDate = parseLocalDatetimeValue(editStopValue);
+    if (!localDate || isNaN(localDate.getTime())) return;
+    const startMs = new Date(entry.startedAt).getTime();
+    if (localDate.getTime() <= startMs) return;
+    setSavingCorrection(true);
+    try {
+      const corrected = await correctTimeEntry(portalCode, entry.id, localDate.toISOString());
+      if (corrected) {
+        setEditingEntryId(null);
+        setEditStopValue("");
+        await loadData();
+      }
+    } finally {
+      setSavingCorrection(false);
     }
   };
 
@@ -662,10 +686,68 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                                         </div>
                                       </div>
                                     </div>
-                                    <span className="text-xs font-mono font-bold text-blue-900 tabular-nums">
-                                      {formatDuration(dur)}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-mono font-bold text-blue-900 tabular-nums">
+                                        {formatDuration(dur)}
+                                      </span>
+                                      {!isThisRunning && !runningEntry && (
+                                        <button
+                                          onClick={() => {
+                                            setEditingEntryId(entry.id);
+                                            setEditStopValue(toLocalDatetimeInputValue(new Date(entry.stoppedAt!)));
+                                          }}
+                                          className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-700 transition-colors flex-shrink-0"
+                                          title="Correct stop time"
+                                        >
+                                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                          </svg>
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
+                                  {editingEntryId === entry.id && (
+                                    <div className="mt-2 pt-2 border-t border-blue-100">
+                                      <p className="text-[11px] text-blue-700 font-medium mb-1.5">Correct the stop time:</p>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <input
+                                          type="datetime-local"
+                                          step="1"
+                                          value={editStopValue}
+                                          min={toLocalDatetimeInputValue(new Date(entry.startedAt))}
+                                          max={toLocalDatetimeInputValue(new Date())}
+                                          onChange={(e) => setEditStopValue(e.target.value)}
+                                          className="flex-1 min-w-0 h-8 px-2 rounded-md border border-blue-300 bg-white text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                        />
+                                        <button
+                                          onClick={() => handleSaveCorrection(entry)}
+                                          disabled={savingCorrection || !editStopValue}
+                                          className="h-8 px-3 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors flex-shrink-0"
+                                        >
+                                          {savingCorrection ? "Saving…" : "Save"}
+                                        </button>
+                                        <button
+                                          onClick={() => { setEditingEntryId(null); setEditStopValue(""); }}
+                                          className="h-8 px-2 text-blue-700 text-xs rounded-md hover:bg-blue-100 transition-colors flex-shrink-0"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                      {(() => {
+                                        const end = parseLocalDatetimeValue(editStopValue);
+                                        if (!end || end.getTime() <= new Date(entry.startedAt).getTime()) return (
+                                          <p className="text-[11px] text-red-500 mt-1">Time must be after start ({formatTime(entry.startedAt)}).</p>
+                                        );
+                                        const secs = Math.round((end.getTime() - new Date(entry.startedAt).getTime()) / 1000);
+                                        return (
+                                          <p className="text-[11px] text-blue-700 mt-1 font-medium">
+                                            New duration: <span className="font-mono font-bold">{formatDuration(secs)}</span>
+                                          </p>
+                                        );
+                                      })()}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
