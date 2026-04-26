@@ -50,7 +50,7 @@ export function LoginForm({ workspace, portalCode, mode, onLogin, onSwitchMode }
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <img src={`${import.meta.env.BASE_URL}hourlink_icon.png`} alt="HourLink" className="w-16 h-16 rounded-2xl mx-auto mb-4" />
+          <img src={`${import.meta.env.BASE_URL}hourlink_icon.png`} alt="HourLink" className="w-32 h-32 rounded-3xl mx-auto mb-4 object-contain" />
           <h1 className="text-2xl font-semibold text-foreground mb-1">
             {mode === "team" ? "Team Portal" : "Task Portal"}
           </h1>
