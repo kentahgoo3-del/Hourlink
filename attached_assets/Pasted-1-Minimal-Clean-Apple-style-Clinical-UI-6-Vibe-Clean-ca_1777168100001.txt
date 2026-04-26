@@ -1,0 +1,111 @@
+1. Minimal Clean (Apple-style / Clinical UI)
+6
+
+Vibe: Clean, calm, distraction-free
+Colors: White, light grey, soft accent (blue/purple)
+Typography: Thin, spaced, modern
+
+Key Features:
+
+Lots of whitespace
+Simple cards and lists
+Bottom navigation (3–5 icons max)
+Focus on readability and clarity
+
+Best For:
+
+QC lab dashboards
+Training apps (like your Competency Core)
+Data-heavy, audit-friendly systems
+
+Why it works for you:
+Auditors LOVE this. Looks controlled, professional, and compliant.
+
+2. Dark Pro Dashboard (Data-heavy / Engineering feel)
+6
+
+Vibe: Powerful, technical, high-end
+Colors: Dark background + neon accents (green, purple, cyan)
+Typography: Bold, high contrast
+
+Key Features:
+
+Graph-heavy UI (charts, KPIs, trends)
+Glow effects and highlights
+Dense information on one screen
+Swipe panels and expandable sections
+
+Best For:
+
+OOS/OOT tracking
+Stability trending dashboards
+Executive analytics
+
+Why it works for you:
+Perfect for your lab oversight app — makes data feel “alive”.
+
+3. Card-Based Modular UI (Modern SaaS style)
+5
+
+Vibe: Flexible, modern, modular
+Colors: Soft gradients + category colors
+Typography: Friendly, readable
+
+Key Features:
+
+Everything is a card (modules)
+Drag, reorder, customize dashboard
+Each card = function (OOS, samples, training, etc.)
+Tap → deep dive
+
+Best For:
+
+Multi-department apps (your QC + micro + validation setup)
+Workflow tracking
+Task + analytics combo
+
+Why it works for you:
+This is probably the BEST match for your full lab oversight system.
+
+4. Industrial / Field App Style (Rugged + Functional)
+6
+
+Vibe: Practical, no-nonsense
+Colors: Yellow, orange, dark grey
+Typography: Bold, high visibility
+
+Key Features:
+
+Big buttons (glove-friendly)
+Fast actions (scan, log, approve)
+Minimal typing
+Checklist-driven
+
+Best For:
+
+Sampling workflows
+Warehouse / raw material intake
+On-floor QC actions
+
+Why it works for you:
+Great for operators, not just analysts.
+
+5. Futuristic Glass / Transparent UI (Next-gen feel)
+5
+
+Vibe: Premium, cutting-edge
+Colors: Purple, blue gradients + glass blur
+Typography: Sleek, modern
+
+Key Features:
+
+Glassmorphism (blurred panels)
+Floating elements
+Smooth animations
+Layered depth
+
+Best For:
+
+Investor-facing apps
+Premium SaaS products
+Your Chem-Ceuticals pitch ecosystem

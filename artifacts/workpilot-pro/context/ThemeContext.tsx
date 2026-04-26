@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { useColorScheme } from "react-native";
 import { THEMES, type ThemeName, type ThemePalette } from "@/constants/themes";
+import { UI_STYLES, type UIStyleName } from "@/constants/uiStyles";
 
 export type AppearanceSettings = {
   accentColor: string | null;
@@ -24,6 +25,8 @@ const CR_MAP: Record<string, number> = { sharp: 5, rounded: 14, pill: 28 };
 type ThemeContextType = {
   themeName: ThemeName;
   setTheme: (name: ThemeName) => void;
+  uiStyleName: UIStyleName;
+  setUIStyle: (name: UIStyleName) => void;
   colors: ThemePalette & { radius: number; fs: number; sp: number; cr: number };
   isDark: boolean;
   appearance: AppearanceSettings;
@@ -35,11 +38,15 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useColorScheme();
   const [themeName, setThemeNameState] = useState<ThemeName>("blue");
+  const [uiStyleName, setUIStyleNameState] = useState<UIStyleName>("default");
   const [appearance, setAppearanceState] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
 
   useEffect(() => {
     AsyncStorage.getItem("theme").then((v) => {
       if (v && v in THEMES) setThemeNameState(v as ThemeName);
+    });
+    AsyncStorage.getItem("uiStyle").then((v) => {
+      if (v && v in UI_STYLES) setUIStyleNameState(v as UIStyleName);
     });
     AsyncStorage.getItem("appearance").then((v) => {
       if (v) {
@@ -53,6 +60,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem("theme", name);
   }, []);
 
+  const setUIStyle = useCallback((name: UIStyleName) => {
+    setUIStyleNameState(name);
+    AsyncStorage.setItem("uiStyle", name);
+  }, []);
+
   const setAppearance = useCallback((s: Partial<AppearanceSettings>) => {
     setAppearanceState((prev) => {
       const next = { ...prev, ...s };
@@ -61,19 +73,36 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const theme = THEMES[themeName];
-  const isDark = systemScheme === "dark";
-  const palette = isDark ? theme.dark : theme.light;
+  const uiStyle = UI_STYLES[uiStyleName];
+  const isStyleOverride = uiStyleName !== "default";
 
-  const primary = appearance.accentColor ?? palette.primary;
+  let palette: ThemePalette;
+  let isDark: boolean;
+  let baseRadius: number;
+
+  if (isStyleOverride) {
+    palette = uiStyle.palette as unknown as ThemePalette;
+    isDark = uiStyle.isDark;
+    baseRadius = uiStyle.radius;
+  } else {
+    const theme = THEMES[themeName];
+    isDark = systemScheme === "dark";
+    palette = isDark ? theme.dark : theme.light;
+    baseRadius = theme.radius;
+  }
+
+  const primary = (!isStyleOverride && appearance.accentColor) ? appearance.accentColor : palette.primary;
   const fs = FS_MAP[appearance.fontSize] ?? 1;
   const sp = SP_MAP[appearance.density] ?? 1;
-  const cr = CR_MAP[appearance.cornerRadius] ?? 14;
+
+  const cr = isStyleOverride
+    ? uiStyle.radius
+    : CR_MAP[appearance.cornerRadius] ?? 14;
 
   const colors = {
     ...palette,
     primary,
-    tint: appearance.accentColor ?? palette.tint,
+    tint: (!isStyleOverride && appearance.accentColor) ? appearance.accentColor : palette.tint,
     radius: cr,
     fs,
     sp,
@@ -81,7 +110,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ themeName, setTheme, colors, isDark, appearance, setAppearance }}>
+    <ThemeContext.Provider value={{ themeName, setTheme, uiStyleName, setUIStyle, colors, isDark, appearance, setAppearance }}>
       {children}
     </ThemeContext.Provider>
   );
