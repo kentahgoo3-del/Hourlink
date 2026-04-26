@@ -12,12 +12,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 
-const LAST_UPDATED = "7 April 2026";
+const LAST_UPDATED = "26 April 2026";
 
 const SECTIONS = [
   {
     title: "1. Information We Collect",
-    body: `HourLink is designed with your privacy in mind. We collect and store the absolute minimum amount of data needed to provide you with a functional experience.
+    body: `HourLink is designed with your privacy in mind. We collect and store the minimum amount of data needed to provide you with a functional experience.
 
 Local Data (stored on your device only):
 • Your profile information (name, email)
@@ -26,15 +26,23 @@ Local Data (stored on your device only):
 • Time entries, invoices, quotes, and expenses
 • App preferences and theme settings
 
-This data never leaves your device unless you explicitly choose to share it (e.g., exporting or sharing an invoice).`,
+This data never leaves your device unless you explicitly choose to share it (e.g., exporting or sharing an invoice).
+
+Team & Collaboration Data (stored in the cloud):
+If you use team workspaces or the client portal, the following data is stored on our secure cloud servers:
+• Workspace details and invite codes
+• Shared tasks, time entries, and comments
+• Team member and client access credentials (hashed)
+
+This data is only created when you actively set up a team workspace.`,
   },
   {
     title: "2. Data Storage & Security",
-    body: `All your data is stored locally on your device using secure local storage (AsyncStorage). We do not operate cloud servers that store your personal or business data.
+    body: `Personal and business data (clients, invoices, expenses) is stored locally on your device using secure local storage (AsyncStorage) and never transmitted to any server.
 
-Team Collaboration: If you use the optional team collaboration features, minimal data (team invites, shared project references) is transmitted through our API server. This data is kept to the minimum necessary for the feature to function.
+Team collaboration data is stored on cloud infrastructure hosted by Render (render.com), a US-based cloud platform. Their servers use encrypted connections and industry-standard security practices. Only the data necessary for team features to function is stored there.
 
-We recommend keeping your device secured with a passcode or biometric lock to protect your HourLink data.`,
+We recommend keeping your device secured with a passcode or biometric lock to protect your local HourLink data.`,
   },
   {
     title: "3. Data We Do NOT Collect",
@@ -49,11 +57,13 @@ We recommend keeping your device secured with a passcode or biometric lock to pr
   },
   {
     title: "4. Third-Party Services",
-    body: `HourLink may interact with third-party services only when you explicitly initiate it:
+    body: `HourLink works with the following third-party services:
 
-• Email: When you share an invoice or quote via email, your device's email client handles the transmission
-• Image Picker: Used solely to upload your company logo, which is stored locally
-• Expo: The development framework used to build the app. Expo may collect anonymous crash reports to improve stability
+• Render (render.com): Hosts the API server and PostgreSQL database used for team workspaces and the client portal. Data transmitted is limited to what is needed for those features.
+• Cloudflare (cloudflare.com): Provides DNS and email routing for the hour-link.com domain. Cloudflare may process email metadata when messages are routed to our support inbox.
+• Expo (expo.dev): The framework used to build and distribute the app. Expo may collect anonymous crash reports and diagnostics to help improve stability.
+• Email (device client): When you share an invoice or quote via email, your device's own email app handles the transmission.
+• Image Picker: Used solely to upload your company logo, which is stored locally on your device.
 
 We do not integrate with any advertising networks or data brokers.`,
   },
@@ -63,18 +73,18 @@ We do not integrate with any advertising networks or data brokers.`,
 
 • View: All your data is visible within the app at all times
 • Export: You can export invoices and reports as needed
-• Delete: Use Settings → Billing → "Clear All Data" to permanently remove all app data
-• Portability: Your data is stored locally and can be backed up through your device's backup system
+• Delete local data: Use Settings to permanently remove all locally stored app data
+• Delete team data: Contact us at support@hour-link.com to request removal of any data stored in the cloud for your workspace
 
-Since we don't store your data on external servers, there is no account to delete or data request to file.`,
+For local-only data there is no external account to delete. For team workspace data, we will action any removal request within a reasonable time.`,
   },
   {
     title: "6. Children's Privacy",
-    body: "HourLink is designed for professional freelancers and business users. We do not knowingly collect information from children under 13. If you believe a child has used this app, the data exists only on the device and can be cleared through the app settings.",
+    body: "HourLink is designed for professional freelancers and business users. We do not knowingly collect information from children under 13. If you believe a child has used this app, the local data can be cleared through the app settings and you may contact us to remove any associated cloud data.",
   },
   {
     title: "7. Changes to This Policy",
-    body: "We may update this privacy policy from time to time. Any changes will be reflected in the app with an updated \"Last Updated\" date. We encourage you to review this policy periodically.",
+    body: "We may update this privacy policy from time to time. Any changes will be reflected in the app with an updated Last Updated date. We encourage you to review this policy periodically.",
   },
   {
     title: "8. Contact Us",
@@ -107,7 +117,7 @@ export default function PrivacyScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.topCardTitle, { color: colors.foreground }]}>Your Privacy Matters</Text>
             <Text style={[styles.topCardDesc, { color: colors.mutedForeground }]}>
-              HourLink stores all your data locally on your device. We don't collect, sell, or share your personal information.
+              Your personal and business data stays on your device. Team workspace data is stored securely in the cloud only when you enable collaboration features. We never sell or share your information.
             </Text>
           </View>
         </View>

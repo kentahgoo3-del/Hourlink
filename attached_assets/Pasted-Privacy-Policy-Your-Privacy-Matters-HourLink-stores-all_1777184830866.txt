@@ -1,0 +1,56 @@
+Privacy Policy
+Your Privacy Matters
+HourLink stores all your data locally on your device. We don't collect, sell, or share your personal information.
+Last updated: 7 April 2026
+1. Information We Collect
+HourLink is designed with your privacy in mind. We collect and store the absolute minimum amount of data needed to provide you with a functional experience.
+
+Local Data (stored on your device only):
+• Your profile information (name, email)
+• Company branding details (name, address, logo)
+• Client records and contact information
+• Time entries, invoices, quotes, and expenses
+• App preferences and theme settings
+
+This data never leaves your device unless you explicitly choose to share it (e.g., exporting or sharing an invoice).
+2. Data Storage & Security
+All your data is stored locally on your device using secure local storage (AsyncStorage). We do not operate cloud servers that store your personal or business data.
+
+Team Collaboration: If you use the optional team collaboration features, minimal data (team invites, shared project references) is transmitted through our API server. This data is kept to the minimum necessary for the feature to function.
+
+We recommend keeping your device secured with a passcode or biometric lock to protect your HourLink data.
+3. Data We Do NOT Collect
+We want to be transparent about what we don't do:
+
+• We do NOT track your location
+• We do NOT collect analytics or usage data
+• We do NOT use advertising trackers
+• We do NOT sell or share your data with third parties
+• We do NOT create user profiles for marketing purposes
+• We do NOT access your contacts, camera, or microphone without explicit permission
+4. Third-Party Services
+HourLink may interact with third-party services only when you explicitly initiate it:
+
+• Email: When you share an invoice or quote via email, your device's email client handles the transmission
+• Image Picker: Used solely to upload your company logo, which is stored locally
+• Expo: The development framework used to build the app. Expo may collect anonymous crash reports to improve stability
+
+We do not integrate with any advertising networks or data brokers.
+5. Your Rights & Data Control
+You have full control over your data:
+
+• View: All your data is visible within the app at all times
+• Export: You can export invoices and reports as needed
+• Delete: Use Settings → Billing → "Clear All Data" to permanently remove all app data
+• Portability: Your data is stored locally and can be backed up through your device's backup system
+
+Since we don't store your data on external servers, there is no account to delete or data request to file.
+6. Children's Privacy
+HourLink is designed for professional freelancers and business users. We do not knowingly collect information from children under 13. If you believe a child has used this app, the data exists only on the device and can be cleared through the app settings.
+7. Changes to This Policy
+We may update this privacy policy from time to time. Any changes will be reflected in the app with an updated "Last Updated" date. We encourage you to review this policy periodically.
+8. Contact Us
+If you have any questions or concerns about this privacy policy or HourLink's data practices, please contact us at:
+
+support@hour-link.com
+© 2026 HourLink. All rights reserved.
