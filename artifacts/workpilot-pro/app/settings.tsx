@@ -21,7 +21,6 @@ import { useTheme } from "@/context/ThemeContext";
 import { useWelcome } from "@/context/WelcomeContext";
 import { useColors } from "@/hooks/useColors";
 import { THEMES, type ThemeName } from "@/constants/themes";
-import { UI_STYLES, type UIStyleName } from "@/constants/uiStyles";
 
 const CURRENCIES = ["R", "$", "€", "£", "¥", "A$", "C$", "CHF", "NZD", "AED"];
 
@@ -43,13 +42,13 @@ const ACCENT_COLORS: { label: string; value: string | null }[] = [
   { label: "Black", value: "#111111" },
 ];
 
-type Section = "profile" | "company" | "style" | "theme" | "look" | "billing";
+type Section = "profile" | "company" | "theme" | "look" | "billing";
 
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { settings, companyProfile, updateSettings, updateCompanyProfile } = useApp();
-  const { themeName, setTheme, uiStyleName, setUIStyle, appearance, setAppearance } = useTheme();
+  const { themeName, setTheme, appearance, setAppearance } = useTheme();
   const { triggerWelcome, triggerTour } = useWelcome();
   const [section, setSection] = useState<Section>("profile");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -87,7 +86,7 @@ export default function SettingsScreen() {
   };
 
   const sectionLabels: Record<Section, string> = {
-    profile: "Profile", company: "Company", style: "Style", theme: "Themes", look: "Look", billing: "Billing",
+    profile: "Profile", company: "Company", theme: "Themes", look: "Look", billing: "Billing",
   };
 
   function SegmentControl({
@@ -134,13 +133,8 @@ export default function SettingsScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[styles.sectionBar, { borderBottomColor: colors.border }]}
-        contentContainerStyle={{ flexDirection: "row" }}
-      >
-        {(["profile", "company", "style", "theme", "look", "billing"] as Section[]).map((s) => (
+      <View style={[styles.sectionBar, { borderBottomColor: colors.border }]}>
+        {(["profile", "company", "theme", "look", "billing"] as Section[]).map((s) => (
           <TouchableOpacity
             key={s}
             style={[styles.sectionTab, section === s && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
@@ -158,7 +152,7 @@ export default function SettingsScreen() {
           <AppIcon name="people-outline" size={13} color={colors.primary} />
           <Text style={[styles.sectionTabLabel, { color: colors.primary }]} numberOfLines={1}>Team</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: botPadding + 40 }} showsVerticalScrollIndicator={false}>
 
@@ -288,125 +282,6 @@ export default function SettingsScreen() {
 
             <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>Payment Terms</Text>
             <FormField label="Default Terms Text" placeholder="Payment due within 30 days of invoice date." value={companyProfile.paymentTerms} onChangeText={(v) => updateCompanyProfile({ paymentTerms: v })} multiline numberOfLines={3} />
-          </>
-        )}
-
-        {/* STYLE */}
-        {section === "style" && (
-          <>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>UI Style</Text>
-            <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-              Choose a completely different look and feel for the entire app. Each style has its own colour palette, corner radius, and visual character.
-            </Text>
-
-            {(Object.values(UI_STYLES) as typeof UI_STYLES[UIStyleName][]).map((style) => {
-              const isActive = uiStyleName === style.name;
-              const [bg, accent, card, fg] = style.previewColors;
-
-              return (
-                <TouchableOpacity
-                  key={style.name}
-                  onPress={() => setUIStyle(style.name)}
-                  activeOpacity={0.85}
-                  style={[
-                    styles.styleCard,
-                    {
-                      backgroundColor: bg,
-                      borderColor: isActive ? accent : bg,
-                      borderWidth: isActive ? 2.5 : 1,
-                      borderRadius: Math.max(style.radius, 12),
-                    },
-                  ]}
-                  testID={`uistyle-${style.name}`}
-                >
-                  {/* Mini UI preview */}
-                  <View style={styles.stylePreviewArea}>
-                    {/* Simulated nav bar */}
-                    <View style={[styles.styleFakeNav, { backgroundColor: card, borderRadius: style.radius / 2 }]}>
-                      <View style={[styles.styleFakeDot, { backgroundColor: accent }]} />
-                      <View style={[styles.styleFakeBar, { backgroundColor: fg + "55", flex: 1 }]} />
-                      <View style={[styles.styleFakeDot, { backgroundColor: fg + "44", width: 18, height: 6 }]} />
-                    </View>
-                    {/* Simulated KPI row */}
-                    <View style={{ flexDirection: "row", gap: 5, marginTop: 7 }}>
-                      {[accent, accent + "99", fg + "22"].map((c, i) => (
-                        <View
-                          key={i}
-                          style={{
-                            flex: 1, height: 36, backgroundColor: card,
-                            borderRadius: style.radius / 2, borderWidth: 1,
-                            borderColor: i === 0 ? accent + "80" : fg + "18",
-                            alignItems: "center", justifyContent: "center",
-                          }}
-                        >
-                          <View style={{ width: 28, height: 5, backgroundColor: i === 0 ? accent : fg + "30", borderRadius: 3, marginBottom: 3 }} />
-                          <View style={{ width: 16, height: 3, backgroundColor: fg + "25", borderRadius: 2 }} />
-                        </View>
-                      ))}
-                    </View>
-                    {/* Simulated list rows */}
-                    {[1, 2].map((i) => (
-                      <View
-                        key={i}
-                        style={{
-                          flexDirection: "row", alignItems: "center", gap: 6, marginTop: 5,
-                          backgroundColor: card, borderRadius: style.radius / 2, padding: 7,
-                        }}
-                      >
-                        <View style={{ width: 12, height: 12, borderRadius: style.radius / 3, backgroundColor: i === 1 ? accent : accent + "55" }} />
-                        <View style={{ flex: 1, height: 5, backgroundColor: fg + "25", borderRadius: 2 }} />
-                        <View style={{ width: 20, height: 5, backgroundColor: accent + "70", borderRadius: 2 }} />
-                      </View>
-                    ))}
-                    {/* Simulated primary button */}
-                    <View style={{ marginTop: 7, height: 22, backgroundColor: accent, borderRadius: style.radius / 1.5, alignItems: "center", justifyContent: "center" }}>
-                      <View style={{ width: 40, height: 4, backgroundColor: bg + "cc", borderRadius: 2 }} />
-                    </View>
-                  </View>
-
-                  {/* Style info */}
-                  <View style={styles.styleInfo}>
-                    <View style={styles.styleInfoTop}>
-                      <Text style={{ fontSize: 22 }}>{style.emoji}</Text>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.styleLabel, { color: fg }]}>{style.label}</Text>
-                        <Text style={[styles.styleTagline, { color: fg + "99" }]} numberOfLines={2}>{style.tagline}</Text>
-                      </View>
-                      {isActive && (
-                        <View style={[styles.styleCheck, { backgroundColor: accent }]}>
-                          <AppIcon name="checkmark" size={14} color={bg} />
-                        </View>
-                      )}
-                    </View>
-
-                    {/* Color swatches */}
-                    <View style={{ flexDirection: "row", gap: 6, marginTop: 12 }}>
-                      {style.previewColors.map((c, i) => (
-                        <View
-                          key={i}
-                          style={{
-                            width: 20, height: 20, borderRadius: style.radius / 2,
-                            backgroundColor: c,
-                            borderWidth: 1, borderColor: fg + "22",
-                          }}
-                        />
-                      ))}
-                      <View style={{ flex: 1 }} />
-                      <Text style={{ fontSize: 10, color: fg + "70", fontFamily: "Inter_500Medium", alignSelf: "center" }}>
-                        {style.isDark ? "Dark" : "Light"} · r{style.radius}
-                      </Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-
-            <View style={[styles.styleNote, { backgroundColor: colors.muted, borderRadius: colors.cr }]}>
-              <AppIcon name="information-circle-outline" size={16} color={colors.mutedForeground} />
-              <Text style={[styles.styleNoteText, { color: colors.mutedForeground }]}>
-                Selecting a style overrides your colour theme and corner radius settings. Switch back to Default to use your theme choices.
-              </Text>
-            </View>
           </>
         )}
 
@@ -595,8 +470,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   back: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  sectionBar: { borderBottomWidth: 1 },
-  sectionTab: { paddingVertical: 12, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", minWidth: 72 },
+  sectionBar: { borderBottomWidth: 1, flexDirection: "row" },
+  sectionTab: { flex: 1, paddingVertical: 12, alignItems: "center", justifyContent: "center" },
   sectionTabLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", marginBottom: 16 },
   hint: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 16, lineHeight: 18 },
@@ -633,16 +508,4 @@ const styles = StyleSheet.create({
   linkIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   linkTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
   linkHint: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  styleCard: { marginBottom: 14, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
-  stylePreviewArea: { padding: 14, paddingBottom: 10 },
-  styleFakeNav: { flexDirection: "row", alignItems: "center", gap: 6, padding: 8 },
-  styleFakeDot: { width: 8, height: 8, borderRadius: 4 },
-  styleFakeBar: { height: 6, borderRadius: 3 },
-  styleInfo: { padding: 14, paddingTop: 0 },
-  styleInfoTop: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  styleLabel: { fontSize: 15, fontFamily: "Inter_700Bold", marginBottom: 2 },
-  styleTagline: { fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 15 },
-  styleCheck: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  styleNote: { flexDirection: "row", gap: 10, padding: 14, marginTop: 4, marginBottom: 8, alignItems: "flex-start" },
-  styleNoteText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
 });
