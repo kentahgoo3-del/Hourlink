@@ -191,7 +191,7 @@ export default function HomeScreen() {
       ))}
 
       {/* Billing Alerts */}
-      {billingAlerts.length > 0 && (
+      {(settings.billingEnabled ?? true) && billingAlerts.length > 0 && (
         <View style={[styles.alertCard, { backgroundColor: "#f59e0b18", borderColor: "#f59e0b50" }]}>
           <View style={styles.alertHeader}>
             <AppIcon name="alert-circle" size={18} color="#f59e0b" />
@@ -220,10 +220,12 @@ export default function HomeScreen() {
         <StatCard label="This week" value={formatHours(weekSeconds)} sub={weekDiffLabel} color={colors.primary} />
         <StatCard label="This month" value={formatCurrency(monthRevenue, settings.currency)} sub="revenue" color="#10b981" />
       </View>
-      <View style={[styles.kpiRow, { marginTop: 10 }]}>
-        <StatCard label="Unbilled" value={formatCurrency(getUnbilledAmount(), settings.currency)} sub="ready to invoice" color="#f59e0b" />
-        <StatCard label="Outstanding" value={formatCurrency(getOutstandingAmount(), settings.currency)} sub="awaiting payment" color="#ef4444" />
-      </View>
+      {(settings.billingEnabled ?? true) && (
+        <View style={[styles.kpiRow, { marginTop: 10 }]}>
+          <StatCard label="Unbilled" value={formatCurrency(getUnbilledAmount(), settings.currency)} sub="ready to invoice" color="#f59e0b" />
+          <StatCard label="Outstanding" value={formatCurrency(getOutstandingAmount(), settings.currency)} sub="awaiting payment" color="#ef4444" />
+        </View>
+      )}
 
       {/* Quick Actions */}
       <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Quick Actions</Text>

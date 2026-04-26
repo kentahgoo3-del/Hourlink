@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -440,10 +441,33 @@ export default function SettingsScreen() {
         {section === "billing" && (
           <>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Billing Preferences</Text>
-            <FormField label="Billing Reminder — Alert when client has unbilled hours older than N days" placeholder="7" value={settings.billingReminderDays.toString()} onChangeText={(v) => updateSettings({ billingReminderDays: parseInt(v) || 7 })} keyboardType="number-pad" />
-            <FormField label="Monthly Income Goal" prefix={settings.currency} placeholder="50000" value={settings.profitGoal.toString()} onChangeText={(v) => updateSettings({ profitGoal: parseFloat(v) || 0 })} keyboardType="decimal-pad" />
+
+            <View style={[styles.toggleRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.toggleLabel, { color: colors.foreground }]}>Enable Billing Features</Text>
+                <Text style={[styles.toggleHint, { color: colors.mutedForeground }]}>
+                  {settings.billingEnabled
+                    ? "Billing alerts, income goals and unbilled tracking are active."
+                    : "Billing features are hidden. Only time tracking remains visible."}
+                </Text>
+              </View>
+              <Switch
+                value={settings.billingEnabled ?? true}
+                onValueChange={(v) => updateSettings({ billingEnabled: v })}
+                trackColor={{ false: colors.border, true: colors.primary + "80" }}
+                thumbColor={settings.billingEnabled ? colors.primary : colors.mutedForeground}
+              />
+            </View>
+
+            {(settings.billingEnabled ?? true) && (
+              <>
+                <FormField label="Billing Reminder — Alert when client has unbilled hours older than N days" placeholder="7" value={settings.billingReminderDays.toString()} onChangeText={(v) => updateSettings({ billingReminderDays: parseInt(v) || 7 })} keyboardType="number-pad" />
+                <FormField label="Monthly Income Goal" prefix={settings.currency} placeholder="50000" value={settings.profitGoal.toString()} onChangeText={(v) => updateSettings({ profitGoal: parseFloat(v) || 0 })} keyboardType="decimal-pad" />
+              </>
+            )}
+
             <TouchableOpacity
-              style={[styles.dangerBtn, { borderColor: "#ef4444" }]}
+              style={[styles.dangerBtn, { borderColor: "#ef4444", marginTop: 8 }]}
               onPress={() => setShowClearConfirm(true)}
             >
               <AppIcon name="trash-outline" size={18} color="#ef4444" />
@@ -504,6 +528,9 @@ const styles = StyleSheet.create({
   previewCard: { borderWidth: 1, padding: 16 },
   radiusPreviewRow: { flexDirection: "row", gap: 12 },
   radiusPreviewBox: { flex: 1, height: 48, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  toggleRow: { flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 16 },
+  toggleLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+  toggleHint: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
   linkRow: { flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 1, padding: 14, marginBottom: 8 },
   linkIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   linkTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 2 },

@@ -177,6 +177,7 @@ export type UserSettings = {
   profitGoal: number;
   billingReminderDays: number;
   timerAlertThresholdHours: number;
+  billingEnabled: boolean;
 };
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -189,6 +190,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   profitGoal: 50000,
   billingReminderDays: 7,
   timerAlertThresholdHours: 2,
+  billingEnabled: true,
 };
 
 const DEFAULT_COMPANY: CompanyProfile = {
