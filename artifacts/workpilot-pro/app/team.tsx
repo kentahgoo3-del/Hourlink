@@ -75,6 +75,7 @@ export default function TeamScreen() {
   const [teamMembers, setTeamMembers] = useState<TeamMemberCredential[]>([]);
   const [teamTasks, setTeamTasks] = useState<SharedTask[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [localClientRefs, setLocalClientRefs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
@@ -146,7 +147,19 @@ export default function TeamScreen() {
         teamSync.getTimeEntries(code),
       ]);
       setPendingTasks(pending);
-      setTeamTasks(allTasks.filter((t) => t.assignedTo));
+
+      const storedRefsRaw = await AsyncStorage.getItem(`clientRefs_${code}`);
+      let refs: Record<string, string> = {};
+      if (storedRefsRaw) {
+        try { refs = JSON.parse(storedRefsRaw); } catch {}
+      }
+      setLocalClientRefs(refs);
+
+      const assignedTasks = allTasks.filter((t) => t.assignedTo).map((t) => ({
+        ...t,
+        clientRef: t.clientRef || refs[t.id] || undefined,
+      }));
+      setTeamTasks(assignedTasks);
       setTimeEntries(entries);
 
       const storedMembers = await AsyncStorage.getItem(`teamMembers_${code}`);
@@ -285,7 +298,7 @@ export default function TeamScreen() {
     }
     setLoading(true);
     try {
-      await teamSync.pushTask(workspaceCode, {
+      const newTask = await teamSync.pushTask(workspaceCode, {
         title: delegateTitle.trim(),
         description: delegateDesc,
         priority: delegatePriority,
@@ -293,6 +306,18 @@ export default function TeamScreen() {
         assignedTo: delegateToEmail || undefined,
         clientRef: delegateClientRef.trim() || undefined,
       });
+
+      if (delegateClientRef.trim() && newTask?.id) {
+        const storedRefsRaw = await AsyncStorage.getItem(`clientRefs_${workspaceCode}`);
+        let refs: Record<string, string> = {};
+        if (storedRefsRaw) {
+          try { refs = JSON.parse(storedRefsRaw); } catch {}
+        }
+        refs[newTask.id] = delegateClientRef.trim();
+        await AsyncStorage.setItem(`clientRefs_${workspaceCode}`, JSON.stringify(refs));
+        setLocalClientRefs(refs);
+      }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setShowDelegate(false);
       setDelegateTitle("");
@@ -344,6 +369,7 @@ export default function TeamScreen() {
       "teamWorkspaceCode",
       "teamIsOwner",
       `teamMembers_${workspaceCode}`,
+      `clientRefs_${workspaceCode}`,
     ]);
     setWorkspace(null);
     setWorkspaceCode("");
@@ -352,6 +378,7 @@ export default function TeamScreen() {
     setTeamMembers([]);
     setTeamTasks([]);
     setTimeEntries([]);
+    setLocalClientRefs({});
     setShowLeaveConfirm(false);
   };
 
