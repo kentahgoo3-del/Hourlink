@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  headerLogo: { width: 88, height: 88, borderRadius: 22 },
+  headerLogo: { width: 101, height: 101, borderRadius: 25 },
   greeting: { fontSize: 13, fontFamily: "Inter_400Regular" },
   name: { fontSize: 24, fontFamily: "Inter_700Bold", marginTop: 2 },
   settingsBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1 },
