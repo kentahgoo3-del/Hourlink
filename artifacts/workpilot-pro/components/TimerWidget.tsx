@@ -78,9 +78,11 @@ export function TimerWidget({ timer, onStop, onPause, onResume }: Props) {
         </View>
 
         <View style={styles.right}>
-          <Text style={[styles.earned, { color: isRunning ? "#fff" : colors.foreground }]}>
-            {currency}{earned}
-          </Text>
+          {(settings.billingEnabled ?? true) && (
+            <Text style={[styles.earned, { color: isRunning ? "#fff" : colors.foreground }]}>
+              {currency}{earned}
+            </Text>
+          )}
           <View style={styles.actions}>
             {isRunning ? (
               <TouchableOpacity
