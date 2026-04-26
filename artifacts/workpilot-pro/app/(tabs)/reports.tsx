@@ -324,9 +324,9 @@ export default function ReportsScreen() {
 <meta charset="utf-8"/>
 <title>${companyName} — ${bounds.label} Report</title>
 <style>
-  @page { size: A4 portrait; margin: 15mm 12mm; }
+  @page { margin: 40px 50px; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; color: #1e293b; background: #fff; font-size: 13px; line-height: 1.5; width: 794px; max-width: 794px; margin: 0 auto; }
+  body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; color: #1e293b; background: #fff; font-size: 13px; line-height: 1.5; }
 
   /* Header */
   .header { display: flex; justify-content: space-between; align-items: center; padding: 0 0 18px; border-bottom: 3px solid #3b82f6; margin-bottom: 24px; }
@@ -566,28 +566,16 @@ ${insights.length > 0 ? `
 </body>
 </html>`;
       if (Platform.OS === "web") {
-        const filename = `${companyName.replace(/[^a-z0-9]/gi, "_")}_${bounds.label.replace(/[^a-z0-9]/gi, "_")}_Report`;
-        const iframe = document.createElement("iframe");
-        iframe.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;border:0;opacity:0;";
-        document.body.appendChild(iframe);
-        const doc = iframe.contentDocument || (iframe.contentWindow as any)?.document;
-        if (doc) {
-          doc.open();
-          doc.write(html);
-          doc.close();
-          if (iframe.contentWindow) {
-            iframe.contentWindow.document.title = filename;
-            iframe.contentWindow.onafterprint = () => {
-              document.body.removeChild(iframe);
-              setExporting(false);
-            };
-            setTimeout(() => {
-              iframe.contentWindow!.focus();
-              iframe.contentWindow!.print();
-            }, 400);
-          }
+        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const win = window.open(url, "_blank");
+        if (win) {
+          win.onload = () => {
+            win.focus();
+            win.print();
+          };
         }
-        return;
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
       } else {
         const { uri } = await Print.printToFileAsync({ html, base64: false });
         await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${bounds.label} Report`, UTI: "com.adobe.pdf" });
