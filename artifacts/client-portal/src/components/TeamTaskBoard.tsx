@@ -156,18 +156,38 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
     }
   };
 
+  const parseLocalDatetimeValue = (value: string): Date | null => {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (!match) return null;
+    const [, yr, mo, dy, hr, mn, sc] = match.map(Number);
+    return new Date(yr, mo - 1, dy, hr, mn, sc || 0, 0);
+  };
+
+  const getPreviewDuration = (): number | null => {
+    if (!runningEntry || !endTimeValue) return null;
+    const end = parseLocalDatetimeValue(endTimeValue);
+    if (!end) return null;
+    const start = new Date(runningEntry.startedAt).getTime();
+    const secs = Math.round((end.getTime() - start) / 1000);
+    return secs > 0 ? secs : null;
+  };
+
   const handleStopWithEndTime = async () => {
     if (!runningEntry || !endTimeValue) return;
+    const localDate = parseLocalDatetimeValue(endTimeValue);
+    if (!localDate || isNaN(localDate.getTime())) return;
+    const startMs = new Date(runningEntry.startedAt).getTime();
+    if (localDate.getTime() <= startMs) return;
     setStoppingWithTime(true);
     try {
-      const localDate = new Date(endTimeValue);
       const isoString = localDate.toISOString();
       const stopped = await stopTimeEntry(portalCode, runningEntry.id, isoString);
       if (stopped) {
         setRunningEntry(null);
+        setElapsed(0);
         setShowEndTimeInput(false);
         setEndTimeValue("");
-        loadData();
+        await loadData();
       }
     } finally {
       setStoppingWithTime(false);
@@ -400,7 +420,7 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                   />
                   <button
                     onClick={handleStopWithEndTime}
-                    disabled={!endTimeValue || stoppingWithTime}
+                    disabled={!endTimeValue || stoppingWithTime || getPreviewDuration() === null}
                     className="h-9 px-4 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex-shrink-0"
                   >
                     {stoppingWithTime ? "Saving…" : "Confirm & Stop"}
@@ -412,6 +432,19 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                     Cancel
                   </button>
                 </div>
+                {(() => {
+                  const preview = getPreviewDuration();
+                  if (preview === null) return (
+                    <p className="text-xs text-red-500 mt-2">
+                      End time must be after the start time ({formatTime(runningEntry.startedAt)}).
+                    </p>
+                  );
+                  return (
+                    <p className="text-xs text-blue-700 mt-2 font-medium">
+                      Duration that will be recorded: <span className="font-mono font-bold">{formatDuration(preview)}</span>
+                    </p>
+                  );
+                })()}
               </div>
             )}
           </div>
