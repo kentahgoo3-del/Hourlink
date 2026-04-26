@@ -51,8 +51,20 @@ const PAGES: Page[] = [
     iconBg: "rgba(45,212,191,0.15)",
     badge: "Time Tracking",
     title: "Never Miss a\nBillable Minute",
-    body: "Start a timer with one tap — assign it to a client, set your hourly rate, and mark it billable. HourLink logs every second automatically, even in the background.",
+    body: "Start a timer with one tap. Assign it to a client, set your rate, and let HourLink log every second automatically. Made a mistake? Correct any past entry directly from the time log.",
     btnColor: "#14b8a6",
+    btnTextColor: "#fff",
+  },
+  {
+    bgTop: "#1c1014",
+    bgBottom: "#3b1a22",
+    iconName: "checkmark-circle",
+    iconColor: "#f472b6",
+    iconBg: "rgba(244,114,182,0.15)",
+    badge: "Tasks & Clients",
+    title: "Stay Organised,\nStay Focused",
+    body: "Manage your clients with individual rates, notes, and project history. Create tasks, set priorities, and drag them through a Kanban board to keep your work moving.",
+    btnColor: "#ec4899",
     btnTextColor: "#fff",
   },
   {
@@ -63,7 +75,7 @@ const PAGES: Page[] = [
     iconBg: "rgba(165,180,252,0.15)",
     badge: "Invoicing & Quotes",
     title: "Quote, Invoice,\nGet Paid",
-    body: "Turn tracked hours into professional PDF invoices in seconds. Send quotes first, convert them on approval, and link time entries directly — no double entry ever.",
+    body: "Turn tracked hours into professional PDF invoices in seconds. Send a quote first, convert it on approval, and link time entries directly. No double entry, ever.",
     btnColor: "#6366f1",
     btnTextColor: "#fff",
   },
@@ -75,8 +87,20 @@ const PAGES: Page[] = [
     iconBg: "rgba(251,191,36,0.15)",
     badge: "Financial Dashboard",
     title: "Know Exactly\nWhere You Stand",
-    body: "Live revenue charts, outstanding invoice totals, and unbilled work alerts. Set a monthly income goal and watch your progress update in real-time as you work.",
+    body: "Live revenue charts, outstanding invoice totals, and unbilled work alerts. Set a monthly income goal and track your progress in real time. Prefer to keep it simple? Turn billing features off with one switch in Settings.",
     btnColor: "#f59e0b",
+    btnTextColor: "#fff",
+  },
+  {
+    bgTop: "#052e16",
+    bgBottom: "#14532d",
+    iconName: "people",
+    iconColor: "#4ade80",
+    iconBg: "rgba(74,222,128,0.15)",
+    badge: "Team Workspaces",
+    title: "Freelance Solo or\nLead a Team",
+    body: "Create a shared workspace and invite collaborators with a single code. Team members track time and manage tasks together. Clients can log in to the companion web portal to view progress without accessing the app.",
+    btnColor: "#16a34a",
     btnTextColor: "#fff",
   },
   {
@@ -87,7 +111,7 @@ const PAGES: Page[] = [
     iconBg: "rgba(192,132,252,0.15)",
     badge: "All-in-One",
     title: "Everything a\nFreelancer Needs",
-    body: "Manage clients, track expenses, create tasks, collaborate with your team, and customise the app with your own branding. You run the business — HourLink handles the admin.",
+    body: "Time tracking, invoicing, task boards, client management, team collaboration, a client portal, and powerful reports. Customise the app with your own branding and themes. You run the business, HourLink handles the admin.",
     btnColor: "#a855f7",
     btnTextColor: "#fff",
   },
@@ -181,18 +205,15 @@ export function WelcomeOverlay({ onDismiss }: Props) {
     >
       <Animated.View style={[{ width: W, height: H, opacity: fadeAnim }]}>
 
-        {/* ── Page background ── */}
+        {/* Page background */}
         {page.heroImage ? (
           <>
-            {/* Light background behind the contained image */}
             <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#f0f4f8" }]} />
-            {/* Contained hero image — sized to fit the screen width */}
             <Image
               source={page.heroImage}
               style={{ width: W, height: H * 0.82 }}
               resizeMode="contain"
             />
-            {/* Gradient fade from image into the button area */}
             <View style={styles.heroGradient} />
           </>
         ) : (
@@ -205,7 +226,7 @@ export function WelcomeOverlay({ onDismiss }: Props) {
         )}
 
         <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: pageFade }]}>
-          {/* ── Skip ── */}
+          {/* Skip */}
           {!isLast && (
             <TouchableOpacity
               style={[styles.skipBtn, { top: topPad + 8 }]}
@@ -216,7 +237,7 @@ export function WelcomeOverlay({ onDismiss }: Props) {
             </TouchableOpacity>
           )}
 
-          {/* ── Central illustration (feature pages only) ── */}
+          {/* Central illustration (feature pages only) */}
           {!page.heroImage && (
             <View style={[styles.illustrationArea, { paddingTop: topPad + 60 }]}>
               {page.badge && (
@@ -237,7 +258,7 @@ export function WelcomeOverlay({ onDismiss }: Props) {
             </View>
           )}
 
-          {/* ── Bottom card ── */}
+          {/* Bottom card */}
           <View style={[styles.bottomCard, { paddingBottom: botPad }, page.heroImage && styles.bottomCardHero]}>
             {/* Dots */}
             <View style={styles.dots}>
@@ -358,19 +379,6 @@ const styles = StyleSheet.create({
     borderRadius: 59,
     alignItems: "center",
     justifyContent: "center",
-  },
-  heroChips: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 8,
-  },
-  heroChip: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
   },
   bottomCard: {
     paddingHorizontal: 28,
