@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { GuidedTour, resetTour, shouldShowTour } from "@/components/GuidedTour";
 import { WelcomeOverlay } from "@/components/WelcomeOverlay";
 
-const ONBOARDING_KEY = "hl_onboarding_done";
+const ONBOARDING_KEY = "hl_onboarding_done_v2";
 
 interface WelcomeContextValue {
   triggerWelcome: () => void;

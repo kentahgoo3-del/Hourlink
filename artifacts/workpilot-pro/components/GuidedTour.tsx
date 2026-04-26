@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 
-const TOUR_KEY = "@hourlink_tour_completed";
+const TOUR_KEY = "@hourlink_tour_completed_v2";
 const { width: W, height: H } = Dimensions.get("window");
 
 type TourStep = {
