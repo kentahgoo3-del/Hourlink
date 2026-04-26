@@ -314,162 +314,254 @@ export default function ReportsScreen() {
       const utilPct = totalSeconds > 0 ? Math.round((billableSeconds / totalSeconds) * 100) : 0;
       const logoDataUri = await getLogoDataUri((companyProfile as any).logoUri);
       const companyName = companyProfile.name || "HourLink";
+      const maxDailyHours = Math.max(1, ...dailyHoursData.map((d) => d.value));
+      const maxDailyRev = Math.max(1, ...dailyRevenueData.map((d) => d.value));
+      const maxClientSec = Math.max(1, ...clientBreakdown.map((c) => c.seconds));
+      const totalClientSec = clientBreakdown.reduce((s, c) => s + c.seconds, 0) || 1;
       const html = `<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8"/>
-  <title>${companyName} — ${bounds.label} Report</title>
-  <style>
-    @page { margin: 36px 48px; }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; color: #1e293b; background: #fff; font-size: 13px; line-height: 1.5; }
+<meta charset="utf-8"/>
+<title>${companyName} — ${bounds.label} Report</title>
+<style>
+  @page { margin: 40px 50px; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; color: #1e293b; background: #fff; font-size: 13px; line-height: 1.5; }
 
-    /* ── Header ── */
-    .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 3px solid #3b82f6; margin-bottom: 28px; }
-    .header-left { display: flex; align-items: center; gap: 16px; }
-    .logo-wrap { flex-shrink: 0; }
-    .logo-wrap img { max-height: 64px; max-width: 160px; object-fit: contain; display: block; }
-    .company-name { font-size: 20px; font-weight: 800; color: #0f172a; line-height: 1.2; }
-    .report-period { font-size: 13px; color: #3b82f6; font-weight: 600; margin-top: 3px; }
-    .report-sublabel { font-size: 11px; color: #94a3b8; margin-top: 1px; }
-    .header-right { text-align: right; flex-shrink: 0; }
-    .generated-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
-    .generated-date { font-size: 12px; color: #64748b; font-weight: 600; margin-top: 2px; }
+  /* Header */
+  .header { display: flex; justify-content: space-between; align-items: center; padding: 0 0 18px; border-bottom: 3px solid #3b82f6; margin-bottom: 24px; }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo-wrap img { max-height: 56px; max-width: 140px; object-fit: contain; display: block; }
+  .company-name { font-size: 22px; font-weight: 800; color: #0f172a; }
+  .report-meta { font-size: 12px; color: #64748b; margin-top: 2px; }
+  .report-meta span { color: #3b82f6; font-weight: 600; }
+  .header-right { text-align: right; }
+  .gen-label { font-size: 9px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+  .gen-date { font-size: 12px; color: #334155; font-weight: 600; margin-top: 2px; }
 
-    /* ── Section title ── */
-    .section-title { font-size: 10px; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; margin: 28px 0 10px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
+  /* Section */
+  .section-title { font-size: 9px; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 1.2px; margin: 24px 0 8px; padding-bottom: 5px; border-bottom: 1px solid #e2e8f0; }
 
-    /* ── KPI grid (2×2) ── */
-    .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 4px; page-break-inside: avoid; }
-    .kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; }
-    .kpi-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
-    .kpi-value { font-size: 24px; font-weight: 800; color: #0f172a; line-height: 1; }
-    .kpi-value.positive { color: #059669; }
-    .kpi-value.negative { color: #dc2626; }
-    .kpi-sub { font-size: 11px; color: #94a3b8; margin-top: 5px; }
-    .kpi-change { font-size: 11px; font-weight: 600; margin-top: 4px; }
-    .kpi-change.up { color: #059669; }
-    .kpi-change.down { color: #dc2626; }
+  /* KPI Cards */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; page-break-inside: avoid; }
+  .kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
+  .kpi-label { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .kpi-value { font-size: 20px; font-weight: 800; color: #0f172a; line-height: 1.1; }
+  .kpi-value.green { color: #059669; }
+  .kpi-value.red { color: #dc2626; }
+  .kpi-sub { font-size: 10px; color: #94a3b8; margin-top: 4px; }
+  .kpi-delta { font-size: 10px; font-weight: 700; margin-top: 4px; }
+  .kpi-delta.up { color: #059669; }
+  .kpi-delta.dn { color: #dc2626; }
 
-    /* ── Tables ── */
-    .table-wrap { page-break-inside: avoid; }
-    table { width: 100%; border-collapse: collapse; }
-    thead tr { background: #1e293b; }
-    th { padding: 9px 12px; text-align: left; font-size: 10px; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: 0.5px; }
-    th:last-child { text-align: right; }
-    td { padding: 9px 12px; font-size: 12px; color: #334155; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-    td:last-child { text-align: right; font-weight: 600; color: #0f172a; }
-    tbody tr:nth-child(even) { background: #f8fafc; }
-    tbody tr:last-child td { border-bottom: none; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; }
-    .badge-paid { background: #dcfce7; color: #166534; }
-    .badge-sent { background: #dbeafe; color: #1d4ed8; }
-    .badge-overdue { background: #fee2e2; color: #991b1b; }
-    .badge-draft { background: #f1f5f9; color: #64748b; }
+  /* Tables */
+  .table-wrap { page-break-inside: avoid; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead tr { background: #1e293b; }
+  th { padding: 8px 12px; text-align: left; font-size: 9px; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.5px; }
+  th.r { text-align: right; }
+  td { padding: 8px 12px; color: #334155; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  td.r { text-align: right; font-weight: 600; color: #0f172a; }
+  tbody tr:nth-child(even) { background: #f8fafc; }
+  tbody tr:last-child td { border-bottom: none; }
 
-    /* ── Insights ── */
-    .insights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; page-break-inside: avoid; }
-    .insight { background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; border-radius: 6px; padding: 10px 12px; display: flex; align-items: flex-start; gap: 8px; }
-    .insight-icon { font-size: 14px; flex-shrink: 0; line-height: 1.4; }
-    .insight-text { font-size: 12px; color: #334155; line-height: 1.4; }
+  /* Inline bar */
+  .bar-cell { width: 120px; }
+  .bar-bg { background: #e2e8f0; border-radius: 3px; height: 6px; width: 100%; overflow: hidden; }
+  .bar-fill-blue { background: #3b82f6; height: 6px; border-radius: 3px; }
+  .bar-fill-green { background: #10b981; height: 6px; border-radius: 3px; }
 
-    /* ── Footer ── */
-    .footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
-    .footer-left { font-size: 11px; font-weight: 700; color: #0f172a; }
-    .footer-right { font-size: 10px; color: #94a3b8; }
-    .powered { font-size: 10px; color: #3b82f6; font-weight: 600; }
-  </style>
+  /* Invoice status cards */
+  .inv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; page-break-inside: avoid; }
+  .inv-card { border-radius: 8px; padding: 12px 14px; }
+  .inv-card.paid { background: #dcfce7; }
+  .inv-card.sent { background: #dbeafe; }
+  .inv-card.overdue { background: #fee2e2; }
+  .inv-card.draft { background: #f1f5f9; }
+  .inv-status { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .inv-card.paid .inv-status { color: #15803d; }
+  .inv-card.sent .inv-status { color: #1d4ed8; }
+  .inv-card.overdue .inv-status { color: #b91c1c; }
+  .inv-card.draft .inv-status { color: #475569; }
+  .inv-count { font-size: 28px; font-weight: 800; }
+  .inv-card.paid .inv-count { color: #166534; }
+  .inv-card.sent .inv-count { color: #1e40af; }
+  .inv-card.overdue .inv-count { color: #991b1b; }
+  .inv-card.draft .inv-count { color: #334155; }
+  .inv-label { font-size: 10px; color: #64748b; margin-top: 2px; }
+
+  /* Insights */
+  .insights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; page-break-inside: avoid; }
+  .insight { background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #10b981; border-radius: 6px; padding: 9px 12px; display: flex; align-items: flex-start; gap: 8px; }
+  .ins-icon { font-size: 13px; flex-shrink: 0; }
+  .ins-text { font-size: 11px; color: #166534; line-height: 1.4; }
+
+  /* Footer */
+  .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+  .footer span { font-size: 10px; color: #94a3b8; }
+  .footer strong { color: #3b82f6; }
+</style>
 </head>
 <body>
 
-  <!-- Header -->
-  <div class="header">
-    <div class="header-left">
-      ${logoDataUri ? `<div class="logo-wrap"><img src="${logoDataUri}" alt="logo"/></div>` : ""}
-      <div>
-        <div class="company-name">${companyName}</div>
-        <div class="report-period">${bounds.label}</div>
-        <div class="report-sublabel">${bounds.sublabel}</div>
-      </div>
-    </div>
-    <div class="header-right">
-      <div class="generated-label">Generated</div>
-      <div class="generated-date">${now}</div>
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-left">
+    ${logoDataUri ? `<div class="logo-wrap"><img src="${logoDataUri}" alt=""/></div>` : ""}
+    <div>
+      <div class="company-name">${companyName}</div>
+      <div class="report-meta"><span>${bounds.label}</span> &nbsp;·&nbsp; ${bounds.sublabel}</div>
     </div>
   </div>
-
-  <!-- Key Metrics -->
-  <div class="section-title">Key Metrics</div>
-  <div class="kpi-grid">
-    <div class="kpi">
-      <div class="kpi-label">Revenue</div>
-      <div class="kpi-value">${formatCurrency(totalRevenue, settings.currency)}</div>
-      ${prevRevenue > 0 ? `<div class="kpi-change ${revenueChange >= 0 ? "up" : "down"}">${changePrefix(revenueChange)}${revenueChange.toFixed(0)}% vs previous ${period}</div>` : ""}
-    </div>
-    <div class="kpi">
-      <div class="kpi-label">Net Profit</div>
-      <div class="kpi-value ${netProfit >= 0 ? "positive" : "negative"}">${formatCurrency(netProfit, settings.currency)}</div>
-      ${totalExpenses > 0 ? `<div class="kpi-sub">${formatCurrency(totalExpenses, settings.currency)} in expenses</div>` : ""}
-    </div>
-    <div class="kpi">
-      <div class="kpi-label">Total Hours</div>
-      <div class="kpi-value">${formatHours(totalSeconds)}</div>
-      <div class="kpi-sub">${formatHours(billableSeconds)} billable · ${formatHours(totalSeconds - billableSeconds)} non-billable</div>
-    </div>
-    <div class="kpi">
-      <div class="kpi-label">Utilization</div>
-      <div class="kpi-value">${utilPct}%</div>
-      ${avgHourlyRate > 0 ? `<div class="kpi-sub">${settings.currency}${avgHourlyRate.toFixed(0)}/h blended rate</div>` : ""}
-    </div>
+  <div class="header-right">
+    <div class="gen-label">Generated</div>
+    <div class="gen-date">${now}</div>
   </div>
+</div>
 
-  ${clientBreakdown.length > 0 ? `
-  <!-- Hours by Client -->
-  <div class="section-title">Hours by Client</div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Client</th><th>Hours Worked</th><th>Earned</th></tr></thead>
-      <tbody>${clientBreakdown.map((item) => `<tr><td>${item.client?.name || "Unknown"}</td><td>${formatHours(item.seconds)}</td><td>${formatCurrency(item.earned, settings.currency)}</td></tr>`).join("")}</tbody>
-    </table>
-  </div>` : ""}
-
-  ${taskBreakdown.length > 0 ? `
-  <!-- Hours by Task -->
-  <div class="section-title">Hours by Task</div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Task</th><th>Hours</th><th>Earned</th></tr></thead>
-      <tbody>${taskBreakdown.map((item) => `<tr><td>${item.taskTitle}</td><td>${formatHours(item.seconds)}</td><td>${formatCurrency(item.earned, settings.currency)}</td></tr>`).join("")}</tbody>
-    </table>
-  </div>` : ""}
-
-  ${invoiceStatus.total > 0 ? `
-  <!-- Invoice Summary -->
-  <div class="section-title">Invoice Summary</div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Status</th><th>Count</th></tr></thead>
-      <tbody>
-        <tr><td><span class="badge badge-paid">Paid</span></td><td>${invoiceStatus.paid}</td></tr>
-        <tr><td><span class="badge badge-sent">Sent</span></td><td>${invoiceStatus.sent}</td></tr>
-        <tr><td><span class="badge badge-overdue">Overdue</span></td><td>${invoiceStatus.overdue}</td></tr>
-        <tr><td><span class="badge badge-draft">Draft</span></td><td>${invoiceStatus.draft}</td></tr>
-      </tbody>
-    </table>
-  </div>` : ""}
-
-  ${insights.length > 0 ? `
-  <!-- Insights -->
-  <div class="section-title">Insights</div>
-  <div class="insights-grid">
-    ${insights.map((ins) => `<div class="insight"><span class="insight-icon">${ins.icon}</span><span class="insight-text">${ins.text}</span></div>`).join("")}
-  </div>` : ""}
-
-  <!-- Footer -->
-  <div class="footer">
-    <div class="footer-left">${companyName}</div>
-    <div class="footer-right">${bounds.label} Report &nbsp;·&nbsp; <span class="powered">HourLink</span></div>
+<!-- ── Summary KPIs ── -->
+<div class="section-title">Summary</div>
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-label">Revenue</div>
+    <div class="kpi-value">${formatCurrency(totalRevenue, settings.currency)}</div>
+    ${prevRevenue > 0 ? `<div class="kpi-delta ${revenueChange >= 0 ? "up" : "dn"}">${changePrefix(revenueChange)}${revenueChange.toFixed(0)}% vs prev ${period}</div>` : `<div class="kpi-sub">No prior period</div>`}
   </div>
+  <div class="kpi">
+    <div class="kpi-label">Net Profit</div>
+    <div class="kpi-value ${netProfit >= 0 ? "green" : "red"}">${formatCurrency(netProfit, settings.currency)}</div>
+    <div class="kpi-sub">${totalExpenses > 0 ? `${formatCurrency(totalExpenses, settings.currency)} expenses` : "No expenses recorded"}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Total Hours</div>
+    <div class="kpi-value">${formatHours(totalSeconds)}</div>
+    <div class="kpi-sub">${formatHours(billableSeconds)} billable &nbsp;/&nbsp; ${formatHours(totalSeconds - billableSeconds)} non-billable</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Utilization</div>
+    <div class="kpi-value ${utilPct >= 80 ? "green" : utilPct >= 50 ? "" : "red"}">${utilPct}%</div>
+    <div class="kpi-sub">${avgHourlyRate > 0 ? `${settings.currency}${avgHourlyRate.toFixed(0)}/h avg rate` : "No billable rate set"}</div>
+  </div>
+</div>
+
+${dailyHoursData.length > 0 ? `
+<!-- ── Hours per Day ── -->
+<div class="section-title">Hours per Day</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Date</th><th>Hours Logged</th><th class="r">Hours</th></tr></thead>
+    <tbody>
+      ${dailyHoursData.map((d) => `
+      <tr>
+        <td>${d.label}</td>
+        <td class="bar-cell"><div class="bar-bg"><div class="bar-fill-blue" style="width:${Math.round((d.value / maxDailyHours) * 100)}%"></div></div></td>
+        <td class="r">${d.value.toFixed(1)}h</td>
+      </tr>`).join("")}
+      <tr style="background:#f1f5f9">
+        <td style="font-weight:700;color:#0f172a">Total</td>
+        <td></td>
+        <td class="r" style="color:#3b82f6">${formatHours(totalSeconds)}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>` : ""}
+
+${dailyRevenueData.length > 0 ? `
+<!-- ── Revenue per Day ── -->
+<div class="section-title">Revenue per Day</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Date</th><th>Revenue</th><th class="r">Amount</th></tr></thead>
+    <tbody>
+      ${dailyRevenueData.map((d) => `
+      <tr>
+        <td>${d.label}</td>
+        <td class="bar-cell"><div class="bar-bg"><div class="bar-fill-green" style="width:${Math.round((d.value / maxDailyRev) * 100)}%"></div></div></td>
+        <td class="r">${formatCurrency(d.value, settings.currency)}</td>
+      </tr>`).join("")}
+      <tr style="background:#f1f5f9">
+        <td style="font-weight:700;color:#0f172a">Total</td>
+        <td></td>
+        <td class="r" style="color:#059669">${formatCurrency(totalRevenue, settings.currency)}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>` : ""}
+
+${clientBreakdown.length > 0 ? `
+<!-- ── Hours by Client ── -->
+<div class="section-title">Hours by Client</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Client</th><th>Share</th><th class="r">Hours</th><th class="r">Earned</th></tr></thead>
+    <tbody>
+      ${clientBreakdown.map((item) => {
+        const pct = Math.round((item.seconds / totalClientSec) * 100);
+        return `<tr>
+          <td>${item.client?.name || "Unknown"}</td>
+          <td class="bar-cell"><div class="bar-bg"><div class="bar-fill-blue" style="width:${Math.round((item.seconds / maxClientSec) * 100)}%"></div></div></td>
+          <td class="r">${formatHours(item.seconds)} <span style="color:#94a3b8;font-size:10px">(${pct}%)</span></td>
+          <td class="r">${formatCurrency(item.earned, settings.currency)}</td>
+        </tr>`;
+      }).join("")}
+    </tbody>
+  </table>
+</div>` : ""}
+
+${taskBreakdown.length > 0 ? `
+<!-- ── Hours by Task ── -->
+<div class="section-title">Hours by Task</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Task</th><th class="r">Hours</th><th class="r">Earned</th></tr></thead>
+    <tbody>
+      ${taskBreakdown.map((item) => `<tr>
+        <td>${item.taskTitle}</td>
+        <td class="r">${formatHours(item.seconds)}</td>
+        <td class="r">${formatCurrency(item.earned, settings.currency)}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>
+</div>` : ""}
+
+${invoiceStatus.total > 0 ? `
+<!-- ── Invoice Status ── -->
+<div class="section-title">Invoice Status</div>
+<div class="inv-grid">
+  <div class="inv-card paid">
+    <div class="inv-status">Paid</div>
+    <div class="inv-count">${invoiceStatus.paid}</div>
+    <div class="inv-label">${invoiceStatus.paid === 1 ? "invoice" : "invoices"}</div>
+  </div>
+  <div class="inv-card sent">
+    <div class="inv-status">Sent / Awaiting</div>
+    <div class="inv-count">${invoiceStatus.sent}</div>
+    <div class="inv-label">${invoiceStatus.sent === 1 ? "invoice" : "invoices"}</div>
+  </div>
+  <div class="inv-card overdue">
+    <div class="inv-status">Overdue</div>
+    <div class="inv-count">${invoiceStatus.overdue}</div>
+    <div class="inv-label">${invoiceStatus.overdue === 1 ? "invoice" : "invoices"}</div>
+  </div>
+  <div class="inv-card draft">
+    <div class="inv-status">Draft</div>
+    <div class="inv-count">${invoiceStatus.draft}</div>
+    <div class="inv-label">${invoiceStatus.draft === 1 ? "invoice" : "invoices"}</div>
+  </div>
+</div>` : ""}
+
+${insights.length > 0 ? `
+<!-- ── Insights ── -->
+<div class="section-title">Insights</div>
+<div class="insights-grid">
+  ${insights.map((ins) => `<div class="insight"><span class="ins-icon">${ins.icon}</span><span class="ins-text">${ins.text}</span></div>`).join("")}
+</div>` : ""}
+
+<!-- ── Footer ── -->
+<div class="footer">
+  <span><strong>${companyName}</strong></span>
+  <span>${bounds.label} Report &nbsp;·&nbsp; <strong>HourLink</strong></span>
+</div>
 
 </body>
 </html>`;
