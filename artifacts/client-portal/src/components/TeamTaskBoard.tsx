@@ -51,13 +51,13 @@ function formatDate(dateStr: string) {
 
 function formatTime(dateStr: string) {
   return new Date(dateStr).toLocaleTimeString("en-ZA", {
-    hour: "2-digit", minute: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
   });
 }
 
 function toLocalDatetimeInputValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 function isDueSoon(dateStr: string | null) {
@@ -412,6 +412,7 @@ export function TeamTaskBoard({ workspace, portalCode, user, onLogout }: Props) 
                 <div className="flex items-center gap-2 flex-wrap">
                   <input
                     type="datetime-local"
+                    step="1"
                     value={endTimeValue}
                     max={toLocalDatetimeInputValue(new Date())}
                     min={toLocalDatetimeInputValue(new Date(runningEntry.startedAt))}
