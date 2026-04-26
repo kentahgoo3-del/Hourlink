@@ -313,10 +313,166 @@ export default function ReportsScreen() {
       const now = new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
       const utilPct = totalSeconds > 0 ? Math.round((billableSeconds / totalSeconds) * 100) : 0;
       const logoDataUri = await getLogoDataUri((companyProfile as any).logoUri);
-      const logoHtml = logoDataUri ? `<img src="${logoDataUri}" style="max-height:90px;max-width:220px;object-fit:contain;display:block;margin-bottom:10px;" alt="logo"/>` : "";
-      const clientRows = clientBreakdown.map((item) => `<tr><td>${item.client?.name || "Unknown"}</td><td>${formatHours(item.seconds)}</td><td>${formatCurrency(item.earned, settings.currency)}</td></tr>`).join("");
-      const taskRows = taskBreakdown.map((item) => `<tr><td>${item.taskTitle}</td><td>${formatHours(item.seconds)}</td><td>${formatCurrency(item.earned, settings.currency)}</td></tr>`).join("");
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${companyProfile.name || "HourLink"} — ${bounds.label} Report</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,Helvetica,Arial,sans-serif;color:#1e293b;background:#fff;padding:48px}.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;border-bottom:2px solid #3b82f6;padding-bottom:24px}.company-left{display:flex;flex-direction:column}.company-name{font-size:22px;font-weight:800;color:#1e293b}.report-title{font-size:14px;color:#64748b;margin-top:4px}.date{font-size:12px;color:#94a3b8;text-align:right}.section-title{font-size:14px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:.5px;margin:32px 0 12px}.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:8px}.kpi{background:#f8fafc;border-radius:12px;padding:16px}.kpi-label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}.kpi-value{font-size:22px;font-weight:800;color:#1e293b}.kpi-sub{font-size:11px;color:#94a3b8;margin-top:4px}table{width:100%;border-collapse:collapse;margin-top:4px}th{background:#f1f5f9;padding:10px 14px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px}td{padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155}tr:last-child td{border-bottom:none}.insight{background:#f0fdf4;border-left:3px solid #10b981;padding:10px 14px;margin-bottom:8px;font-size:13px;color:#065f46;border-radius:0 8px 8px 0}.footer{margin-top:48px;border-top:1px solid #e2e8f0;padding-top:16px;font-size:11px;color:#94a3b8;display:flex;justify-content:space-between}</style></head><body><div class="header"><div class="company-left">${logoHtml}<div class="company-name">${companyProfile.name || "HourLink"}</div><div class="report-title">${bounds.label} · ${bounds.sublabel}</div></div><div class="date">Generated ${now}</div></div><div class="section-title">Key Metrics</div><div class="kpi-grid"><div class="kpi"><div class="kpi-label">Revenue</div><div class="kpi-value">${formatCurrency(totalRevenue, settings.currency)}</div>${prevRevenue > 0 ? `<div class="kpi-sub">${changePrefix(revenueChange)}${revenueChange.toFixed(0)}% vs prev</div>` : ""}</div><div class="kpi"><div class="kpi-label">Net Profit</div><div class="kpi-value">${formatCurrency(netProfit, settings.currency)}</div>${totalExpenses > 0 ? `<div class="kpi-sub">${formatCurrency(totalExpenses, settings.currency)} expenses</div>` : ""}</div><div class="kpi"><div class="kpi-label">Hours</div><div class="kpi-value">${formatHours(totalSeconds)}</div><div class="kpi-sub">${formatHours(billableSeconds)} billable</div></div><div class="kpi"><div class="kpi-label">Utilization</div><div class="kpi-value">${utilPct}%</div>${avgHourlyRate > 0 ? `<div class="kpi-sub">${settings.currency}${avgHourlyRate.toFixed(0)}/h avg</div>` : ""}</div></div>${clientBreakdown.length > 0 ? `<div class="section-title">Hours by Client</div><table><thead><tr><th>Client</th><th>Hours</th><th>Earned</th></tr></thead><tbody>${clientRows}</tbody></table>` : ""}${taskBreakdown.length > 0 ? `<div class="section-title">Hours by Task</div><table><thead><tr><th>Task</th><th>Hours</th><th>Earned</th></tr></thead><tbody>${taskRows}</tbody></table>` : ""}${invoiceStatus.total > 0 ? `<div class="section-title">Invoice Summary</div><table><thead><tr><th>Status</th><th>Count</th></tr></thead><tbody><tr><td>Paid</td><td>${invoiceStatus.paid}</td></tr><tr><td>Sent</td><td>${invoiceStatus.sent}</td></tr><tr><td>Overdue</td><td>${invoiceStatus.overdue}</td></tr><tr><td>Draft</td><td>${invoiceStatus.draft}</td></tr></tbody></table>` : ""}${insights.length > 0 ? `<div class="section-title">Insights</div>${insights.map((ins) => `<div class="insight">${ins.icon} ${ins.text}</div>`).join("")}` : ""}<div class="footer"><span>${companyProfile.name || "HourLink"}</span><span>HourLink · ${bounds.label}</span></div></body></html>`;
+      const companyName = companyProfile.name || "HourLink";
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>${companyName} — ${bounds.label} Report</title>
+  <style>
+    @page { margin: 36px 48px; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; color: #1e293b; background: #fff; font-size: 13px; line-height: 1.5; }
+
+    /* ── Header ── */
+    .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 3px solid #3b82f6; margin-bottom: 28px; }
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .logo-wrap { flex-shrink: 0; }
+    .logo-wrap img { max-height: 64px; max-width: 160px; object-fit: contain; display: block; }
+    .company-name { font-size: 20px; font-weight: 800; color: #0f172a; line-height: 1.2; }
+    .report-period { font-size: 13px; color: #3b82f6; font-weight: 600; margin-top: 3px; }
+    .report-sublabel { font-size: 11px; color: #94a3b8; margin-top: 1px; }
+    .header-right { text-align: right; flex-shrink: 0; }
+    .generated-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+    .generated-date { font-size: 12px; color: #64748b; font-weight: 600; margin-top: 2px; }
+
+    /* ── Section title ── */
+    .section-title { font-size: 10px; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; margin: 28px 0 10px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
+
+    /* ── KPI grid (2×2) ── */
+    .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 4px; page-break-inside: avoid; }
+    .kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; }
+    .kpi-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+    .kpi-value { font-size: 24px; font-weight: 800; color: #0f172a; line-height: 1; }
+    .kpi-value.positive { color: #059669; }
+    .kpi-value.negative { color: #dc2626; }
+    .kpi-sub { font-size: 11px; color: #94a3b8; margin-top: 5px; }
+    .kpi-change { font-size: 11px; font-weight: 600; margin-top: 4px; }
+    .kpi-change.up { color: #059669; }
+    .kpi-change.down { color: #dc2626; }
+
+    /* ── Tables ── */
+    .table-wrap { page-break-inside: avoid; }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: #1e293b; }
+    th { padding: 9px 12px; text-align: left; font-size: 10px; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: 0.5px; }
+    th:last-child { text-align: right; }
+    td { padding: 9px 12px; font-size: 12px; color: #334155; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    td:last-child { text-align: right; font-weight: 600; color: #0f172a; }
+    tbody tr:nth-child(even) { background: #f8fafc; }
+    tbody tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+    .badge-paid { background: #dcfce7; color: #166534; }
+    .badge-sent { background: #dbeafe; color: #1d4ed8; }
+    .badge-overdue { background: #fee2e2; color: #991b1b; }
+    .badge-draft { background: #f1f5f9; color: #64748b; }
+
+    /* ── Insights ── */
+    .insights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; page-break-inside: avoid; }
+    .insight { background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; border-radius: 6px; padding: 10px 12px; display: flex; align-items: flex-start; gap: 8px; }
+    .insight-icon { font-size: 14px; flex-shrink: 0; line-height: 1.4; }
+    .insight-text { font-size: 12px; color: #334155; line-height: 1.4; }
+
+    /* ── Footer ── */
+    .footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+    .footer-left { font-size: 11px; font-weight: 700; color: #0f172a; }
+    .footer-right { font-size: 10px; color: #94a3b8; }
+    .powered { font-size: 10px; color: #3b82f6; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      ${logoDataUri ? `<div class="logo-wrap"><img src="${logoDataUri}" alt="logo"/></div>` : ""}
+      <div>
+        <div class="company-name">${companyName}</div>
+        <div class="report-period">${bounds.label}</div>
+        <div class="report-sublabel">${bounds.sublabel}</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="generated-label">Generated</div>
+      <div class="generated-date">${now}</div>
+    </div>
+  </div>
+
+  <!-- Key Metrics -->
+  <div class="section-title">Key Metrics</div>
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-label">Revenue</div>
+      <div class="kpi-value">${formatCurrency(totalRevenue, settings.currency)}</div>
+      ${prevRevenue > 0 ? `<div class="kpi-change ${revenueChange >= 0 ? "up" : "down"}">${changePrefix(revenueChange)}${revenueChange.toFixed(0)}% vs previous ${period}</div>` : ""}
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Net Profit</div>
+      <div class="kpi-value ${netProfit >= 0 ? "positive" : "negative"}">${formatCurrency(netProfit, settings.currency)}</div>
+      ${totalExpenses > 0 ? `<div class="kpi-sub">${formatCurrency(totalExpenses, settings.currency)} in expenses</div>` : ""}
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Total Hours</div>
+      <div class="kpi-value">${formatHours(totalSeconds)}</div>
+      <div class="kpi-sub">${formatHours(billableSeconds)} billable · ${formatHours(totalSeconds - billableSeconds)} non-billable</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Utilization</div>
+      <div class="kpi-value">${utilPct}%</div>
+      ${avgHourlyRate > 0 ? `<div class="kpi-sub">${settings.currency}${avgHourlyRate.toFixed(0)}/h blended rate</div>` : ""}
+    </div>
+  </div>
+
+  ${clientBreakdown.length > 0 ? `
+  <!-- Hours by Client -->
+  <div class="section-title">Hours by Client</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Client</th><th>Hours Worked</th><th>Earned</th></tr></thead>
+      <tbody>${clientBreakdown.map((item) => `<tr><td>${item.client?.name || "Unknown"}</td><td>${formatHours(item.seconds)}</td><td>${formatCurrency(item.earned, settings.currency)}</td></tr>`).join("")}</tbody>
+    </table>
+  </div>` : ""}
+
+  ${taskBreakdown.length > 0 ? `
+  <!-- Hours by Task -->
+  <div class="section-title">Hours by Task</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Task</th><th>Hours</th><th>Earned</th></tr></thead>
+      <tbody>${taskBreakdown.map((item) => `<tr><td>${item.taskTitle}</td><td>${formatHours(item.seconds)}</td><td>${formatCurrency(item.earned, settings.currency)}</td></tr>`).join("")}</tbody>
+    </table>
+  </div>` : ""}
+
+  ${invoiceStatus.total > 0 ? `
+  <!-- Invoice Summary -->
+  <div class="section-title">Invoice Summary</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Status</th><th>Count</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge badge-paid">Paid</span></td><td>${invoiceStatus.paid}</td></tr>
+        <tr><td><span class="badge badge-sent">Sent</span></td><td>${invoiceStatus.sent}</td></tr>
+        <tr><td><span class="badge badge-overdue">Overdue</span></td><td>${invoiceStatus.overdue}</td></tr>
+        <tr><td><span class="badge badge-draft">Draft</span></td><td>${invoiceStatus.draft}</td></tr>
+      </tbody>
+    </table>
+  </div>` : ""}
+
+  ${insights.length > 0 ? `
+  <!-- Insights -->
+  <div class="section-title">Insights</div>
+  <div class="insights-grid">
+    ${insights.map((ins) => `<div class="insight"><span class="insight-icon">${ins.icon}</span><span class="insight-text">${ins.text}</span></div>`).join("")}
+  </div>` : ""}
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-left">${companyName}</div>
+    <div class="footer-right">${bounds.label} Report &nbsp;·&nbsp; <span class="powered">HourLink</span></div>
+  </div>
+
+</body>
+</html>`;
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: `${bounds.label} Report`, UTI: "com.adobe.pdf" });
     } catch (e) {
