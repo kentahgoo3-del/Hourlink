@@ -153,7 +153,7 @@ export function TaskBoard({ workspace, portalCode, user, onLogout }: Props) {
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={`${import.meta.env.BASE_URL}hourlink_icon.png`} alt="HourLink" className="w-20 h-20 rounded-md object-contain" />
+            <img src={`${import.meta.env.BASE_URL}hourlink_icon.png`} alt="HourLink" className="w-24 h-24 rounded-md object-contain" />
             <div>
               <h1 className="text-sm font-semibold text-foreground leading-tight">Task Portal</h1>
               <p className="text-xs text-muted-foreground">{workspace.ownerName}</p>
