@@ -1,0 +1,174 @@
+M
+My Workspace
+Hour Link
+
+Production
+
+
+hourlink-db
+
+Search
+Ctrl+
+K
+
+New
+
+
+k
+Environment
+hourlink-db
+Info
+Monitor
+Logs
+Metrics
+Manage
+Apps
+Recovery
+New plans, zero seat fees
+We're updating workspace pricing to help teams grow faster. No seat fees, more self-serve features, granular bandwidth billing, and more.
+Opt-in early
+
+
+Changelog
+Invite a friend
+
+Contact support
+Render Status
+PostgreSQL
+hourlink-db
+Basic-256mb
+View docs
+
+Connect
+Service ID:
+dpg-d7ckcbq8qa3s73e9lk0g-a
+
+Info
+General
+Name
+A unique name for your database.
+hourlink-db
+
+Edit
+Created
+16 days ago
+Status
+available
+PostgreSQL Version
+18
+Review version details
+Region
+Frankfurt (EU Central)
+Read Replicas
+
+Add Read Replica
+Storage
+9.96% used out of 1 GB
+Database storage
+Storage Autoscaling
+Disabled
+Datadog API Key
+
+Add Datadog API Key
+Postgres Instance
+Instance Type
+Basic-256mb
+256 MB
+ RAM
+0.1
+ CPU
+1 GB
+ Storage
+Update
+High Availability
+Run a standby instance of your database and automatically fail over to it if the primary encounters an issue.
+
+
+Disabled
+Only available for Pro instances and higher.
+See upgrade options
+Connections
+Hostname
+An internal hostname used by your Render services.
+dpg-d7ckcbq8qa3s73e9lk0g-a
+
+Port
+5432
+
+Database
+hourlink
+
+Username
+hourlink_user
+
+Password
+••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+
+
+Internal Database URL
+••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+
+
+External Database URL
+••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+
+
+PSQL Command
+••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+
+
+Credentials
+Create new default credentials and delete the old ones when ready.
+
+Username
+1
+Password
+
+Open Connections
+
+Created
+hourlink_userDefault	
+••••••••••••
+0	15d	
+
+New default credential
+Networking
+Inbound IP Restrictions
+Limit incoming traffic to your services from specific IP ranges. Sources are specified in CIDR block notation.
+
+1
+IP range is allowed from outside of your private network.
+
+Validate IP address
+0.0.0.0
+PostgreSQL Inbound IP Rules
+Source	Description	Delete
+CIDR block
+0.0.0.0/0
+Description
+everywhere
+
+
+Add source
+Cancel
+Save
+Log Stream
+Forward Render service logs to your third-party logging provider. Learn more
+Destination
+Use your workspace's default log stream or override for this service.
+Log endpoint
+None
+Token
+None
+Override service log stream
+Using workspace default
+
+Delete Database
+
+Restart Database
+
+Suspend Database
+0 services selected:
+
+Move
+
