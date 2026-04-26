@@ -1,0 +1,52 @@
+Static Site
+Hourlink
+
+Manual Deploy
+Service ID:
+srv-d7n033i8qa3s739usrk0
+
+kentahgoo3-del / Hourlink
+main
+https://hourlink.onrender.com
+
+April 26, 2026 at 2:16 PM
+failed
+c0129d6
+fix: add packageManager field so Render uses pnpm
+
+Rollback
+Exited with status 1 while building your code.
+Read our docs for common ways to troubleshoot your deploy.
+Search
+Search
+
+Apr 26, 2:15 PM - 2:18 PM
+GMT+2
+
+
+
+==> Cloning from https://github.com/kentahgoo3-del/Hourlink
+==> Checking out commit c0129d65ee2849844a3b48e5b0bfa1eb9f07b112 in branch main
+==> Installing dependencies with pnpm...
+==> Using Node.js version 24.14.1 (default)
+==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+==> Running build command 'pnpm install --frozen-lockfile && pnpm --filter @workspace/client-portal run build'...
+> @workspace/client-portal@0.0.0 build /opt/render/project/src/artifacts/client-portal
+> vite build --config vite.config.ts
+failed to load config from /opt/render/project/src/artifacts/client-portal/vite.config.ts
+error during build:
+Error: BASE_PATH environment variable is required but was not provided.
+    at file:///opt/render/project/src/artifacts/client-portal/node_modules/.vite-temp/vite.config.ts.timestamp-1777205852020-2c69318e6c3ea8.mjs:20:9
+    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:661:26)
+    at async loadConfigFromBundledFile (file:///opt/render/project/src/node_modules/.pnpm/vite@7.3.1_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_terser@5.46.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:35909:12)
+    at async bundleAndLoadConfigFile (file:///opt/render/project/src/node_modules/.pnpm/vite@7.3.1_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_terser@5.46.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:35797:17)
+    at async loadConfigFromFile (file:///opt/render/project/src/node_modules/.pnpm/vite@7.3.1_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_terser@5.46.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:35764:42)
+    at async resolveConfig (file:///opt/render/project/src/node_modules/.pnpm/vite@7.3.1_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_terser@5.46.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:35413:22)
+    at async createBuilder (file:///opt/render/project/src/node_modules/.pnpm/vite@7.3.1_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_terser@5.46.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:33875:19)
+    at async CAC.<anonymous> (file:///opt/render/project/src/node_modules/.pnpm/vite@7.3.1_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_terser@5.46.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/cli.js:629:10)
+/opt/render/project/src/artifacts/client-portal:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/client-portal@0.0.0 build: `vite build --config vite.config.ts`
+Exit status 1
+==> Build failed 😞
+==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
