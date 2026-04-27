@@ -288,57 +288,6 @@ export default function ManageSubscriptionScreen() {
               </View>
             )}
 
-            {billingHistory.length > 0 && (
-              <>
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Billing History</Text>
-                {!IS_WEB && (
-                  <Text style={[styles.billingHistoryNote, { color: colors.mutedForeground }]}>
-                    Showing available charge history from your app store account
-                  </Text>
-                )}
-                <View style={[styles.billingHistoryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  {billingHistory.map((tx: BillingTransaction, idx: number) => (
-                    <React.Fragment key={idx}>
-                      {idx > 0 && <View style={[styles.infoDivider, { backgroundColor: colors.border }]} />}
-                      <View style={styles.billingRow} testID={`billing-history-row-${idx}`}>
-                        <View style={[styles.billingIconWrap, { backgroundColor: colors.muted }]}>
-                          <AppIcon name="receipt-outline" size={15} color={colors.mutedForeground} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.billingDate, { color: colors.foreground }]}>
-                            {formatDate(tx.date)}
-                          </Text>
-                          <Text style={[styles.billingAmount, { color: colors.mutedForeground }]}>
-                            {tx.amount}
-                          </Text>
-                        </View>
-                        <View style={styles.billingStatusBadge}>
-                          <Text style={styles.billingStatusText}>{tx.status}</Text>
-                        </View>
-                        <TouchableOpacity
-                          style={[
-                            styles.downloadBtn,
-                            { borderColor: colors.border, backgroundColor: colors.card },
-                            downloadingIdx === idx && styles.disabledBtn,
-                          ]}
-                          onPress={() => handleDownloadReceipt(tx, idx)}
-                          disabled={downloadingIdx !== null}
-                          testID={`download-receipt-btn-${idx}`}
-                          accessibilityLabel="Download receipt"
-                        >
-                          {downloadingIdx === idx ? (
-                            <ActivityIndicator size="small" color={colors.mutedForeground} />
-                          ) : (
-                            <AppIcon name="download-outline" size={15} color={colors.mutedForeground} />
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    </React.Fragment>
-                  ))}
-                </View>
-              </>
-            )}
-
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Change Plan</Text>
 
             {proPkg && (
@@ -443,6 +392,57 @@ export default function ManageSubscriptionScreen() {
               <Text style={styles.upgradeBtnText}>View Plans</Text>
             </TouchableOpacity>
           </View>
+        )}
+
+        {billingHistory.length > 0 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Billing History</Text>
+            {!IS_WEB && (
+              <Text style={[styles.billingHistoryNote, { color: colors.mutedForeground }]}>
+                Showing available charge history from your app store account
+              </Text>
+            )}
+            <View style={[styles.billingHistoryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {billingHistory.map((tx: BillingTransaction, idx: number) => (
+                <React.Fragment key={idx}>
+                  {idx > 0 && <View style={[styles.infoDivider, { backgroundColor: colors.border }]} />}
+                  <View style={styles.billingRow} testID={`billing-history-row-${idx}`}>
+                    <View style={[styles.billingIconWrap, { backgroundColor: colors.muted }]}>
+                      <AppIcon name="receipt-outline" size={15} color={colors.mutedForeground} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.billingDate, { color: colors.foreground }]}>
+                        {formatDate(tx.date)}
+                      </Text>
+                      <Text style={[styles.billingAmount, { color: colors.mutedForeground }]}>
+                        {tx.amount}
+                      </Text>
+                    </View>
+                    <View style={styles.billingStatusBadge}>
+                      <Text style={styles.billingStatusText}>{tx.status}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.downloadBtn,
+                        { borderColor: colors.border, backgroundColor: colors.card },
+                        downloadingIdx === idx && styles.disabledBtn,
+                      ]}
+                      onPress={() => handleDownloadReceipt(tx, idx)}
+                      disabled={downloadingIdx !== null}
+                      testID={`download-receipt-btn-${idx}`}
+                      accessibilityLabel="Download receipt"
+                    >
+                      {downloadingIdx === idx ? (
+                        <ActivityIndicator size="small" color={colors.mutedForeground} />
+                      ) : (
+                        <AppIcon name="download-outline" size={15} color={colors.mutedForeground} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </React.Fragment>
+              ))}
+            </View>
+          </>
         )}
       </ScrollView>
 

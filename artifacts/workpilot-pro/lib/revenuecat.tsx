@@ -114,6 +114,7 @@ export function initializeRevenueCat() {
 
 const MOCK_TIER_KEY = "rc_mock_tier";
 const MOCK_TRIAL_USED_KEY = "rc_mock_trial_used";
+const MOCK_BILLING_HISTORY_KEY = "rc_mock_billing_history";
 type MockTier = "free" | "pro" | "business";
 
 export type IntroductoryOffer = {
@@ -204,11 +205,19 @@ async function fetchSubState(): Promise<FetchSubResult> {
         await AsyncStorage.setItem("rc_mock_next_billing", mockNextBillingDate);
       }
     }
+    let billingHistory: BillingTransaction[];
+    if (isActive) {
+      billingHistory = buildMockBillingHistory(tier, mockNextBillingDate);
+      await AsyncStorage.setItem(MOCK_BILLING_HISTORY_KEY, JSON.stringify(billingHistory));
+    } else {
+      const stored = await AsyncStorage.getItem(MOCK_BILLING_HISTORY_KEY);
+      billingHistory = stored ? (JSON.parse(stored) as BillingTransaction[]) : [];
+    }
     return {
       isPro: isActive,
       isBusiness: tier === "business",
       nextBillingDate: mockNextBillingDate,
-      billingHistory: buildMockBillingHistory(tier, mockNextBillingDate),
+      billingHistory,
       offering: getMockOffering(!trialUsed),
     };
   }
