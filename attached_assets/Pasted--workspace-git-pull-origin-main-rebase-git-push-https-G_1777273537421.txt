@@ -1,0 +1,16 @@
+~/workspace$ git pull origin main --rebase
+git push https://$GITHUB_PERSONAL_ACCESS_TOKEN@github.com/kentahgoo3-del/Hourlink.git main
+From https://github.com/kentahgoo3-del/Hourlink
+ * branch            main       -> FETCH_HEAD
+   86c9119..0e1e42a  main       -> origin/main
+Current branch main is up to date.
+Enumerating objects: 89, done.
+Counting objects: 100% (89/89), done.
+Delta compression using up to 4 threads
+Compressing objects: 100% (72/72), done.
+Writing objects: 100% (72/72), 250.00 KiB | 19.23 MiB/s, done.
+Total 72 (delta 51), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas:   0% (0remote: Resolving deltas:   1% (1remote: Resolving deltas:   3% (2remote: Resolving deltas:   5% (3remote: Resolving deltas:   7% (4remote: Resolving deltas:   9% (5remote: Resolving deltas:  11% (6remote: Resolving deltas:  13% (7remote: Resolving deltas:  15% (8remote: Resolving deltas:  17% (9remote: Resolving deltas:  19% (1remote: Resolving deltas:  21% (1remote: Resolving deltas:  23% (1remote: Resolving deltas:  25% (1remote: Resolving deltas:  27% (1remote: Resolving deltas:  29% (1remote: Resolving deltas:  31% (1remote: Resolving deltas:  33% (1remote: Resolving deltas:  35% (1remote: Resolving deltas:  37% (1remote: Resolving deltas:  39% (2remote: Resolving deltas:  41% (2remote: Resolving deltas:  43% (2remote: Resolving deltas:  45% (2remote: Resolving deltas:  47% (2remote: Resolving deltas:  49% (2remote: Resolving deltas:  50% (2remote: Resolving deltas:  52% (2remote: Resolving deltas:  54% (2remote: Resolving deltas:  56% (2remote: Resolving deltas:  58% (3remote: Resolving deltas:  60% (3remote: Resolving deltas:  62% (3remote: Resolving deltas:  64% (3remote: Resolving deltas:  66% (3remote: Resolving deltas:  68% (3remote: Resolving deltas:  70% (3remote: Resolving deltas:  72% (3remote: Resolving deltas:  74% (3remote: Resolving deltas:  76% (3remote: Resolving deltas:  78% (4remote: Resolving deltas:  80% (4remote: Resolving deltas:  82% (4remote: Resolving deltas:  84% (4remote: Resolving deltas:  86% (4remote: Resolving deltas:  88% (4remote: Resolving deltas:  90% (4remote: Resolving deltas:  92% (4remote: Resolving deltas:  94% (4remote: Resolving deltas:  96% (4remote: Resolving deltas:  98% (5remote: Resolving deltas: 100% (5remote: Resolving deltas: 100% (51/51), completed with 13 local objects.
+To https://github.com/kentahgoo3-del/Hourlink.git
+   0e1e42a..d2458b5  main -> main
+~/workspace$ 
