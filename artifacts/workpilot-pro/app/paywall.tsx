@@ -104,6 +104,16 @@ function PlanCard({
                 <Text style={styles.badgeText}>Current Plan</Text>
               </View>
             )}
+            {(() => {
+              const intro = pkg?.product?.introductoryPrice;
+              const hasTrial = !isCurrentPlan && !!intro && intro.periodNumberOfUnits > 0 && intro.periodUnit === "DAY";
+              if (!hasTrial) return null;
+              return (
+                <View style={[styles.badge, styles.trialBadge]}>
+                  <Text style={styles.badgeText}>{intro!.periodNumberOfUnits}-day free trial</Text>
+                </View>
+              );
+            })()}
           </View>
           <Text style={[styles.planSubtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
         </View>
@@ -121,15 +131,21 @@ function PlanCard({
         <FeatureRow key={f} text={f} color={color} />
       ))}
 
-      {pkg && !isCurrentPlan && !isBelowCurrentPlan && (
-        <TouchableOpacity
-          style={[styles.subscribeBtn, { backgroundColor: color }]}
-          onPress={onSubscribe}
-          testID={`subscribe-${pkg.identifier}`}
-        >
-          <Text style={styles.subscribeBtnText}>Subscribe — {price}/mo</Text>
-        </TouchableOpacity>
-      )}
+      {pkg && !isCurrentPlan && !isBelowCurrentPlan && (() => {
+        const intro = pkg.product.introductoryPrice;
+        const hasTrial = !!intro && intro.periodNumberOfUnits > 0 && intro.periodUnit === "DAY";
+        return (
+          <TouchableOpacity
+            style={[styles.subscribeBtn, { backgroundColor: color }]}
+            onPress={onSubscribe}
+            testID={`subscribe-${pkg.identifier}`}
+          >
+            <Text style={styles.subscribeBtnText}>
+              {hasTrial ? `Try free for ${intro!.periodNumberOfUnits} days` : `Subscribe — ${price}/mo`}
+            </Text>
+          </TouchableOpacity>
+        );
+      })()}
 
       {isBelowCurrentPlan && (
         <View style={[styles.currentPlanNote, { backgroundColor: colors.muted }]}>
@@ -293,6 +309,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 8,
     paddingVertical: 3,
+  },
+  trialBadge: {
+    backgroundColor: "#22c55e",
   },
   badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#fff" },
   priceBlock: { alignItems: "flex-end" },

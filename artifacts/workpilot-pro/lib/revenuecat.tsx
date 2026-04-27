@@ -29,6 +29,12 @@ interface RCCustomerInfo {
   };
 }
 
+interface RCIntroductoryPrice {
+  priceString: string;
+  periodNumberOfUnits: number;
+  periodUnit: string;
+}
+
 interface RCPackage {
   identifier: string;
   product?: {
@@ -38,6 +44,7 @@ interface RCPackage {
     title?: string;
     localizedDescription?: string;
     description?: string;
+    introductoryPrice?: RCIntroductoryPrice | null;
   };
 }
 
@@ -88,6 +95,12 @@ export function initializeRevenueCat() {
 const MOCK_TIER_KEY = "rc_mock_tier";
 type MockTier = "free" | "pro" | "business";
 
+export type IntroductoryOffer = {
+  priceString: string;
+  periodNumberOfUnits: number;
+  periodUnit: string;
+};
+
 export type OfferingPackage = {
   identifier: string;
   product: {
@@ -95,6 +108,7 @@ export type OfferingPackage = {
     priceString: string;
     title: string;
     description: string;
+    introductoryPrice?: IntroductoryOffer | null;
   };
 };
 
@@ -178,6 +192,11 @@ function getMockOffering(): SubOffering {
           priceString: "$9.99",
           title: "Pro Monthly",
           description: "Unlimited timers, PDF export, expenses, all themes",
+          introductoryPrice: {
+            priceString: "$0.00",
+            periodNumberOfUnits: 7,
+            periodUnit: "DAY",
+          },
         },
       },
       {
@@ -187,6 +206,7 @@ function getMockOffering(): SubOffering {
           priceString: "$19.99",
           title: "Business Monthly",
           description: "Everything in Pro plus Smart Insights, team sync, client portal sync, batch invoicing",
+          introductoryPrice: null,
         },
       },
     ],
@@ -203,6 +223,7 @@ function normalizeOffering(raw: RCRawOffering): SubOffering {
         priceString: pkg.product?.priceString ?? "—",
         title: pkg.product?.localizedTitle ?? pkg.product?.title ?? pkg.identifier,
         description: pkg.product?.localizedDescription ?? pkg.product?.description ?? "",
+        introductoryPrice: pkg.product?.introductoryPrice ?? null,
       },
     })),
   };
@@ -360,6 +381,9 @@ function PurchaseConfirmModal({
   if (!pkg) return null;
   const isBusiness = pkg.identifier === "business_monthly";
   const accentColor = isBusiness ? "#8b5cf6" : "#3b82f6";
+  const intro = pkg.product.introductoryPrice;
+  const hasTrial = !isBusiness && !!intro && intro.periodNumberOfUnits > 0 && intro.periodUnit === "DAY";
+  const trialDays = hasTrial ? intro!.periodNumberOfUnits : 0;
 
   return (
     <Modal
@@ -378,7 +402,20 @@ function PurchaseConfirmModal({
           <Text style={ms.planName}>
             {isBusiness ? "Business Plan" : "Pro Plan"}
           </Text>
-          <Text style={ms.price}>{pkg.product.priceString}<Text style={ms.pricePer}>/month</Text></Text>
+
+          {hasTrial ? (
+            <View style={ms.trialPriceBlock}>
+              <Text style={ms.trialFreeLabel}>Free for {trialDays} days</Text>
+              <Text style={ms.trialThenLabel}>then {pkg.product.priceString}/mo</Text>
+            </View>
+          ) : (
+            <Text style={ms.price}>{pkg.product.priceString}<Text style={ms.pricePer}>/month</Text></Text>
+          )}
+
+          {hasTrial ? (
+            <Text style={ms.trialStartsText}>Your trial starts today</Text>
+          ) : null}
+
           <Text style={ms.desc}>{pkg.product.description}</Text>
 
           {IS_WEB && (
@@ -400,7 +437,11 @@ function PurchaseConfirmModal({
             testID="purchase-confirm-btn"
           >
             <Text style={ms.confirmBtnText}>
-              {purchasing ? "Processing…" : `Subscribe — ${pkg.product.priceString}/mo`}
+              {purchasing
+                ? "Processing…"
+                : hasTrial
+                  ? `Try free for ${trialDays} days`
+                  : `Subscribe — ${pkg.product.priceString}/mo`}
             </Text>
           </TouchableOpacity>
 
@@ -414,7 +455,9 @@ function PurchaseConfirmModal({
           </TouchableOpacity>
 
           <Text style={ms.legalText}>
-            Subscription renews automatically. Cancel anytime.
+            {hasTrial
+              ? `After your ${trialDays}-day free trial, you'll be charged ${pkg.product.priceString}/mo unless cancelled.`
+              : "Subscription renews automatically. Cancel anytime."}
           </Text>
         </View>
       </View>
@@ -535,5 +578,25 @@ const ms = StyleSheet.create({
     color: "#94a3b8",
     marginTop: 8,
     textAlign: "center",
+  },
+  trialPriceBlock: {
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  trialFreeLabel: {
+    fontSize: 32,
+    fontFamily: "Inter_700Bold",
+    color: "#0f172a",
+  },
+  trialThenLabel: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: "#64748b",
+  },
+  trialStartsText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: "#22c55e",
+    marginBottom: 12,
   },
 });
