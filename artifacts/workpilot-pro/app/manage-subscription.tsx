@@ -1,6 +1,7 @@
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useSubscription, type BillingTransaction, type OfferingPackage } from "@/lib/revenuecat";
+import { downloadOrShareReceipt } from "@/lib/receipt";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -135,6 +136,19 @@ export default function ManageSubscriptionScreen() {
 
   const [downgrading, setDowngrading] = useState(false);
   const [showDowngradeConfirm, setShowDowngradeConfirm] = useState(false);
+  const [downloadingIdx, setDownloadingIdx] = useState<number | null>(null);
+
+  const handleDownloadReceipt = async (tx: BillingTransaction, idx: number) => {
+    if (downloadingIdx !== null) return;
+    setDownloadingIdx(idx);
+    try {
+      await downloadOrShareReceipt(tx);
+    } catch (e) {
+      console.warn("[receipt] export failed", e);
+    } finally {
+      setDownloadingIdx(null);
+    }
+  };
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const botPadding = Platform.OS === "web" ? 34 : insets.bottom;
@@ -301,6 +315,23 @@ export default function ManageSubscriptionScreen() {
                         <View style={styles.billingStatusBadge}>
                           <Text style={styles.billingStatusText}>{tx.status}</Text>
                         </View>
+                        <TouchableOpacity
+                          style={[
+                            styles.downloadBtn,
+                            { borderColor: colors.border, backgroundColor: colors.card },
+                            downloadingIdx === idx && styles.disabledBtn,
+                          ]}
+                          onPress={() => handleDownloadReceipt(tx, idx)}
+                          disabled={downloadingIdx !== null}
+                          testID={`download-receipt-btn-${idx}`}
+                          accessibilityLabel="Download receipt"
+                        >
+                          {downloadingIdx === idx ? (
+                            <ActivityIndicator size="small" color={colors.mutedForeground} />
+                          ) : (
+                            <AppIcon name="download-outline" size={15} color={colors.mutedForeground} />
+                          )}
+                        </TouchableOpacity>
                       </View>
                     </React.Fragment>
                   ))}
@@ -592,6 +623,15 @@ const styles = StyleSheet.create({
   },
   billingStatusText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#16a34a" },
   billingHistoryNote: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: -4, marginBottom: 2 },
+  downloadBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 4,
+  },
   trialBanner: {
     backgroundColor: "#3b82f6",
     borderRadius: 18,
