@@ -106,7 +106,7 @@ function PlanCard({
             )}
             {(() => {
               const intro = pkg?.product?.introductoryPrice;
-              const hasTrial = !isCurrentPlan && !!intro && intro.periodNumberOfUnits > 0 && intro.periodUnit === "DAY";
+              const hasTrial = !isCurrentPlan && (pkg?.introEligible ?? true) && !!intro && intro.periodNumberOfUnits > 0 && intro.periodUnit === "DAY";
               if (!hasTrial) return null;
               return (
                 <View style={[styles.badge, styles.trialBadge]}>
@@ -133,7 +133,7 @@ function PlanCard({
 
       {pkg && !isCurrentPlan && !isBelowCurrentPlan && (() => {
         const intro = pkg.product.introductoryPrice;
-        const hasTrial = !!intro && intro.periodNumberOfUnits > 0 && intro.periodUnit === "DAY";
+        const hasTrial = pkg.introEligible && !!intro && intro.periodNumberOfUnits > 0 && intro.periodUnit === "DAY";
         return (
           <TouchableOpacity
             style={[styles.subscribeBtn, { backgroundColor: color }]}

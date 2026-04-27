@@ -65,12 +65,24 @@ interface RCMakePurchaseResult {
   customerInfo?: RCCustomerInfo;
 }
 
+interface RCIntroEligibility {
+  status: number;
+}
+
+const RC_INTRO_ELIGIBILITY_STATUS = {
+  UNKNOWN: 0,
+  INELIGIBLE: 1,
+  ELIGIBLE: 2,
+  NO_INTRO_OFFER_EXISTS: 3,
+} as const;
+
 interface RCPurchasesModule {
   configure(options: { apiKey: string }): void;
   getCustomerInfo(): Promise<RCCustomerInfo>;
   getOfferings(): Promise<RCOfferings>;
   purchasePackage(pkg: RCPackage): Promise<RCMakePurchaseResult>;
   restorePurchases(): Promise<unknown>;
+  checkTrialOrIntroductoryPriceEligibility(productIdentifiers: string[]): Promise<Record<string, RCIntroEligibility>>;
 }
 
 function isRCPurchaseError(e: unknown): e is { userCancelled: boolean; message?: string } {
@@ -101,6 +113,7 @@ export function initializeRevenueCat() {
 }
 
 const MOCK_TIER_KEY = "rc_mock_tier";
+const MOCK_TRIAL_USED_KEY = "rc_mock_trial_used";
 type MockTier = "free" | "pro" | "business";
 
 export type IntroductoryOffer = {
@@ -111,6 +124,7 @@ export type IntroductoryOffer = {
 
 export type OfferingPackage = {
   identifier: string;
+  introEligible: boolean;
   product: {
     identifier: string;
     priceString: string;
@@ -176,6 +190,7 @@ function buildMockBillingHistory(tier: MockTier | null, nextBillingDate: string 
 async function fetchSubState(): Promise<FetchSubResult> {
   if (IS_WEB || !RNPurchases) {
     const tier = (await AsyncStorage.getItem(MOCK_TIER_KEY)) as MockTier | null;
+    const trialUsed = (await AsyncStorage.getItem(MOCK_TRIAL_USED_KEY)) === "true";
     const isActive = tier === "pro" || tier === "business";
     let mockNextBillingDate: string | null = null;
     if (isActive) {
@@ -194,7 +209,7 @@ async function fetchSubState(): Promise<FetchSubResult> {
       isBusiness: tier === "business",
       nextBillingDate: mockNextBillingDate,
       billingHistory: buildMockBillingHistory(tier, mockNextBillingDate),
-      offering: getMockOffering(),
+      offering: getMockOffering(!trialUsed),
     };
   }
 
@@ -209,8 +224,23 @@ async function fetchSubState(): Promise<FetchSubResult> {
     const isBusiness = !!active["business"];
     const activeEntitlement = active["business"] ?? active["pro"] ?? null;
     const nextBillingDate = activeEntitlement?.expirationDate ?? null;
+
+    let eligibilityMap: Record<string, RCIntroEligibility> = {};
+    if (rcOfferings?.current?.availablePackages) {
+      const productIds = rcOfferings.current.availablePackages
+        .map((p: RCPackage) => p.product?.identifier)
+        .filter(Boolean) as string[];
+      if (productIds.length > 0) {
+        try {
+          eligibilityMap = await RNPurchases.checkTrialOrIntroductoryPriceEligibility(productIds);
+        } catch {
+          console.warn("[RevenueCat] checkTrialOrIntroductoryPriceEligibility failed; defaulting all packages to eligible");
+        }
+      }
+    }
+
     const current: SubOffering | null = rcOfferings?.current
-      ? normalizeOffering(rcOfferings.current)
+      ? normalizeOffering(rcOfferings.current, eligibilityMap)
       : null;
 
     const billingHistory = buildNativeBillingHistory(all, active);
@@ -253,12 +283,13 @@ function buildNativeBillingHistory(
   return rows;
 }
 
-function getMockOffering(): SubOffering {
+function getMockOffering(proTrialEligible = true): SubOffering {
   return {
     identifier: "default",
     availablePackages: [
       {
         identifier: "$rc_monthly",
+        introEligible: proTrialEligible,
         product: {
           identifier: "pro_monthly",
           priceString: "$9.99",
@@ -273,6 +304,7 @@ function getMockOffering(): SubOffering {
       },
       {
         identifier: "business_monthly",
+        introEligible: false,
         product: {
           identifier: "business_monthly",
           priceString: "$19.99",
@@ -285,19 +317,27 @@ function getMockOffering(): SubOffering {
   };
 }
 
-function normalizeOffering(raw: RCRawOffering): SubOffering {
+function normalizeOffering(raw: RCRawOffering, eligibilityMap: Record<string, RCIntroEligibility> = {}): SubOffering {
   return {
     identifier: raw.identifier,
-    availablePackages: (raw.availablePackages ?? []).map((pkg: RCPackage) => ({
-      identifier: pkg.identifier,
-      product: {
-        identifier: pkg.product?.identifier ?? pkg.identifier,
-        priceString: pkg.product?.priceString ?? "—",
-        title: pkg.product?.localizedTitle ?? pkg.product?.title ?? pkg.identifier,
-        description: pkg.product?.localizedDescription ?? pkg.product?.description ?? "",
-        introductoryPrice: pkg.product?.introductoryPrice ?? null,
-      },
-    })),
+    availablePackages: (raw.availablePackages ?? []).map((pkg: RCPackage) => {
+      const productId = pkg.product?.identifier ?? pkg.identifier;
+      const eligibility = eligibilityMap[productId];
+      const introEligible = eligibility
+        ? eligibility.status === RC_INTRO_ELIGIBILITY_STATUS.ELIGIBLE
+        : true;
+      return {
+        identifier: pkg.identifier,
+        introEligible,
+        product: {
+          identifier: productId,
+          priceString: pkg.product?.priceString ?? "—",
+          title: pkg.product?.localizedTitle ?? pkg.product?.title ?? pkg.identifier,
+          description: pkg.product?.localizedDescription ?? pkg.product?.description ?? "",
+          introductoryPrice: pkg.product?.introductoryPrice ?? null,
+        },
+      };
+    }),
   };
 }
 
@@ -372,6 +412,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         const tier: MockTier =
           confirmPkg.identifier === "business_monthly" ? "business" : "pro";
         await AsyncStorage.setItem(MOCK_TIER_KEY, tier);
+        if (tier === "pro" && confirmPkg.introEligible) {
+          await AsyncStorage.setItem(MOCK_TRIAL_USED_KEY, "true");
+        }
         sendReceiptEmail(confirmPkg, { webMock: true }).catch(() => {});
       } else {
         const rcOfferings = await RNPurchases.getOfferings();
@@ -487,7 +530,7 @@ function PurchaseConfirmModal({
   const isBusiness = pkg.identifier === "business_monthly";
   const accentColor = isBusiness ? "#8b5cf6" : "#3b82f6";
   const intro = pkg.product.introductoryPrice;
-  const hasTrial = !isBusiness && !!intro && intro.periodNumberOfUnits > 0 && intro.periodUnit === "DAY";
+  const hasTrial = !isBusiness && pkg.introEligible && !!intro && intro.periodNumberOfUnits > 0 && intro.periodUnit === "DAY";
   const trialDays = hasTrial ? intro!.periodNumberOfUnits : 0;
 
   return (
