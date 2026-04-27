@@ -370,6 +370,33 @@ export default function ManageSubscriptionScreen() {
           </>
         ) : (
           <View style={styles.noSubWrap}>
+            {proPkg?.product.introductoryPrice &&
+              proPkg.product.introductoryPrice.periodNumberOfUnits > 0 &&
+              (proPkg.product.introductoryPrice.periodUnit === "DAY" ||
+                proPkg.product.introductoryPrice.periodUnit === "WEEK") && (
+                <TouchableOpacity
+                  style={styles.trialBanner}
+                  onPress={() => router.replace("/paywall")}
+                  testID="free-trial-banner"
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.trialBannerIconRow}>
+                    <View style={styles.trialBannerIconCircle}>
+                      <AppIcon name="gift-outline" size={22} color="#fff" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.trialBannerTitle}>
+                        Start your {proPkg.product.introductoryPrice.periodNumberOfUnits}-day free trial
+                      </Text>
+                      <Text style={styles.trialBannerSub}>
+                        Try Pro free — then {proPkg.product.priceString}/mo. Cancel anytime.
+                      </Text>
+                    </View>
+                    <AppIcon name="chevron-forward" size={18} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+              )}
+
             <View style={[styles.noSubIcon, { backgroundColor: colors.muted }]}>
               <AppIcon name="star-outline" size={32} color={colors.mutedForeground} />
             </View>
@@ -565,4 +592,36 @@ const styles = StyleSheet.create({
   },
   billingStatusText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#16a34a" },
   billingHistoryNote: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: -4, marginBottom: 2 },
+  trialBanner: {
+    backgroundColor: "#3b82f6",
+    borderRadius: 18,
+    padding: 18,
+    width: "100%",
+    marginBottom: 8,
+  },
+  trialBannerIconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  trialBannerIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  trialBannerTitle: {
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+    marginBottom: 3,
+  },
+  trialBannerSub: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.85)",
+    lineHeight: 17,
+  },
 });
