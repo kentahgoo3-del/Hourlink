@@ -11,7 +11,9 @@ import {
   Modal,
   Platform,
   StyleSheet,
+  Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -350,17 +352,25 @@ function normalizeOffering(raw: RCRawOffering, eligibilityMap: Record<string, RC
   };
 }
 
+function isValidEmail(email?: string): boolean {
+  return !!(email && email.includes("@") && email !== "you@example.com");
+}
+
 async function sendReceiptEmail(
   pkg: OfferingPackage,
-  opts: { appUserId: string } | { webMock: true }
+  opts: { appUserId: string } | { webMock: true },
+  emailOverride?: string
 ): Promise<void> {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   if (!domain) return;
 
-  const settingsRaw = await AsyncStorage.getItem("settings");
-  const settings: { email?: string } = settingsRaw ? JSON.parse(settingsRaw) : {};
-  const email = settings.email;
-  if (!email || !email.includes("@") || email === "you@example.com") return;
+  let email: string | undefined = emailOverride;
+  if (!email) {
+    const settingsRaw = await AsyncStorage.getItem("settings");
+    const settings: { email?: string } = settingsRaw ? JSON.parse(settingsRaw) : {};
+    email = settings.email;
+  }
+  if (!isValidEmail(email)) return;
 
   const isBusiness = pkg.identifier === "business_monthly";
   const planName = isBusiness ? "Business Monthly" : "Pro Monthly";
@@ -381,6 +391,10 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const [confirmPkg, setConfirmPkg] = useState<OfferingPackage | null>(null);
   const [purchasing, setPurchasing] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const [emailPromptNeeded, setEmailPromptNeeded] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const [saveEmailToSettings, setSaveEmailToSettings] = useState(true);
+  const [emailInputError, setEmailInputError] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["subscription"],
@@ -409,13 +423,36 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   }, [refreshSubscription]);
 
   const purchasePackage = useCallback(async (pkg: OfferingPackage) => {
+    const settingsRaw = await AsyncStorage.getItem("settings");
+    const settings: { email?: string } = settingsRaw ? JSON.parse(settingsRaw) : {};
+    const hasValidEmail = isValidEmail(settings.email);
+    setEmailPromptNeeded(!hasValidEmail);
+    setEmailInput("");
+    setSaveEmailToSettings(true);
+    setEmailInputError(null);
     setConfirmPkg(pkg);
   }, []);
 
   const confirmPurchase = useCallback(async () => {
     if (!confirmPkg) return;
+
+    let receiptEmail: string | undefined;
+    if (emailPromptNeeded) {
+      if (!isValidEmail(emailInput)) {
+        setEmailInputError("Please enter a valid email address.");
+        return;
+      }
+      receiptEmail = emailInput.trim();
+      if (saveEmailToSettings) {
+        const settingsRaw = await AsyncStorage.getItem("settings");
+        const existing: Record<string, unknown> = settingsRaw ? JSON.parse(settingsRaw) : {};
+        await AsyncStorage.setItem("settings", JSON.stringify({ ...existing, email: receiptEmail }));
+      }
+    }
+
     setPurchasing(true);
     setPurchaseError(null);
+    setEmailInputError(null);
     try {
       if (IS_WEB || !RNPurchases) {
         const tier: MockTier =
@@ -424,7 +461,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         if (tier === "pro" && confirmPkg.introEligible) {
           await AsyncStorage.setItem(MOCK_TRIAL_USED_KEY, "true");
         }
-        sendReceiptEmail(confirmPkg, { webMock: true }).catch(() => {});
+        sendReceiptEmail(confirmPkg, { webMock: true }, receiptEmail).catch(() => {});
       } else {
         const rcOfferings = await RNPurchases.getOfferings();
         const nativePkg = rcOfferings?.current?.availablePackages?.find(
@@ -434,7 +471,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         const result = await RNPurchases.purchasePackage(nativePkg);
         const appUserId = result?.customerInfo?.originalAppUserId;
         if (appUserId) {
-          sendReceiptEmail(confirmPkg, { appUserId }).catch(() => {});
+          sendReceiptEmail(confirmPkg, { appUserId }, receiptEmail).catch(() => {});
         }
       }
       setConfirmPkg(null);
@@ -449,7 +486,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     } finally {
       setPurchasing(false);
     }
-  }, [confirmPkg, refreshSubscription]);
+  }, [confirmPkg, emailPromptNeeded, emailInput, saveEmailToSettings, refreshSubscription]);
 
   const restorePurchases = useCallback(async () => {
     if (IS_WEB || !RNPurchases) return;
@@ -487,10 +524,17 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         pkg={confirmPkg}
         purchasing={purchasing}
         error={purchaseError}
+        emailPromptNeeded={emailPromptNeeded}
+        emailInput={emailInput}
+        emailInputError={emailInputError}
+        saveEmailToSettings={saveEmailToSettings}
+        onEmailChange={(text) => { setEmailInput(text); setEmailInputError(null); }}
+        onSaveEmailToggle={setSaveEmailToSettings}
         onConfirm={confirmPurchase}
         onCancel={() => {
           setConfirmPkg(null);
           setPurchaseError(null);
+          setEmailInputError(null);
         }}
       />
     </SubscriptionContext.Provider>
@@ -526,12 +570,24 @@ function PurchaseConfirmModal({
   pkg,
   purchasing,
   error,
+  emailPromptNeeded,
+  emailInput,
+  emailInputError,
+  saveEmailToSettings,
+  onEmailChange,
+  onSaveEmailToggle,
   onConfirm,
   onCancel,
 }: {
   pkg: OfferingPackage | null;
   purchasing: boolean;
   error: string | null;
+  emailPromptNeeded: boolean;
+  emailInput: string;
+  emailInputError: string | null;
+  saveEmailToSettings: boolean;
+  onEmailChange: (text: string) => void;
+  onSaveEmailToggle: (value: boolean) => void;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -578,6 +634,37 @@ function PurchaseConfirmModal({
           {IS_WEB && (
             <View style={ms.testBadge}>
               <Text style={ms.testBadgeText}>Test Mode — no real charge</Text>
+            </View>
+          )}
+
+          {emailPromptNeeded && (
+            <View style={ms.emailSection}>
+              <Text style={ms.emailLabel}>Receipt email</Text>
+              <TextInput
+                style={[ms.emailInput, emailInputError ? ms.emailInputError : null]}
+                placeholder="your@email.com"
+                placeholderTextColor="#94a3b8"
+                value={emailInput}
+                onChangeText={onEmailChange}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!purchasing}
+                testID="receipt-email-input"
+              />
+              {emailInputError && (
+                <Text style={ms.emailErrorText}>{emailInputError}</Text>
+              )}
+              <View style={ms.saveEmailRow}>
+                <Text style={ms.saveEmailText}>Save for future purchases</Text>
+                <Switch
+                  value={saveEmailToSettings}
+                  onValueChange={onSaveEmailToggle}
+                  trackColor={{ false: "#cbd5e1", true: accentColor + "80" }}
+                  thumbColor={saveEmailToSettings ? accentColor : "#f1f5f9"}
+                  disabled={purchasing}
+                />
+              </View>
             </View>
           )}
 
@@ -755,5 +842,49 @@ const ms = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     color: "#22c55e",
     marginBottom: 12,
+  },
+  emailSection: {
+    width: "100%",
+    marginBottom: 16,
+  },
+  emailLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: "#0f172a",
+    marginBottom: 6,
+  },
+  emailInput: {
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    color: "#0f172a",
+    backgroundColor: "#f8fafc",
+    width: "100%",
+  },
+  emailInputError: {
+    borderColor: "#ef4444",
+  },
+  emailErrorText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "#ef4444",
+    marginTop: 4,
+  },
+  saveEmailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+  saveEmailText: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "#64748b",
+    flex: 1,
+    marginRight: 8,
   },
 });
