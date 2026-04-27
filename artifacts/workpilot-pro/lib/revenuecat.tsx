@@ -26,6 +26,7 @@ interface RCEntitlement {
 }
 
 interface RCCustomerInfo {
+  originalAppUserId?: string;
   entitlements: {
     active: Record<string, RCEntitlement>;
     all: Record<string, RCEntitlement>;
@@ -60,11 +61,15 @@ interface RCOfferings {
   current: RCRawOffering | null;
 }
 
+interface RCMakePurchaseResult {
+  customerInfo?: RCCustomerInfo;
+}
+
 interface RCPurchasesModule {
   configure(options: { apiKey: string }): void;
   getCustomerInfo(): Promise<RCCustomerInfo>;
   getOfferings(): Promise<RCOfferings>;
-  purchasePackage(pkg: RCPackage): Promise<unknown>;
+  purchasePackage(pkg: RCPackage): Promise<RCMakePurchaseResult>;
   restorePurchases(): Promise<unknown>;
 }
 
@@ -296,6 +301,32 @@ function normalizeOffering(raw: RCRawOffering): SubOffering {
   };
 }
 
+async function sendReceiptEmail(
+  pkg: OfferingPackage,
+  opts: { appUserId: string } | { webMock: true }
+): Promise<void> {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  if (!domain) return;
+
+  const settingsRaw = await AsyncStorage.getItem("settings");
+  const settings: { email?: string } = settingsRaw ? JSON.parse(settingsRaw) : {};
+  const email = settings.email;
+  if (!email || !email.includes("@") || email === "you@example.com") return;
+
+  const isBusiness = pkg.identifier === "business_monthly";
+  const planName = isBusiness ? "Business Monthly" : "Pro Monthly";
+
+  const res = await fetch(`https://${domain}/api/subscription/receipt`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, planName, ...opts }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    console.warn("[receipt] delivery failed", res.status, body);
+  }
+}
+
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const [confirmPkg, setConfirmPkg] = useState<OfferingPackage | null>(null);
@@ -341,13 +372,18 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         const tier: MockTier =
           confirmPkg.identifier === "business_monthly" ? "business" : "pro";
         await AsyncStorage.setItem(MOCK_TIER_KEY, tier);
+        sendReceiptEmail(confirmPkg, { webMock: true }).catch(() => {});
       } else {
         const rcOfferings = await RNPurchases.getOfferings();
         const nativePkg = rcOfferings?.current?.availablePackages?.find(
           (p: RCPackage) => p.identifier === confirmPkg.identifier
         );
         if (!nativePkg) throw new Error("Package not found in current offering");
-        await RNPurchases.purchasePackage(nativePkg);
+        const result = await RNPurchases.purchasePackage(nativePkg);
+        const appUserId = result?.customerInfo?.originalAppUserId;
+        if (appUserId) {
+          sendReceiptEmail(confirmPkg, { appUserId }).catch(() => {});
+        }
       }
       setConfirmPkg(null);
       refreshSubscription();
