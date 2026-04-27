@@ -1,6 +1,6 @@
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { useSubscription, type OfferingPackage } from "@/lib/revenuecat";
+import { useSubscription, type BillingTransaction, type OfferingPackage } from "@/lib/revenuecat";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -126,6 +126,7 @@ export default function ManageSubscriptionScreen() {
     isBusiness,
     isSubscribed,
     nextBillingDate,
+    billingHistory,
     offering,
     loading,
     purchasePackage,
@@ -271,6 +272,40 @@ export default function ManageSubscriptionScreen() {
                   Web mock mode — no real charges
                 </Text>
               </View>
+            )}
+
+            {billingHistory.length > 0 && (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Billing History</Text>
+                {!IS_WEB && (
+                  <Text style={[styles.billingHistoryNote, { color: colors.mutedForeground }]}>
+                    Showing available charge history from your app store account
+                  </Text>
+                )}
+                <View style={[styles.billingHistoryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  {billingHistory.map((tx: BillingTransaction, idx: number) => (
+                    <React.Fragment key={idx}>
+                      {idx > 0 && <View style={[styles.infoDivider, { backgroundColor: colors.border }]} />}
+                      <View style={styles.billingRow} testID={`billing-history-row-${idx}`}>
+                        <View style={[styles.billingIconWrap, { backgroundColor: colors.muted }]}>
+                          <AppIcon name="receipt-outline" size={15} color={colors.mutedForeground} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.billingDate, { color: colors.foreground }]}>
+                            {formatDate(tx.date)}
+                          </Text>
+                          <Text style={[styles.billingAmount, { color: colors.mutedForeground }]}>
+                            {tx.amount}
+                          </Text>
+                        </View>
+                        <View style={styles.billingStatusBadge}>
+                          <Text style={styles.billingStatusText}>{tx.status}</Text>
+                        </View>
+                      </View>
+                    </React.Fragment>
+                  ))}
+                </View>
+              </>
             )}
 
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Change Plan</Text>
@@ -502,4 +537,32 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   upgradeBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  billingHistoryCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  billingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+  },
+  billingIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  billingDate: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+  billingAmount: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  billingStatusBadge: {
+    backgroundColor: "#dcfce7",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  billingStatusText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#16a34a" },
+  billingHistoryNote: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: -4, marginBottom: 2 },
 });

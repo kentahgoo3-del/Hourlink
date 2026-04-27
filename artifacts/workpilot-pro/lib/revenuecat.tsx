@@ -20,12 +20,15 @@ const IS_WEB = Platform.OS === "web";
 
 interface RCEntitlement {
   expirationDate?: string | null;
+  latestPurchaseDate?: string | null;
+  originalPurchaseDate?: string | null;
   [key: string]: unknown;
 }
 
 interface RCCustomerInfo {
   entitlements: {
     active: Record<string, RCEntitlement>;
+    all: Record<string, RCEntitlement>;
   };
 }
 
@@ -117,11 +120,18 @@ export type SubOffering = {
   availablePackages: OfferingPackage[];
 };
 
+export type BillingTransaction = {
+  date: string;
+  amount: string;
+  status: "Paid";
+};
+
 export type SubscriptionState = {
   isPro: boolean;
   isBusiness: boolean;
   isSubscribed: boolean;
   nextBillingDate: string | null;
+  billingHistory: BillingTransaction[];
   offering: SubOffering | null;
   offerings: SubOffering | null;
   loading: boolean;
@@ -137,7 +147,28 @@ export type SubscriptionState = {
 
 const SubscriptionContext = createContext<SubscriptionState | null>(null);
 
-async function fetchSubState(): Promise<{ isPro: boolean; isBusiness: boolean; nextBillingDate: string | null; offering: SubOffering | null }> {
+type FetchSubResult = {
+  isPro: boolean;
+  isBusiness: boolean;
+  nextBillingDate: string | null;
+  billingHistory: BillingTransaction[];
+  offering: SubOffering | null;
+};
+
+function buildMockBillingHistory(tier: MockTier | null, nextBillingDate: string | null): BillingTransaction[] {
+  if (tier !== "pro" && tier !== "business") return [];
+  const amount = tier === "business" ? "$19.99" : "$9.99";
+  const anchor = nextBillingDate ? new Date(nextBillingDate) : new Date();
+  const rows: BillingTransaction[] = [];
+  for (let i = 1; i <= 3; i++) {
+    const d = new Date(anchor);
+    d.setMonth(d.getMonth() - i);
+    rows.push({ date: d.toISOString(), amount, status: "Paid" });
+  }
+  return rows;
+}
+
+async function fetchSubState(): Promise<FetchSubResult> {
   if (IS_WEB || !RNPurchases) {
     const tier = (await AsyncStorage.getItem(MOCK_TIER_KEY)) as MockTier | null;
     const isActive = tier === "pro" || tier === "business";
@@ -157,6 +188,7 @@ async function fetchSubState(): Promise<{ isPro: boolean; isBusiness: boolean; n
       isPro: isActive,
       isBusiness: tier === "business",
       nextBillingDate: mockNextBillingDate,
+      billingHistory: buildMockBillingHistory(tier, mockNextBillingDate),
       offering: getMockOffering(),
     };
   }
@@ -167,6 +199,7 @@ async function fetchSubState(): Promise<{ isPro: boolean; isBusiness: boolean; n
       RNPurchases.getOfferings(),
     ]);
     const active = customerInfo?.entitlements?.active ?? {};
+    const all = customerInfo?.entitlements?.all ?? {};
     const isPro = !!active["pro"] || !!active["business"];
     const isBusiness = !!active["business"];
     const activeEntitlement = active["business"] ?? active["pro"] ?? null;
@@ -174,11 +207,45 @@ async function fetchSubState(): Promise<{ isPro: boolean; isBusiness: boolean; n
     const current: SubOffering | null = rcOfferings?.current
       ? normalizeOffering(rcOfferings.current)
       : null;
-    return { isPro, isBusiness, nextBillingDate, offering: current };
+
+    const billingHistory = buildNativeBillingHistory(all, active);
+
+    return { isPro, isBusiness, nextBillingDate, billingHistory, offering: current };
   } catch (err: unknown) {
     console.warn("[RevenueCat] fetch error:", err instanceof Error ? err.message : String(err));
-    return { isPro: false, isBusiness: false, nextBillingDate: null, offering: null };
+    return { isPro: false, isBusiness: false, nextBillingDate: null, billingHistory: [], offering: null };
   }
+}
+
+function buildNativeBillingHistory(
+  all: Record<string, RCEntitlement>,
+  active: Record<string, RCEntitlement>
+): BillingTransaction[] {
+  const rows: BillingTransaction[] = [];
+  const seen = new Set<string>();
+
+  const addEntitlementRows = (_key: string, ent: RCEntitlement, amount: string) => {
+    const dates = [ent.latestPurchaseDate, ent.originalPurchaseDate].filter(Boolean) as string[];
+    for (const d of dates) {
+      if (!seen.has(d)) {
+        seen.add(d);
+        rows.push({ date: d, amount, status: "Paid" });
+      }
+    }
+  };
+
+  if (all["business"]) addEntitlementRows("business", all["business"], "$19.99");
+  if (all["pro"]) addEntitlementRows("pro", all["pro"], "$9.99");
+
+  if (rows.length === 0) {
+    const activeEnt = active["business"] ?? active["pro"] ?? null;
+    if (activeEnt?.latestPurchaseDate) {
+      rows.push({ date: activeEnt.latestPurchaseDate, amount: activeEnt === active["business"] ? "$19.99" : "$9.99", status: "Paid" });
+    }
+  }
+
+  rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return rows;
 }
 
 function getMockOffering(): SubOffering {
@@ -311,6 +378,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     isBusiness: data?.isBusiness ?? false,
     isSubscribed: (data?.isPro || data?.isBusiness) ?? false,
     nextBillingDate: data?.nextBillingDate ?? null,
+    billingHistory: data?.billingHistory ?? [],
     offering: data?.offering ?? null,
     offerings: data?.offering ?? null,
     loading: isLoading,
@@ -349,6 +417,7 @@ export function useSubscription(): SubscriptionState {
       isBusiness: false,
       isSubscribed: false,
       nextBillingDate: null,
+      billingHistory: [],
       offering: null,
       offerings: null,
       loading: false,
