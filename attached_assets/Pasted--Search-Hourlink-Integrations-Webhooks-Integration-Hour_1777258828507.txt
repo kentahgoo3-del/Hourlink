@@ -1,0 +1,122 @@
+​
+Search…
+
+Hourlink
+Integrations
+Webhooks Integration
+Hourlink
+
+Webhook name
+Hourlink
+
+Name this webhook.
+Webhook URL
+https://api.hour-link.com/api/webhooks/revenuecat
+
+The https URL of the server endpoint that will receive the webhook POST requests.
+Authorization header value
+••••••••••••••••••••••••••••••••••••••••
+
+Optional. RevenueCat will send an HTTP Authorization header with this value in each POST request sent to your webhook server URL.
+Environment to send events for
+
+Choose whether to send events from Production, Sandbox or both.
+Events filter
+
+Choose if you only need to pass events of a specific event type or an app.
+
+App
+Required
+All apps
+
+Event type
+Required
+Specify types
+
+
+Initial purchase
+A new subscription has been purchased or a lapsed user has resubscribed.
+
+Renewal
+An existing subscription has been renewed.
+
+Product change
+A customer has changed the product of their subscription.
+
+Cancellation
+A subscription or non-renewing purchase has been cancelled.
+
+Billing issue
+There has been a problem trying to charge the subscriber.
+
+Non renewing purchase
+A customer has made a purchase that will not auto-renew.
+
+Uncancellation
+A non-expired cancelled subscription has been re-enabled.
+
+Transfer
+A transfer of transactions and entitlements was initiated between one App User ID(s) to another.
+
+Subscription paused
+The subscription has set to be paused at the end of the period.
+
+Expiration
+A subscription has expired.
+
+Subscription extended
+A subscription has been extended.
+
+Invoice issuance
+An invoice has been issued.
+
+Temporary entitlement grant
+An entitlement has been granted temporarily to a customer.
+
+Refund reversed
+A refund has been reversed.
+
+Virtual currency transaction
+A virtual currency transaction has occurred.
+
+Experiment enrollment
+A subscriber has been enrolled in an experiment variant.
+
+Workflows purchase
+A purchase has occurred in a workflow.
+
+Workflows step completed
+A step has been completed in a workflow.
+
+Workflows step started
+A step has been started in a workflow.
+
+Paywall impression
+A paywall has been displayed to a customer.
+
+Paywall close
+A paywall has been closed by a customer.
+
+Paywall cancel
+A customer dismissed the payment confirmation on a paywall.
+
+Paywall exit offer
+An exit offer has been shown on a paywall.
+
+Paywall component interacted
+A customer interacted with a paywall component.
+
+Workflows non checkout completion
+A workflow has been completed without a checkout.
+
+Webhook Events
+
+true
+
+No Events to show
+
+UUID
+Status
+Timestamp
+No Events to show
+
