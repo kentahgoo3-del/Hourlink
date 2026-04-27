@@ -69,7 +69,11 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
     - Entitlements: `pro` and `business`; Business implies Pro
     - Web mock: AsyncStorage key `rc_mock_tier` (`'free'`|`'pro'`|`'business'`) simulates purchases without network calls
     - Gates enforced in: `clients.tsx` (3-client limit), `work.tsx` (2nd timer, batch invoice), `reports.tsx` (PDF, Smart Insights), `settings.tsx` (themes, billing section)
-    - Env vars: `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY`, `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`, `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`
+    - Env vars: `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY` (production key `goog_Tp...`), `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`
+    - **Subscription management screen**: `app/manage-subscription.tsx` — view plan, next billing date, billing history (3 rows mock / RC entitlement dates native), change plan, downgrade to free (ConfirmDialog), cancel (deep-links to Play Store), free trial banner for Free users
+    - **7-day free trial**: Pro plan only. `introductoryPrice` on mock offering + RC native. `PurchaseConfirmModal` shows trial copy. Paywall shows "7-day free trial" badge and "Try free for X days" button.
+    - **Receipt emails**: `artifacts/api-server/src/routes/subscription.ts` POST `/api/subscription/receipt`. Sends via Resend (Replit integration). Rate-limited 10/hr/IP. Web mock path (dev only). Native path verifies via RC V2 API.
+    - **RevenueCat webhook**: `artifacts/api-server/src/routes/webhook.ts` POST `/api/webhooks/revenuecat`. Validates `Authorization` header against `REVENUECAT_WEBHOOK_SECRET`. Handles INITIAL_PURCHASE, RENEWAL, CANCELLATION, BILLING_ISSUE, EXPIRATION, PRODUCT_CHANGE, SUBSCRIBER_ALIAS. Registered and tested at `api.hour-link.com`.
 
 - `app/team.tsx` — Team & Delegation screen (workspace create/join, member management, task delegation, time logs)
   - `services/teamSync.ts` — API client for team workspace operations
@@ -85,8 +89,12 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - Tasks: GET/POST /api/workspaces/:code/tasks, GET team-tasks?email=X, GET pending, PATCH claim, PATCH status
   - Time tracking: POST /api/workspaces/:code/time-entries/start, PATCH stop, GET time-entries, GET running
   - Notes: POST/GET /api/workspaces/:code/tasks/:id/notes, GET /api/workspaces/:code/notes?since=X&email=Y (all notes, scoped by user visibility)
+  - Subscription: POST /api/subscription/receipt (rate-limited, sends receipt email via Resend)
+  - Webhook: POST /api/webhooks/revenuecat (validates Authorization header, logs all RC subscription events)
 - **Types**: SharedTask (with assignedTo, source: client|freelancer|team), TeamMember, TimeEntry, TaskNote
 - **Storage**: In-memory JSON file (store.ts)
+- **Deployed**: `https://api.hour-link.com` (Render, Frankfurt DB, auto-deploys from GitHub kentahgoo3-del/Hourlink)
+- **Env vars on Render**: `DATABASE_URL`, `REVENUECAT_WEBHOOK_SECRET`
 
 ### Client & Team Portal (web)
 - **Slug**: client-portal
